@@ -57,37 +57,35 @@ public partial class FlyoutWindow : Window
         if (_hwnd == IntPtr.Zero) return;
 
         bool isDark = ThemeService.Instance.IsDarkTheme;
-        double opacity = SettingsService.Instance.Current.OpacityPercent;
-        byte cardAlpha = (byte)Math.Clamp(Math.Round(opacity * 2.55), 100, 255);
-
-        Win32.EnableAcrylicBlur(_hwnd, isDark, cardAlpha);
+        Win32.EnableAcrylicBlur(_hwnd, isDark);
     }
 
     public void ApplyTheme()
     {
         bool isDark = ThemeService.Instance.IsDarkTheme;
         double opacity = SettingsService.Instance.Current.OpacityPercent;
-        byte cardAlpha = (byte)Math.Clamp(Math.Round(opacity * 2.55), 110, 255);
+        byte cardAlpha = (byte)Math.Clamp(Math.Round(opacity * 2.55), 25, 255);
 
         ApplyHardwareAcrylic();
 
         if (isDark)
         {
-            // Windows 11 Deep Smoky Frosted Acrylic
+            // Windows 11 Deep Smoky Frosted Acrylic with user opacity
             RootCard.Background = new SolidColorBrush(Color.FromArgb(cardAlpha, 22, 25, 34));
-            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(45, 255, 255, 255));
-            InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
+            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb((byte)Math.Min((int)cardAlpha, 50), 255, 255, 255));
+            InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb((byte)Math.Min((int)cardAlpha, 35), 255, 255, 255));
 
             HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
             HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
             CloseButton.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
 
-            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(140, 16, 18, 25));
-            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(35, 255, 255, 255));
+            // Translucent preview panel (never completely opaque black)
+            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(35, 255, 255, 255));
+            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
             BodyPreviewText.Foreground = new SolidColorBrush(Color.FromRgb(226, 232, 240));
 
-            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(140, 16, 18, 25));
-            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(35, 255, 255, 255));
+            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(35, 255, 255, 255));
+            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
 
             ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
             ColorValuesText.Foreground = new SolidColorBrush(Color.FromRgb(209, 213, 219));
@@ -98,21 +96,22 @@ public partial class FlyoutWindow : Window
         }
         else
         {
-            // Windows 11 Light Frosted Acrylic
+            // Windows 11 Light Frosted Acrylic with user opacity
             RootCard.Background = new SolidColorBrush(Color.FromArgb(cardAlpha, 252, 253, 255));
-            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(35, 0, 0, 0));
-            InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255));
+            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb((byte)Math.Min((int)cardAlpha, 40), 0, 0, 0));
+            InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb((byte)Math.Min((int)cardAlpha, 120), 255, 255, 255));
 
             HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
             HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
             CloseButton.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
 
-            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(140, 241, 245, 249));
-            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
+            // Translucent preview panel in light mode
+            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255));
+            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(25, 0, 0, 0));
             BodyPreviewText.Foreground = new SolidColorBrush(Color.FromRgb(30, 41, 59));
 
-            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(140, 241, 245, 249));
-            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
+            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255));
+            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(25, 0, 0, 0));
 
             ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
             ColorValuesText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));

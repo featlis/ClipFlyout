@@ -12,6 +12,7 @@ public static class Win32
     public const int WS_EX_TOPMOST = 0x00000008;
 
     public const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
+    public const int MDT_EFFECTIVE_DPI = 0;
 
     // DWM Attributes
     public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
@@ -89,6 +90,12 @@ public static class Win32
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 
+    [DllImport("user32.dll")]
+    public static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    [DllImport("shcore.dll")]
+    public static extern int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
+
     [DllImport("dwmapi.dll")]
     public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
@@ -129,21 +136,44 @@ public static class Win32
     public static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WindowCompositionAttributeData data);
 
     /// <summary>
-    /// Enables hardware-accelerated Acrylic frosted glass blur for transparent WPF windows.
-    /// Uses SetWindowCompositionAttribute (ACCENT_ENABLE_ACRYLICBLURBEHIND) which respects WPF AllowsTransparency.
+    /// Accurately retrieves the DPI scaling factor for the given monitor and window.
     /// </summary>
-    public static void EnableAcrylicBlur(IntPtr hwnd, bool isDark, byte alpha = 175)
+    public static double GetMonitorDpiScale(IntPtr hMonitor, IntPtr hwnd)
+    {
+        try
+        {
+            if (hwnd != IntPtr.Zero)
+            {
+                uint dpi = GetDpiForWindow(hwnd);
+                if (dpi > 0) return dpi / 96.0;
+            }
+
+            if (hMonitor != IntPtr.Zero && GetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, out uint dpiX, out _) == 0 && dpiX > 0)
+            {
+                return dpiX / 96.0;
+            }
+        }
+        catch { }
+
+        return 1.0;
+    }
+
+    /// <summary>
+    /// Enables hardware-accelerated Acrylic frosted glass blur behind transparent WPF windows.
+    /// Activates blur with minimal OS-level tint so that WPF handles the dynamic opacity cleanly.
+    /// </summary>
+    public static void EnableAcrylicBlur(IntPtr hwnd, bool isDark)
     {
         try
         {
             int darkModeVal = isDark ? 1 : 0;
             DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref darkModeVal, sizeof(int));
 
-            // GradientColor format: AABBGGRR
-            byte r = isDark ? (byte)24 : (byte)245;
-            byte g = isDark ? (byte)27 : (byte)248;
-            byte b = isDark ? (byte)36 : (byte)252;
-            uint abgrColor = ((uint)alpha << 24) | ((uint)b << 16) | ((uint)g << 8) | (uint)r;
+            // Use 0x01 alpha so blur filter is active without doubling up tint over WPF
+            byte r = isDark ? (byte)20 : (byte)245;
+            byte g = isDark ? (byte)22 : (byte)248;
+            byte b = isDark ? (byte)30 : (byte)252;
+            uint abgrColor = (0x01u << 24) | ((uint)b << 16) | ((uint)g << 8) | (uint)r;
 
             var policy = new AccentPolicy
             {

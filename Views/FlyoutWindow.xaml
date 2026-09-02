@@ -6,6 +6,7 @@
         mc:Ignorable="d"
         Title="ClipFlyout"
         Width="352"
+        MaxWidth="352"
         SizeToContent="Height"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -15,6 +16,7 @@
         ResizeMode="NoResize"
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
+        ClipToBounds="True"
         FontFamily="Segoe UI Variable Text, Segoe UI, sans-serif">
 
     <Window.Resources>
@@ -58,12 +60,14 @@
         </Storyboard>
     </Window.Resources>
 
-    <!-- Single Unified Root Card (Zero outer margin to eliminate double frame) -->
+    <!-- Single Unified Root Card (Strict MaxWidth 352 to guarantee no right-overflow) -->
     <Border x:Name="RootCard"
             CornerRadius="8"
             BorderThickness="1"
             Padding="0"
             Margin="0"
+            MaxWidth="352"
+            ClipToBounds="True"
             RenderTransformOrigin="0.5,0.5">
         <Border.RenderTransform>
             <TranslateTransform x:Name="RootTransform" Y="0"/>
@@ -72,10 +76,11 @@
         <!-- Inner Top Highlight Specular Edge -->
         <Border x:Name="InnerHighlightBorder"
                 CornerRadius="7"
-                BorderThickness="0,1,0,0">
-            <StackPanel Margin="14,12,14,12">
+                BorderThickness="0,1,0,0"
+                MaxWidth="352">
+            <StackPanel Margin="14,12,14,12" MaxWidth="324">
                 <!-- Header: Badge, Title, Subtitle, Close Button -->
-                <Grid Margin="0,0,0,8">
+                <Grid Margin="0,0,0,8" MaxWidth="324">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
@@ -95,16 +100,20 @@
                                    FontWeight="SemiBold"/>
                     </Border>
 
-                    <!-- Title & Subtitle -->
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <!-- Title & Subtitle (Constrained with Ellipsis) -->
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" MaxWidth="230">
                         <TextBlock x:Name="HeaderTitleText"
                                    Text="JSON Object"
                                    FontSize="13"
                                    FontWeight="SemiBold"
+                                   MaxWidth="230"
+                                   TextWrapping="NoWrap"
                                    TextTrimming="CharacterEllipsis"/>
                         <TextBlock x:Name="HeaderSubtitleText"
                                    Text="4 properties"
                                    FontSize="11"
+                                   MaxWidth="230"
+                                   TextWrapping="NoWrap"
                                    TextTrimming="CharacterEllipsis"
                                    Margin="0,1,0,0"/>
                     </StackPanel>
@@ -135,9 +144,9 @@
                 </Grid>
 
                 <!-- Content Preview Area -->
-                <Grid x:Name="PreviewArea" Margin="0,0,0,8">
+                <Grid x:Name="PreviewArea" Margin="0,0,0,8" MaxWidth="324">
                     <!-- 1. Color Preview -->
-                    <Grid x:Name="ColorPreviewPanel" Visibility="Collapsed">
+                    <Grid x:Name="ColorPreviewPanel" Visibility="Collapsed" MaxWidth="324">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="40"/>
                             <ColumnDefinition Width="*"/>
@@ -153,16 +162,18 @@
                             <TextBlock x:Name="ColorHexText"
                                        Text="#3498DB"
                                        FontSize="12.5"
-                                       FontWeight="Bold"/>
+                                       FontWeight="Bold"
+                                       TextTrimming="CharacterEllipsis"/>
                             <TextBlock x:Name="ColorValuesText"
                                        Text="RGB(52, 152, 219) • HSL(204°, 70%, 53%)"
                                        FontSize="10.5"
+                                       TextTrimming="CharacterEllipsis"
                                        Margin="0,1,0,0"/>
                         </StackPanel>
                     </Grid>
 
                     <!-- 2. Image Preview -->
-                    <Grid x:Name="ImagePreviewPanel" Visibility="Collapsed">
+                    <Grid x:Name="ImagePreviewPanel" Visibility="Collapsed" MaxWidth="324">
                         <Border x:Name="ImagePreviewBorder"
                                 CornerRadius="6"
                                 BorderThickness="1"
@@ -175,28 +186,31 @@
                         </Border>
                     </Grid>
 
-                    <!-- 3. Textual / JSON / Code Preview -->
+                    <!-- 3. Textual / JSON / Code Preview (Always wraps within 318px) -->
                     <Border x:Name="TextPreviewPanel"
                             BorderThickness="1"
                             CornerRadius="5"
                             Padding="8,6"
-                            MaxHeight="80">
+                            MaxWidth="324"
+                            MaxHeight="84"
+                            ClipToBounds="True">
                         <TextBlock x:Name="BodyPreviewText"
                                    Text="{}{...}"
                                    FontFamily="Cascadia Code, Consolas, Segoe UI"
                                    FontSize="11"
+                                   MaxWidth="308"
                                    TextWrapping="Wrap"
                                    TextTrimming="CharacterEllipsis"/>
                     </Border>
                 </Grid>
 
-                <!-- Actions List OR Inline Feedback -->
-                <Grid MinHeight="30">
-                    <!-- Actions (WrapPanel) -->
-                    <ItemsControl x:Name="ActionsItemsControl">
+                <!-- Actions List OR Inline Feedback (MaxWidth 324 forces WrapPanel to wrap cleanly) -->
+                <Grid MinHeight="30" MaxWidth="324">
+                    <!-- Actions (WrapPanel strictly bound to 324px max width) -->
+                    <ItemsControl x:Name="ActionsItemsControl" MaxWidth="324">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <WrapPanel HorizontalAlignment="Right" Orientation="Horizontal"/>
+                                <WrapPanel HorizontalAlignment="Right" Orientation="Horizontal" MaxWidth="324"/>
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
@@ -245,6 +259,7 @@
                             CornerRadius="4"
                             Height="28"
                             Padding="12,0"
+                            MaxWidth="324"
                             HorizontalAlignment="Right">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="✓" FontWeight="Bold" FontSize="11.5" Margin="0,0,5,0" Foreground="#10B981"/>

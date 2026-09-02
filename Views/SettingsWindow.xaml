@@ -198,7 +198,7 @@
                                     <TextBlock x:Name="DescOpacity" Text="フライアウトのすりガラス・半透明度を調整します" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                    <Slider x:Name="SliderOpacity" Width="150" Minimum="50.0" Maximum="100.0" SmallChange="5.0" LargeChange="10.0"
+                                    <Slider x:Name="SliderOpacity" Width="150" Minimum="20.0" Maximum="100.0" SmallChange="5.0" LargeChange="10.0"
                                             TickFrequency="5.0" IsSnapToTickEnabled="True" VerticalAlignment="Center"
                                             ValueChanged="SliderOpacity_ValueChanged"/>
                                     <TextBlock x:Name="TextOpacityVal" Text="85%" Width="44" TextAlignment="Right" VerticalAlignment="Center" FontSize="12.5" FontWeight="SemiBold"/>
@@ -474,7 +474,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                    <TextBlock x:Name="AboutVersion" Text="バージョン: v0.2.1" FontSize="12.5" FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="AboutVersion" Text="バージョン: v0.2.2" FontSize="12.5" FontWeight="SemiBold"/>
                                     <TextBlock Text="Windows 11 Fluent Design Clipboard Utility" FontSize="11.5" Margin="0,1,0,0"/>
                                 </StackPanel>
                                 <Button Grid.Column="1" x:Name="GithubButton" Content="GitHub" Height="32" Padding="16,0" Cursor="Hand" Click="GithubButton_Click">

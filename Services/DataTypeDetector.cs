@@ -710,7 +710,8 @@ public partial class DataTypeDetector : IDataTypeDetector
             )
         };
 
-        string snippet = trimmed.Length > 180 ? trimmed[..180] + "..." : trimmed;
+        string cleanSnippet = Regex.Replace(trimmed, @"[\r\n\t]+", " ");
+        string snippet = cleanSnippet.Length > 180 ? cleanSnippet[..180] + "..." : cleanSnippet;
 
         return new DetectionResult(
             Type: ClipDataType.PlainText,

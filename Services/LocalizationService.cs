@@ -248,7 +248,7 @@ public class LocalizationService
         { "Section_About", new("バージョン情報 & プライバシー", "About & Privacy") },
         { "About_Privacy_Title", new("完全オフライン・プライバシー保護", "100% Offline & Private") },
         { "About_Privacy_Desc", new("ClipFlyout はすべての処理をお使いのPC内部で完結します。外部サーバーへの通信やテレメトリ送信は一切行いません。", "ClipFlyout processes everything locally in memory. Zero network communication or telemetry.") },
-        { "About_Version", new("バージョン: v0.2.1", "Version: v0.2.1") },
+        { "About_Version", new("バージョン: v0.2.2", "Version: v0.2.2") },
         { "About_Github", new("GitHub リポジトリ", "GitHub Repository") },
         { "About_Reset", new("設定を初期値に戻す", "Reset to Defaults") },
         { "About_Reset_Confirm", new("すべての設定を初期値に戻しますか？", "Reset all settings to defaults?") }

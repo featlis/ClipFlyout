@@ -1,14 +1,15 @@
 {
   "project": "ClipFlyout",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "target_framework": "net9.0-windows",
   "architecture": {
-    "ui": "WPF + Fluent Design (ACCENT_ENABLE_ACRYLICBLURBEHIND frosted acrylic without double-frame, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings)",
+    "ui": "WPF + Fluent Design (ACCENT_ENABLE_ACRYLICBLURBEHIND frosted acrylic with single-layer tint, 20%-100% opacity, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings)",
     "native_interop": {
       "clipboard_listener": "user32.dll AddClipboardFormatListener / RemoveClipboardFormatListener (WM_CLIPBOARDUPDATE 0x031D)",
       "window_styles": "WS_EX_NOACTIVATE (0x08000000) | WS_EX_TOOLWINDOW (0x00000080) | WS_EX_TOPMOST (0x00000008)",
-      "monitor_positioning": "GetCursorPos -> MonitorFromPoint -> GetMonitorInfo (BottomRight, TopRight, TopLeft, BottomLeft, NearCursor)",
-      "acrylic_blur": "user32.dll SetWindowCompositionAttribute (WCA_ACCENT_POLICY, ACCENT_ENABLE_ACRYLICBLURBEHIND) + DwmSetWindowAttribute (DWMWA_USE_IMMERSIVE_DARK_MODE)",
+      "dpi_scaling": "user32.dll GetDpiForWindow + shcore.dll GetDpiForMonitor (accurate multi-monitor scaling, avoids null PresentationSource bug)",
+      "monitor_positioning": "GetCursorPos -> MonitorFromPoint -> GetMonitorInfo (BottomRight, TopRight, TopLeft, BottomLeft, NearCursor; with strict screen-edge 12px clamping)",
+      "acrylic_blur": "user32.dll SetWindowCompositionAttribute (WCA_ACCENT_POLICY, ACCENT_ENABLE_ACRYLICBLURBEHIND) with minimal OS tint + WPF dynamic cardAlpha",
       "mica_backdrop": "dwmapi.dll DwmSetWindowAttribute (DWMWA_SYSTEMBACKDROP_TYPE=2, DWMWA_WINDOW_CORNER_PREFERENCE=2)",
       "theme_detection": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\\AppsUseLightTheme + SystemEvents.UserPreferenceChanged",
       "startup_sync": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\ClipFlyout"
@@ -17,14 +18,14 @@
       "ClipboardMonitor": "Services/ClipboardMonitor.cs (HwndSource message hook, 5x lock retry, suppression scope for internal writes)",
       "DataTypeDetector": "Services/DataTypeDetector.cs (Configurable filters: HexColor, UnixTimestamp, Json, Url, Base64, TableData, Code, Image, PlainText)",
       "ActionExecutor": "Services/ActionExecutor.cs (CopyText, CopyImage, CopyBase64Image, OpenBrowser, GenerateAndCopyQrCode, SaveImageToFile)",
-      "FlyoutWindowManager": "Services/FlyoutWindowManager.cs (Placement: BottomRight, TopRight, TopLeft, BottomLeft, NearCursor; width 352px compact, zero margin single unified card)",
+      "FlyoutWindowManager": "Services/FlyoutWindowManager.cs (Placement: BottomRight, TopRight, TopLeft, BottomLeft, NearCursor; strict screen boundary clamp, accurate DPI)",
       "SettingsService": "Services/SettingsService.cs (Persistence in %LocalAppData%\\ClipFlyout\\settings.json, Windows startup sync)",
       "ThemeService": "Services/ThemeService.cs (System, Light, Dark dynamic theme switching)",
       "TrayIconService": "Services/TrayIconService.cs (H.NotifyIcon.Wpf with native Icon, Settings menu, theme & language submenu)",
       "LocalizationService": "Services/LocalizationService.cs (Auto/Ja/En full i18n dictionary for flyout and settings)",
       "FluentControls": "Themes/FluentControls.xaml (Windows 11 Fluent ComboBox with vector chevron, Slide popup, 4px track Slider, 6px minimal ScrollBar)",
       "ToggleSwitch": "Controls/ToggleSwitch.xaml (Windows 11 pixel-perfect animated toggle switch)",
-      "SettingsWindow": "Views/SettingsWindow.xaml (PowerToys / WinUI 3 SettingsCard layout with Mica and 32x32 icon plates)"
+      "SettingsWindow": "Views/SettingsWindow.xaml (PowerToys / WinUI 3 SettingsCard layout with Mica and 32x32 icon plates, 20%-100% opacity slider)"
     }
   },
   "distribution": {
@@ -80,11 +81,10 @@
     }
   },
   "resolved_issues": [
-    "Fixed double popup / double border artifact by eliminating outer margin and DWM window clipping conflicts, unifying into single 352px acrylic card",
-    "Created custom Windows 11 Fluent ComboBox with flat rounded container, clean vector chevron, and 6px rounded floating popup menu with slide animation",
-    "Created Windows 11 Fluent Slider with 4px pill track and modern circle thumb",
-    "Created Windows 11 minimalist ScrollBar with 6px width and auto-fade thumb",
-    "Replaced classic WPF aero controls with unified Themes/FluentControls.xaml",
-    "Released v0.2.1"
+    "Fixed screen right-edge overflow: resolved WPF WrapPanel/TextBlock positive infinity measure bug by constraining MaxWidth, enabled strict screen bounds clamping",
+    "Fixed high-DPI scaling bug: added native GetDpiForWindow / GetDpiForMonitor APIs instead of null-prone PresentationSource fallback",
+    "Fixed double-tint opacity bug: separated OS hardware blur activation from WPF single-layer tint, expanded opacity slider range to 20%~100%",
+    "Normalized multiline snippet in PlainText preview",
+    "Released v0.2.2"
   ]
 }

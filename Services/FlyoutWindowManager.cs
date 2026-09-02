@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using ClipFlyout.Models;
@@ -44,13 +45,16 @@ public class FlyoutWindowManager : IDisposable
 
         _autoHideTimer.Stop();
 
-        // Position window based on user placement setting & active monitor
+        // 1. Populate content first so actual size is measurable
+        _window.Present(result);
+        _window.Measure(new Size(352, double.PositiveInfinity));
+
+        // 2. Position window based on actual measured size & active monitor
         UpdateWindowPosition();
 
-        _window.Present(result);
         _isShowing = true;
 
-        // Start auto-hide timer using user preference
+        // 3. Start auto-hide timer using user preference
         double durationSec = Math.Max(1.0, _settings.Current.DisplayDurationSeconds);
         _autoHideTimer.Interval = TimeSpan.FromSeconds(durationSec);
         _autoHideTimer.Start();
@@ -69,9 +73,8 @@ public class FlyoutWindowManager : IDisposable
 
     private void UpdateWindowPosition()
     {
-        _window.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        double targetWidth = _window.Width;
-        double targetHeight = _window.DesiredSize.Height > 0 ? _window.DesiredSize.Height : 180;
+        double targetWidth = _window.Width > 0 ? _window.Width : 352;
+        double targetHeight = _window.DesiredSize.Height > 0 ? _window.DesiredSize.Height : 160;
 
         // Get cursor position
         Win32.GetCursorPos(out var cursorPos);
@@ -81,63 +84,68 @@ public class FlyoutWindowManager : IDisposable
         var monitorInfo = new Win32.MONITORINFO();
         monitorInfo.cbSize = Marshal.SizeOf<Win32.MONITORINFO>();
 
-        double workLeft, workTop, workRight, workBottom;
-
         if (Win32.GetMonitorInfo(hMonitor, ref monitorInfo))
         {
-            var source = PresentationSource.FromVisual(_window);
-            double dpiX = source?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
-            double dpiY = source?.CompositionTarget?.TransformToDevice.M22 ?? 1.0;
+            IntPtr hwnd = new WindowInteropHelper(_window).Handle;
+            double dpiScale = Win32.GetMonitorDpiScale(hMonitor, hwnd);
 
-            workLeft = monitorInfo.rcWork.Left / dpiX;
-            workTop = monitorInfo.rcWork.Top / dpiY;
-            workRight = monitorInfo.rcWork.Right / dpiX;
-            workBottom = monitorInfo.rcWork.Bottom / dpiY;
+            double workLeft = monitorInfo.rcWork.Left / dpiScale;
+            double workTop = monitorInfo.rcWork.Top / dpiScale;
+            double workRight = monitorInfo.rcWork.Right / dpiScale;
+            double workBottom = monitorInfo.rcWork.Bottom / dpiScale;
 
-            double cursorX = cursorPos.X / dpiX;
-            double cursorY = cursorPos.Y / dpiY;
+            double cursorX = cursorPos.X / dpiScale;
+            double cursorY = cursorPos.Y / dpiScale;
+
+            double targetLeft;
+            double targetTop;
 
             switch (_settings.Current.Placement)
             {
                 case FlyoutPlacement.TopRight:
-                    _window.Left = workRight - targetWidth - 24;
-                    _window.Top = workTop + 24;
+                    targetLeft = workRight - targetWidth - 20;
+                    targetTop = workTop + 20;
                     break;
 
                 case FlyoutPlacement.TopLeft:
-                    _window.Left = workLeft + 24;
-                    _window.Top = workTop + 24;
+                    targetLeft = workLeft + 20;
+                    targetTop = workTop + 20;
                     break;
 
                 case FlyoutPlacement.BottomLeft:
-                    _window.Left = workLeft + 24;
-                    _window.Top = workBottom - targetHeight - 24;
+                    targetLeft = workLeft + 20;
+                    targetTop = workBottom - targetHeight - 20;
                     break;
 
                 case FlyoutPlacement.NearCursor:
-                    // Offset by +16px from cursor, keep inside work area
-                    double posX = cursorX + 16;
-                    double posY = cursorY + 16;
+                    targetLeft = cursorX + 16;
+                    targetTop = cursorY + 16;
 
-                    if (posX + targetWidth > workRight) posX = cursorX - targetWidth - 16;
-                    if (posY + targetHeight > workBottom) posY = cursorY - targetHeight - 16;
-
-                    _window.Left = Math.Max(workLeft + 10, posX);
-                    _window.Top = Math.Max(workTop + 10, posY);
+                    if (targetLeft + targetWidth > workRight) targetLeft = cursorX - targetWidth - 16;
+                    if (targetTop + targetHeight > workBottom) targetTop = cursorY - targetHeight - 16;
                     break;
 
                 case FlyoutPlacement.BottomRight:
                 default:
-                    _window.Left = workRight - targetWidth - 24;
-                    _window.Top = workBottom - targetHeight - 24;
+                    targetLeft = workRight - targetWidth - 20;
+                    targetTop = workBottom - targetHeight - 20;
                     break;
             }
+
+            // Strict screen boundary clamping: Never allow window to overflow off-screen
+            double minLeft = workLeft + 12;
+            double maxLeft = Math.Max(minLeft, workRight - targetWidth - 12);
+            double minTop = workTop + 12;
+            double maxTop = Math.Max(minTop, workBottom - targetHeight - 12);
+
+            _window.Left = Math.Clamp(targetLeft, minLeft, maxLeft);
+            _window.Top = Math.Clamp(targetTop, minTop, maxTop);
         }
         else
         {
             // Primary screen fallback
-            _window.Left = SystemParameters.WorkArea.Right - targetWidth - 24;
-            _window.Top = SystemParameters.WorkArea.Bottom - targetHeight - 24;
+            _window.Left = Math.Max(12, SystemParameters.WorkArea.Right - targetWidth - 20);
+            _window.Top = Math.Max(12, SystemParameters.WorkArea.Bottom - targetHeight - 20);
         }
     }
 
