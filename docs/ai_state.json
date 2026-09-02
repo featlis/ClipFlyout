@@ -1,0 +1,59 @@
+{
+  "project": "ClipFlyout",
+  "version": "1.0.0",
+  "target_framework": "net9.0-windows",
+  "architecture": {
+    "ui": "WPF + Wpf.Ui (Fluent Design / Dark Theme / Acrylic Glassmorphism)",
+    "native_interop": {
+      "clipboard_listener": "user32.dll AddClipboardFormatListener / RemoveClipboardFormatListener (WM_CLIPBOARDUPDATE 0x031D)",
+      "window_styles": "WS_EX_NOACTIVATE (0x08000000) | WS_EX_TOOLWINDOW (0x00000080) | WS_EX_TOPMOST (0x00000008)",
+      "monitor_positioning": "GetCursorPos -> MonitorFromPoint -> GetMonitorInfo (rcWork DPI scaled)"
+    },
+    "subsystems": {
+      "ClipboardMonitor": "Services/ClipboardMonitor.cs (HwndSource message hook, 5x lock retry, suppression scope for internal writes)",
+      "DataTypeDetector": "Services/DataTypeDetector.cs (Image -> HexColor -> JSON -> URL -> Code -> PlainText pipeline)",
+      "ActionExecutor": "Services/ActionExecutor.cs (CopyText, CopyImage, OpenBrowser, GenerateAndCopyQrCode, SaveImageToFile)",
+      "FlyoutWindowManager": "Services/FlyoutWindowManager.cs (3.5s auto-dismiss, hover pause, 1.5s leave countdown, multi-monitor right-bottom placement)",
+      "TrayIconService": "Services/TrayIconService.cs (Background residency, enable/disable toggle, dynamic i18n language switcher, exit)",
+      "LocalizationService": "Services/LocalizationService.cs (Auto/Ja/En i18n dictionary for all UI text & actions)"
+    }
+  },
+  "detection_rules": {
+    "HexColor": {
+      "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+      "actions": ["Copy RGB", "Copy HSL", "Copy RGBA"],
+      "preview": "Color swatch + Hex + RGB + HSL"
+    },
+    "Json": {
+      "pattern": "Trimmed starts with { or [ and ends with } or ], validated via JsonDocument.Parse",
+      "actions": ["Format & Copy (Indented)", "Minify & Copy"],
+      "preview": "Element / property count + snippet"
+    },
+    "Url": {
+      "pattern": "Uri.TryCreate http/https scheme",
+      "actions": ["Open in Browser", "Generate & Copy QR Image (QRCoder)", "Copy Domain"],
+      "preview": "Host + path preview"
+    },
+    "Code": {
+      "pattern": "Code keywords regex / braces / semicolons / indentation heuristics",
+      "actions": ["Adjust Indent (2 spaces)", "Escape HTML entities (&lt; &gt; &amp; &quot;)"],
+      "preview": "Line count + char count + snippet"
+    },
+    "Image": {
+      "pattern": "Clipboard.ContainsImage / BitmapSource",
+      "actions": ["Save PNG File (SaveFileDialog)", "Copy Image Info (Dimensions + Aspect Ratio)"],
+      "preview": "Thumbnail preview + resolution"
+    },
+    "PlainText": {
+      "pattern": "Fallback for all other string content",
+      "actions": ["Trim Whitespace", "Copy Text Stats (chars, words, lines)", "UPPERCASE", "lowercase"],
+      "preview": "Snippet + char/word count"
+    }
+  },
+  "lifecycle_timers": {
+    "auto_hide_ms": 3500,
+    "mouse_leave_resume_ms": 1500,
+    "clipboard_suppression_cooldown_ms": 300,
+    "clipboard_lock_retries": 5
+  }
+}
