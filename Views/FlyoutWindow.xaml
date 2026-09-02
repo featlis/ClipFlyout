@@ -16,7 +16,6 @@
         ResizeMode="NoResize"
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
-        ClipToBounds="True"
         FontFamily="Segoe UI Variable Text, Segoe UI, sans-serif">
 
     <Window.Resources>

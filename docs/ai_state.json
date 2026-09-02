@@ -1,6 +1,6 @@
 {
   "project": "ClipFlyout",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "target_framework": "net9.0-windows",
   "architecture": {
     "ui": "WPF + Fluent Design (ACCENT_ENABLE_ACRYLICBLURBEHIND frosted acrylic with single-layer tint, 20%-100% opacity, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings)",
@@ -81,10 +81,10 @@
     }
   },
   "resolved_issues": [
-    "Fixed screen right-edge overflow: resolved WPF WrapPanel/TextBlock positive infinity measure bug by constraining MaxWidth, enabled strict screen bounds clamping",
-    "Fixed high-DPI scaling bug: added native GetDpiForWindow / GetDpiForMonitor APIs instead of null-prone PresentationSource fallback",
+    "Fixed ClipToBounds exception on Window by removing illegal ClipToBounds property from transparent Window root in FlyoutWindow.xaml",
+    "Fixed screen right-edge overflow: constrained MaxWidth, forced word wrapping, added strict 12px screen boundary clamping",
+    "Fixed high-DPI scaling bug: added native GetDpiForWindow / GetDpiForMonitor APIs",
     "Fixed double-tint opacity bug: separated OS hardware blur activation from WPF single-layer tint, expanded opacity slider range to 20%~100%",
-    "Normalized multiline snippet in PlainText preview",
-    "Released v0.2.2"
+    "Released v0.2.3"
   ]
 }
