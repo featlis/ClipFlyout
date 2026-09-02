@@ -15,6 +15,7 @@ public partial class DataTypeDetector : IDataTypeDetector
 {
     private readonly ActionExecutor _executor;
     private readonly LocalizationService _loc = LocalizationService.Instance;
+    private readonly SettingsService _settings = SettingsService.Instance;
 
     [GeneratedRegex(@"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")]
     private static partial Regex HexColorRegex();
@@ -27,11 +28,14 @@ public partial class DataTypeDetector : IDataTypeDetector
         _executor = executor;
     }
 
-    public DetectionResult Detect(object clipboardData)
+    public DetectionResult? Detect(object clipboardData)
     {
+        var cfg = _settings.Current;
+
         // 1. Check Image
         if (clipboardData is BitmapSource bitmap)
         {
+            if (!cfg.DetectImage) return null;
             return DetectImage(bitmap);
         }
 
@@ -39,39 +43,45 @@ public partial class DataTypeDetector : IDataTypeDetector
         if (clipboardData is string text)
         {
             string trimmed = text.Trim();
+            if (string.IsNullOrEmpty(trimmed)) return null;
 
             // 2a. HEX Color
-            if (HexColorRegex().IsMatch(trimmed))
+            if (cfg.DetectHexColor && HexColorRegex().IsMatch(trimmed))
             {
                 var colorResult = TryDetectHexColor(trimmed);
                 if (colorResult != null) return colorResult;
             }
 
             // 2b. JSON
-            if ((trimmed.StartsWith('{') && trimmed.EndsWith('}')) || (trimmed.StartsWith('[') && trimmed.EndsWith(']')))
+            if (cfg.DetectJson && ((trimmed.StartsWith('{') && trimmed.EndsWith('}')) || (trimmed.StartsWith('[') && trimmed.EndsWith(']'))))
             {
                 var jsonResult = TryDetectJson(trimmed, text);
                 if (jsonResult != null) return jsonResult;
             }
 
             // 2c. URL
-            if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) &&
+            if (cfg.DetectUrl && Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) &&
                 (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
             {
                 return DetectUrl(uri, trimmed);
             }
 
             // 2d. Code Snippet
-            if (IsCodeSnippet(text))
+            if (cfg.DetectCode && IsCodeSnippet(text))
             {
                 return DetectCodeSnippet(text);
             }
 
             // 2e. Fallback: Plain Text
-            return DetectPlainText(text);
+            if (cfg.DetectPlainText)
+            {
+                return DetectPlainText(text);
+            }
+
+            return null;
         }
 
-        return DetectPlainText(clipboardData?.ToString() ?? string.Empty);
+        return null;
     }
 
     private DetectionResult DetectImage(BitmapSource bitmap)
@@ -242,7 +252,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                 )
             };
 
-            string previewSnippet = trimmedJson.Length > 200 ? trimmedJson[..200] + "..." : trimmedJson;
+            string previewSnippet = trimmedJson.Length > 180 ? trimmedJson[..180] + "..." : trimmedJson;
 
             return new DetectionResult(
                 Type: ClipDataType.Json,
@@ -342,7 +352,7 @@ public partial class DataTypeDetector : IDataTypeDetector
             )
         };
 
-        string snippet = codeText.Length > 200 ? codeText[..200] + "..." : codeText;
+        string snippet = codeText.Length > 180 ? codeText[..180] + "..." : codeText;
 
         return new DetectionResult(
             Type: ClipDataType.Code,
@@ -417,7 +427,6 @@ public partial class DataTypeDetector : IDataTypeDetector
         var resultLines = new List<string>();
         foreach (var line in lines)
         {
-            // Convert leading tabs to 2 spaces
             int leadingTabs = 0;
             while (leadingTabs < line.Length && line[leadingTabs] == '\t')
             {

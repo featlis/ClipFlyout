@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="ClipFlyout"
-        Width="380"
+        Width="390"
         SizeToContent="Height"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -17,20 +17,20 @@
         UseLayoutRounding="True">
 
     <Window.Resources>
-        <!-- Animation Storyboards -->
+        <!-- Open/Close Animations -->
         <Storyboard x:Key="ShowStoryboard">
             <DoubleAnimation Storyboard.TargetName="RootCard"
                              Storyboard.TargetProperty="Opacity"
                              From="0.0" To="1.0"
-                             Duration="0:0:0.20">
+                             Duration="0:0:0.18">
                 <DoubleAnimation.EasingFunction>
                     <CubicEase EasingMode="EaseOut"/>
                 </DoubleAnimation.EasingFunction>
             </DoubleAnimation>
             <DoubleAnimation Storyboard.TargetName="RootTransform"
                              Storyboard.TargetProperty="Y"
-                             From="24.0" To="0.0"
-                             Duration="0:0:0.20">
+                             From="18.0" To="0.0"
+                             Duration="0:0:0.18">
                 <DoubleAnimation.EasingFunction>
                     <CubicEase EasingMode="EaseOut"/>
                 </DoubleAnimation.EasingFunction>
@@ -41,32 +41,17 @@
             <DoubleAnimation Storyboard.TargetName="RootCard"
                              Storyboard.TargetProperty="Opacity"
                              From="1.0" To="0.0"
-                             Duration="0:0:0.15">
+                             Duration="0:0:0.14">
                 <DoubleAnimation.EasingFunction>
                     <CubicEase EasingMode="EaseIn"/>
                 </DoubleAnimation.EasingFunction>
             </DoubleAnimation>
             <DoubleAnimation Storyboard.TargetName="RootTransform"
                              Storyboard.TargetProperty="Y"
-                             From="0.0" To="12.0"
-                             Duration="0:0:0.15">
+                             From="0.0" To="10.0"
+                             Duration="0:0:0.14">
                 <DoubleAnimation.EasingFunction>
                     <CubicEase EasingMode="EaseIn"/>
-                </DoubleAnimation.EasingFunction>
-            </DoubleAnimation>
-        </Storyboard>
-
-        <Storyboard x:Key="ToastStoryboard">
-            <DoubleAnimation Storyboard.TargetName="ToastCard"
-                             Storyboard.TargetProperty="Opacity"
-                             From="0.0" To="1.0"
-                             Duration="0:0:0.15"/>
-            <DoubleAnimation Storyboard.TargetName="ToastTransform"
-                             Storyboard.TargetProperty="Y"
-                             From="10.0" To="0.0"
-                             Duration="0:0:0.15">
-                <DoubleAnimation.EasingFunction>
-                    <CubicEase EasingMode="EaseOut"/>
                 </DoubleAnimation.EasingFunction>
             </DoubleAnimation>
         </Storyboard>
@@ -75,31 +60,25 @@
     <Grid Margin="16">
         <!-- Main Card Container -->
         <Border x:Name="RootCard"
-                CornerRadius="14"
+                CornerRadius="12"
                 BorderThickness="1"
-                BorderBrush="#38FFFFFF"
                 Padding="0"
                 RenderTransformOrigin="0.5,0.5">
             <Border.RenderTransform>
                 <TranslateTransform x:Name="RootTransform" Y="0"/>
             </Border.RenderTransform>
-            <Border.Background>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                    <GradientStop Color="#F0242834" Offset="0.0"/>
-                    <GradientStop Color="#F81A1D26" Offset="1.0"/>
-                </LinearGradientBrush>
-            </Border.Background>
             <Border.Effect>
-                <DropShadowEffect BlurRadius="24"
+                <DropShadowEffect x:Name="CardShadow"
+                                  BlurRadius="24"
                                   Color="#000000"
-                                  Opacity="0.45"
-                                  ShadowDepth="8"
+                                  Opacity="0.30"
+                                  ShadowDepth="6"
                                   Direction="270"/>
             </Border.Effect>
 
             <Grid>
                 <StackPanel Margin="16,14,16,14">
-                    <!-- Header: Badge, Title & Close Button -->
+                    <!-- Header: Badge, Title, Subtitle, Close Button -->
                     <Grid Margin="0,0,0,10">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -110,16 +89,14 @@
                         <!-- Type Badge -->
                         <Border Grid.Column="0"
                                 x:Name="TypeBadgeBorder"
-                                Background="#2A64FA"
-                                CornerRadius="6"
-                                Padding="8,3"
+                                CornerRadius="5"
+                                Padding="7,3"
                                 VerticalAlignment="Center"
-                                Margin="0,0,10,0">
+                                Margin="0,0,9,0">
                             <TextBlock x:Name="TypeBadgeText"
                                        Text="JSON"
                                        FontSize="11"
-                                       FontWeight="SemiBold"
-                                       Foreground="#FFFFFF"/>
+                                       FontWeight="SemiBold"/>
                         </Border>
 
                         <!-- Title & Subtitle -->
@@ -128,12 +105,10 @@
                                        Text="JSON Object"
                                        FontSize="13.5"
                                        FontWeight="SemiBold"
-                                       Foreground="#F3F4F6"
                                        TextTrimming="CharacterEllipsis"/>
                             <TextBlock x:Name="HeaderSubtitleText"
                                        Text="4 properties"
                                        FontSize="11.5"
-                                       Foreground="#9CA3AF"
                                        TextTrimming="CharacterEllipsis"
                                        Margin="0,1,0,0"/>
                         </StackPanel>
@@ -145,18 +120,17 @@
                                 Padding="0"
                                 Background="Transparent"
                                 BorderThickness="0"
-                                Foreground="#9CA3AF"
                                 Cursor="Hand"
                                 Click="CloseButton_Click">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border x:Name="btnBorder" Background="Transparent" CornerRadius="12">
-                                        <TextBlock Text="✕" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{TemplateBinding Foreground}"/>
+                                        <TextBlock Text="✕" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="btnBorder" Property="Background" Value="#25FFFFFF"/>
-                                            <Setter Property="Foreground" Value="#FFFFFF"/>
+                                            <Setter TargetName="btnBorder" Property="Background" Value="#20888888"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -165,40 +139,37 @@
                     </Grid>
 
                     <!-- Preview Content Area -->
-                    <Grid x:Name="PreviewArea" Margin="0,0,0,12">
-                        <!-- 1. Color Preview Specific -->
+                    <Grid x:Name="PreviewArea" Margin="0,0,0,10">
+                        <!-- 1. Color Preview -->
                         <Grid x:Name="ColorPreviewPanel" Visibility="Collapsed">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="48"/>
+                                <ColumnDefinition Width="46"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Border x:Name="ColorSwatch"
                                     Grid.Column="0"
-                                    Width="44" Height="44"
+                                    Width="42" Height="42"
                                     CornerRadius="8"
                                     BorderThickness="1"
-                                    BorderBrush="#44FFFFFF"
+                                    BorderBrush="#30888888"
                                     Background="#3498DB"/>
                             <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
                                 <TextBlock x:Name="ColorHexText"
                                            Text="#3498DB"
                                            FontSize="13"
-                                           FontWeight="Bold"
-                                           Foreground="#FFFFFF"/>
+                                           FontWeight="Bold"/>
                                 <TextBlock x:Name="ColorValuesText"
                                            Text="RGB(52, 152, 219) • HSL(204°, 70%, 53%)"
                                            FontSize="11"
-                                           Foreground="#D1D5DB"
                                            Margin="0,2,0,0"/>
                             </StackPanel>
                         </Grid>
 
-                        <!-- 2. Image Preview Specific -->
+                        <!-- 2. Image Preview -->
                         <Grid x:Name="ImagePreviewPanel" Visibility="Collapsed">
-                            <Border CornerRadius="8"
+                            <Border x:Name="ImagePreviewBorder"
+                                    CornerRadius="8"
                                     BorderThickness="1"
-                                    BorderBrush="#33FFFFFF"
-                                    Background="#111827"
                                     MaxHeight="120"
                                     ClipToBounds="True">
                                 <Image x:Name="ImageThumbnail"
@@ -208,98 +179,83 @@
                             </Border>
                         </Grid>
 
-                        <!-- 3. Textual / JSON / Code Preview Specific -->
+                        <!-- 3. Textual / JSON / Code Preview -->
                         <Border x:Name="TextPreviewPanel"
-                                Background="#161B26"
-                                BorderBrush="#26334D"
                                 BorderThickness="1"
                                 CornerRadius="8"
                                 Padding="10,8"
-                                MaxHeight="90">
+                                MaxHeight="86">
                             <TextBlock x:Name="BodyPreviewText"
                                        Text="{}{...}"
                                        FontFamily="Consolas, Cascadia Code, Segoe UI"
                                        FontSize="11.5"
-                                       Foreground="#E2E8F0"
                                        TextWrapping="Wrap"
                                        TextTrimming="CharacterEllipsis"/>
                         </Border>
                     </Grid>
 
-                    <!-- Action Buttons List -->
-                    <ItemsControl x:Name="ActionsItemsControl">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Button Margin="4,0,0,0"
-                                        Padding="10,6"
-                                        Background="#2D3748"
-                                        BorderBrush="#4A5568"
-                                        BorderThickness="1"
-                                        Foreground="#F7FAFC"
-                                        Cursor="Hand"
-                                        ToolTip="{Binding Description}"
-                                        Click="ActionButton_Click"
-                                        Tag="{Binding}">
-                                    <Button.Resources>
-                                        <Style TargetType="Border">
-                                            <Setter Property="CornerRadius" Value="6"/>
-                                        </Style>
-                                    </Button.Resources>
-                                    <Button.Template>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border x:Name="border"
-                                                    Background="{TemplateBinding Background}"
-                                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                                    CornerRadius="6"
-                                                    Padding="{TemplateBinding Padding}">
-                                                <TextBlock Text="{Binding Label}"
-                                                           FontSize="12"
-                                                           FontWeight="Medium"
-                                                           Foreground="{TemplateBinding Foreground}"/>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="border" Property="Background" Value="#3B82F6"/>
-                                                    <Setter TargetName="border" Property="BorderBrush" Value="#60A5FA"/>
-                                                    <Setter Property="Foreground" Value="#FFFFFF"/>
-                                                </Trigger>
-                                                <Trigger Property="IsPressed" Value="True">
-                                                    <Setter TargetName="border" Property="Background" Value="#1D4ED8"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Button.Template>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
+                    <!-- Bottom Area: Actions OR Inline Toast Feedback -->
+                    <Grid MinHeight="32">
+                        <!-- Action Buttons List (WrapPanel prevents overflow clipping) -->
+                        <ItemsControl x:Name="ActionsItemsControl">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel HorizontalAlignment="Right" Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Margin="4,2,0,2"
+                                            Padding="10,5"
+                                            BorderThickness="1"
+                                            Cursor="Hand"
+                                            ToolTip="{Binding Description}"
+                                            Click="ActionButton_Click"
+                                            Tag="{Binding}">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="btnBorder"
+                                                        Background="{TemplateBinding Background}"
+                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                        CornerRadius="6"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <TextBlock Text="{Binding Label}"
+                                                               FontSize="11.5"
+                                                               FontWeight="Medium"
+                                                               Foreground="{TemplateBinding Foreground}"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="btnBorder" Property="Background" Value="#25888888"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsPressed" Value="True">
+                                                        <Setter TargetName="btnBorder" Property="Background" Value="#40888888"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
 
-                <!-- Toast Overlay Notification -->
-                <Border x:Name="ToastCard"
-                        VerticalAlignment="Bottom"
-                        HorizontalAlignment="Center"
-                        Margin="0,0,0,12"
-                        Background="#10B981"
-                        CornerRadius="8"
-                        Padding="14,6"
-                        Opacity="0"
-                        IsHitTestVisible="False">
-                    <Border.RenderTransform>
-                        <TranslateTransform x:Name="ToastTransform" Y="0"/>
-                    </Border.RenderTransform>
-                    <TextBlock x:Name="ToastMessageText"
-                               Text="Copied to clipboard!"
-                               FontSize="11.5"
-                               FontWeight="SemiBold"
-                               Foreground="#FFFFFF"/>
-                </Border>
+                        <!-- Inline Feedback Bar (Zero overlap! Replaces buttons temporarily) -->
+                        <Border x:Name="InlineFeedbackBar"
+                                Visibility="Collapsed"
+                                CornerRadius="6"
+                                Padding="12,5"
+                                HorizontalAlignment="Right">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="✓" FontWeight="Bold" FontSize="12" Margin="0,0,6,0" Foreground="#10B981"/>
+                                <TextBlock x:Name="InlineFeedbackText"
+                                           Text="コピーしました"
+                                           FontSize="11.5"
+                                           FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </StackPanel>
             </Grid>
         </Border>
     </Grid>

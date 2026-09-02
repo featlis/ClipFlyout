@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Windows.Media.Imaging;
 using ClipFlyout.Models;
 using ClipFlyout.Services;
 using Xunit;
@@ -35,6 +34,9 @@ public class DataTypeDetectorTests
         _monitor = new MockClipboardMonitor();
         _executor = new ActionExecutor(_monitor);
         _detector = new DataTypeDetector(_executor);
+
+        // Reset settings to all enabled for testing
+        SettingsService.Instance.SaveSettings(new AppSettings());
     }
 
     [Theory]
@@ -46,6 +48,7 @@ public class DataTypeDetectorTests
     {
         var result = _detector.Detect(hex);
 
+        Assert.NotNull(result);
         Assert.Equal(ClipDataType.HexColor, result.Type);
         Assert.NotNull(result.ColorValue);
         Assert.Equal(expectedR, result.ColorValue.Value.R);
@@ -63,6 +66,7 @@ public class DataTypeDetectorTests
         string json = "{\"name\": \"ClipFlyout\", \"version\": 1, \"active\": true}";
         var result = _detector.Detect(json);
 
+        Assert.NotNull(result);
         Assert.Equal(ClipDataType.Json, result.Type);
         Assert.Contains("JSON", result.BadgeText);
         Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_FormatJson");
@@ -75,17 +79,19 @@ public class DataTypeDetectorTests
         string json = "[10, 20, 30, 40]";
         var result = _detector.Detect(json);
 
+        Assert.NotNull(result);
         Assert.Equal(ClipDataType.Json, result.Type);
         Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_FormatJson");
     }
 
     [Theory]
-    [InlineData("https://github.com/lepo-co/wpfui")]
+    [InlineData("https://github.com/featlis/ClipFlyout")]
     [InlineData("http://localhost:3000/dashboard?query=test")]
     public void Detect_Url_ReturnsUrlType(string url)
     {
         var result = _detector.Detect(url);
 
+        Assert.NotNull(result);
         Assert.Equal(ClipDataType.Url, result.Type);
         Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_OpenBrowser");
         Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_CopyQrCode");
@@ -98,6 +104,7 @@ public class DataTypeDetectorTests
         string code = "public class MyService {\n    public async Task<int> GetDataAsync() {\n        return await Task.FromResult(42);\n    }\n}";
         var result = _detector.Detect(code);
 
+        Assert.NotNull(result);
         Assert.Equal(ClipDataType.Code, result.Type);
         Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_AdjustIndent");
         Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_EscapeHtml");
@@ -109,11 +116,34 @@ public class DataTypeDetectorTests
         string text = "   Hello world! This is a simple test note.   ";
         var result = _detector.Detect(text);
 
+        Assert.NotNull(result);
         Assert.Equal(ClipDataType.PlainText, result.Type);
         Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_TrimWhitespace");
         Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_TextStats");
         Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_UpperCase");
         Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_LowerCase");
+    }
+
+    [Fact]
+    public void Detect_DisabledFilters_SkipsDetection()
+    {
+        SettingsService.Instance.UpdateSettings(s =>
+        {
+            s.DetectHexColor = false;
+            s.DetectJson = false;
+            s.DetectPlainText = false;
+        });
+
+        // Hex color should be skipped and plain text is also disabled -> returns null
+        var colorResult = _detector.Detect("#FF5733");
+        Assert.Null(colorResult);
+
+        // JSON should be skipped and plain text is also disabled -> returns null
+        var jsonResult = _detector.Detect("{\"key\": \"val\"}");
+        Assert.Null(jsonResult);
+
+        // Reset
+        SettingsService.Instance.SaveSettings(new AppSettings());
     }
 
     [Fact]
@@ -125,12 +155,31 @@ public class DataTypeDetectorTests
         Assert.True(loc.IsJapanese);
         Assert.Equal("HEX カラー", loc.Get("Type_HexColor"));
         Assert.Equal("整形してコピー", loc.Get("Action_FormatJson"));
-        Assert.Equal("QRコード画像コピー", loc.Get("Action_CopyQrCode"));
+        Assert.Equal("QR画像コピー", loc.Get("Action_CopyQrCode"));
+        Assert.Equal("ClipFlyout 設定", loc.Get("Settings_Title"));
 
         loc.CurrentLanguage = AppLanguage.English;
         Assert.False(loc.IsJapanese);
         Assert.Equal("HEX Color", loc.Get("Type_HexColor"));
         Assert.Equal("Format & Copy", loc.Get("Action_FormatJson"));
         Assert.Equal("Copy QR Image", loc.Get("Action_CopyQrCode"));
+        Assert.Equal("ClipFlyout Settings", loc.Get("Settings_Title"));
+    }
+
+    [Fact]
+    public void Settings_Persistence_Works()
+    {
+        var settings = SettingsService.Instance;
+        settings.UpdateSettings(s =>
+        {
+            s.DisplayDurationSeconds = 6.5;
+            s.Placement = FlyoutPlacement.TopRight;
+        });
+
+        Assert.Equal(6.5, settings.Current.DisplayDurationSeconds);
+        Assert.Equal(FlyoutPlacement.TopRight, settings.Current.Placement);
+
+        // Reset
+        settings.SaveSettings(new AppSettings());
     }
 }

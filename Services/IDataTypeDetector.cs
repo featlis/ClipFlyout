@@ -4,5 +4,5 @@ namespace ClipFlyout.Services;
 
 public interface IDataTypeDetector
 {
-    DetectionResult Detect(object clipboardData);
+    DetectionResult? Detect(object clipboardData);
 }

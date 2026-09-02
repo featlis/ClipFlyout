@@ -12,6 +12,8 @@ public partial class App : WpfApplication
     private DataTypeDetector? _detector;
     private FlyoutWindowManager? _windowManager;
     private TrayIconService? _trayIconService;
+    private SettingsService? _settingsService;
+    private ThemeService? _themeService;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -19,11 +21,30 @@ public partial class App : WpfApplication
 
         try
         {
-            _clipboardMonitor = new ClipboardMonitor();
+            _settingsService = SettingsService.Instance;
+            _themeService = ThemeService.Instance;
+
+            // Apply saved user settings for theme and language
+            _themeService.Mode = _settingsService.Current.Theme;
+            LocalizationService.Instance.CurrentLanguage = _settingsService.Current.Language;
+
+            _clipboardMonitor = new ClipboardMonitor
+            {
+                IsEnabled = _settingsService.Current.IsMonitoringEnabled
+            };
+
             _actionExecutor = new ActionExecutor(_clipboardMonitor);
             _detector = new DataTypeDetector(_actionExecutor);
             _windowManager = new FlyoutWindowManager(_actionExecutor);
             _trayIconService = new TrayIconService(_clipboardMonitor);
+
+            _settingsService.SettingsChanged += cfg =>
+            {
+                if (_clipboardMonitor != null)
+                {
+                    _clipboardMonitor.IsEnabled = cfg.IsMonitoringEnabled;
+                }
+            };
 
             _clipboardMonitor.ClipboardChanged += OnClipboardChanged;
             _clipboardMonitor.Start();
@@ -37,12 +58,16 @@ public partial class App : WpfApplication
 
     private void OnClipboardChanged(object? sender, object rawData)
     {
-        if (_detector == null || _windowManager == null) return;
+        if (_detector == null || _windowManager == null || _settingsService == null) return;
+        if (!_settingsService.Current.IsMonitoringEnabled) return;
 
         try
         {
             var result = _detector.Detect(rawData);
-            _windowManager.ShowFlyout(result);
+            if (result != null)
+            {
+                _windowManager.ShowFlyout(result);
+            }
         }
         catch (Exception ex)
         {
@@ -55,6 +80,7 @@ public partial class App : WpfApplication
         _clipboardMonitor?.Dispose();
         _windowManager?.Dispose();
         _trayIconService?.Dispose();
+        _themeService?.Dispose();
 
         base.OnExit(e);
     }

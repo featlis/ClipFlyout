@@ -4,7 +4,9 @@ using System.Drawing.Drawing2D;
 using System.Windows;
 using System.Windows.Controls;
 using H.NotifyIcon;
+using ClipFlyout.Models;
 using ClipFlyout.Services;
+using ClipFlyout.Views;
 using WpfApplication = System.Windows.Application;
 using WpfColor = System.Windows.Media.Color;
 using WpfBrush = System.Windows.Media.SolidColorBrush;
@@ -17,11 +19,19 @@ public class TrayIconService : IDisposable
 {
     private readonly IClipboardMonitor _clipboardMonitor;
     private readonly LocalizationService _loc = LocalizationService.Instance;
+    private readonly SettingsService _settings = SettingsService.Instance;
+    private readonly ThemeService _theme = ThemeService.Instance;
     private readonly TaskbarIcon _taskbarIcon;
     private readonly ContextMenu _contextMenu;
     private readonly Icon _appIcon;
+    private SettingsWindow? _settingsWindow;
 
+    private MenuItem? _settingsItem;
     private MenuItem? _toggleItem;
+    private MenuItem? _themeSubMenu;
+    private MenuItem? _themeSysItem;
+    private MenuItem? _themeLightItem;
+    private MenuItem? _themeDarkItem;
     private MenuItem? _langSubMenu;
     private MenuItem? _langAutoItem;
     private MenuItem? _langJaItem;
@@ -31,7 +41,7 @@ public class TrayIconService : IDisposable
     public TrayIconService(IClipboardMonitor clipboardMonitor)
     {
         _clipboardMonitor = clipboardMonitor;
-        _contextMenu = CreateDarkContextMenu();
+        _contextMenu = CreateContextMenu();
         _appIcon = CreateAppIcon();
 
         _taskbarIcon = new TaskbarIcon
@@ -40,23 +50,71 @@ public class TrayIconService : IDisposable
             ToolTipText = "ClipFlyout",
             ContextMenu = _contextMenu
         };
+        _taskbarIcon.TrayMouseDoubleClick += (s, e) => OpenSettings();
         _taskbarIcon.ForceCreate();
 
         _loc.LanguageChanged += BuildMenu;
+        _theme.ThemeChanged += () => WpfApplication.Current.Dispatcher.Invoke(UpdateMenuTheme);
+
         BuildMenu();
     }
 
-    private static ContextMenu CreateDarkContextMenu()
+    public void OpenSettings()
+    {
+        if (WpfApplication.Current.Dispatcher.CheckAccess())
+        {
+            ShowSettingsInternal();
+        }
+        else
+        {
+            WpfApplication.Current.Dispatcher.Invoke(ShowSettingsInternal);
+        }
+    }
+
+    private void ShowSettingsInternal()
+    {
+        if (_settingsWindow == null || !_settingsWindow.IsLoaded)
+        {
+            _settingsWindow = new SettingsWindow();
+            _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+            _settingsWindow.Show();
+        }
+        else
+        {
+            if (_settingsWindow.WindowState == WindowState.Minimized)
+            {
+                _settingsWindow.WindowState = WindowState.Normal;
+            }
+            _settingsWindow.Activate();
+        }
+    }
+
+    private ContextMenu CreateContextMenu()
     {
         var menu = new ContextMenu
         {
-            Background = new WpfBrush(WpfColor.FromRgb(26, 29, 38)),
-            Foreground = new WpfBrush(WpfColor.FromRgb(243, 244, 246)),
-            BorderBrush = new WpfBrush(WpfColor.FromArgb(60, 255, 255, 255)),
-            BorderThickness = new Thickness(1),
             FontSize = 12.5
         };
         return menu;
+    }
+
+    private void UpdateMenuTheme()
+    {
+        bool isDark = _theme.IsDarkTheme;
+        if (isDark)
+        {
+            _contextMenu.Background = new WpfBrush(WpfColor.FromRgb(28, 31, 40));
+            _contextMenu.Foreground = new WpfBrush(WpfColor.FromRgb(243, 244, 246));
+            _contextMenu.BorderBrush = new WpfBrush(WpfColor.FromArgb(60, 255, 255, 255));
+            _contextMenu.BorderThickness = new Thickness(1);
+        }
+        else
+        {
+            _contextMenu.Background = new WpfBrush(WpfColor.FromRgb(255, 255, 255));
+            _contextMenu.Foreground = new WpfBrush(WpfColor.FromRgb(15, 23, 42));
+            _contextMenu.BorderBrush = new WpfBrush(WpfColor.FromRgb(226, 232, 240));
+            _contextMenu.BorderThickness = new Thickness(1);
+        }
     }
 
     private void BuildMenu()
@@ -74,19 +132,30 @@ public class TrayIconService : IDisposable
     private void RebuildContextMenu()
     {
         _contextMenu.Items.Clear();
+        UpdateMenuTheme();
 
-        // Title header
+        // 1. Title Header
         var titleItem = new MenuItem
         {
-            Header = "ClipFlyout v1.0",
+            Header = "ClipFlyout v0.1.0",
             IsEnabled = false,
             FontWeight = FontWeights.Bold,
-            Foreground = new WpfBrush(WpfColor.FromRgb(156, 163, 175))
+            Foreground = new WpfBrush(_theme.IsDarkTheme ? WpfColor.FromRgb(156, 163, 175) : WpfColor.FromRgb(100, 116, 139))
         };
         _contextMenu.Items.Add(titleItem);
-        _contextMenu.Items.Add(new Separator { Background = new WpfBrush(WpfColor.FromArgb(40, 255, 255, 255)) });
 
-        // Toggle item
+        // 2. Settings Item
+        _settingsItem = new MenuItem
+        {
+            Header = _loc.Get("Tray_Settings"),
+            FontWeight = FontWeights.SemiBold
+        };
+        _settingsItem.Click += (s, e) => OpenSettings();
+        _contextMenu.Items.Add(_settingsItem);
+
+        _contextMenu.Items.Add(new Separator());
+
+        // 3. Toggle Monitoring
         _toggleItem = new MenuItem
         {
             Header = _loc.Get("Tray_ToggleMonitoring"),
@@ -95,49 +164,113 @@ public class TrayIconService : IDisposable
         };
         _toggleItem.Click += (s, e) =>
         {
-            _clipboardMonitor.IsEnabled = !_clipboardMonitor.IsEnabled;
+            bool newVal = !_clipboardMonitor.IsEnabled;
+            _clipboardMonitor.IsEnabled = newVal;
+            _settings.UpdateSettings(cfg => cfg.IsMonitoringEnabled = newVal);
             UpdateStatus();
         };
         _contextMenu.Items.Add(_toggleItem);
 
-        // Language submenu
+        // 4. Theme Submenu
+        _themeSubMenu = new MenuItem
+        {
+            Header = _loc.Get("Tray_Theme")
+        };
+
+        _themeSysItem = new MenuItem
+        {
+            Header = _loc.Get("Tray_ThemeSystem"),
+            IsCheckable = true,
+            IsChecked = _settings.Current.Theme == AppThemeMode.System
+        };
+        _themeSysItem.Click += (s, e) =>
+        {
+            _theme.Mode = AppThemeMode.System;
+            _settings.UpdateSettings(cfg => cfg.Theme = AppThemeMode.System);
+            RebuildContextMenu();
+        };
+
+        _themeLightItem = new MenuItem
+        {
+            Header = _loc.Get("Tray_ThemeLight"),
+            IsCheckable = true,
+            IsChecked = _settings.Current.Theme == AppThemeMode.Light
+        };
+        _themeLightItem.Click += (s, e) =>
+        {
+            _theme.Mode = AppThemeMode.Light;
+            _settings.UpdateSettings(cfg => cfg.Theme = AppThemeMode.Light);
+            RebuildContextMenu();
+        };
+
+        _themeDarkItem = new MenuItem
+        {
+            Header = _loc.Get("Tray_ThemeDark"),
+            IsCheckable = true,
+            IsChecked = _settings.Current.Theme == AppThemeMode.Dark
+        };
+        _themeDarkItem.Click += (s, e) =>
+        {
+            _theme.Mode = AppThemeMode.Dark;
+            _settings.UpdateSettings(cfg => cfg.Theme = AppThemeMode.Dark);
+            RebuildContextMenu();
+        };
+
+        _themeSubMenu.Items.Add(_themeSysItem);
+        _themeSubMenu.Items.Add(_themeLightItem);
+        _themeSubMenu.Items.Add(_themeDarkItem);
+        _contextMenu.Items.Add(_themeSubMenu);
+
+        // 5. Language Submenu
         _langSubMenu = new MenuItem
         {
-            Header = _loc.Get("Tray_Language", "Language")
+            Header = _loc.Get("Tray_Language")
         };
 
         _langAutoItem = new MenuItem
         {
             Header = _loc.Get("Tray_LangAuto"),
             IsCheckable = true,
-            IsChecked = _loc.CurrentLanguage == AppLanguage.Auto
+            IsChecked = _settings.Current.Language == AppLanguage.Auto
         };
-        _langAutoItem.Click += (s, e) => _loc.CurrentLanguage = AppLanguage.Auto;
+        _langAutoItem.Click += (s, e) =>
+        {
+            _loc.CurrentLanguage = AppLanguage.Auto;
+            _settings.UpdateSettings(cfg => cfg.Language = AppLanguage.Auto);
+        };
 
         _langJaItem = new MenuItem
         {
             Header = _loc.Get("Tray_LangJapanese"),
             IsCheckable = true,
-            IsChecked = _loc.CurrentLanguage == AppLanguage.Japanese
+            IsChecked = _settings.Current.Language == AppLanguage.Japanese
         };
-        _langJaItem.Click += (s, e) => _loc.CurrentLanguage = AppLanguage.Japanese;
+        _langJaItem.Click += (s, e) =>
+        {
+            _loc.CurrentLanguage = AppLanguage.Japanese;
+            _settings.UpdateSettings(cfg => cfg.Language = AppLanguage.Japanese);
+        };
 
         _langEnItem = new MenuItem
         {
             Header = _loc.Get("Tray_LangEnglish"),
             IsCheckable = true,
-            IsChecked = _loc.CurrentLanguage == AppLanguage.English
+            IsChecked = _settings.Current.Language == AppLanguage.English
         };
-        _langEnItem.Click += (s, e) => _loc.CurrentLanguage = AppLanguage.English;
+        _langEnItem.Click += (s, e) =>
+        {
+            _loc.CurrentLanguage = AppLanguage.English;
+            _settings.UpdateSettings(cfg => cfg.Language = AppLanguage.English);
+        };
 
         _langSubMenu.Items.Add(_langAutoItem);
         _langSubMenu.Items.Add(_langJaItem);
         _langSubMenu.Items.Add(_langEnItem);
         _contextMenu.Items.Add(_langSubMenu);
 
-        _contextMenu.Items.Add(new Separator { Background = new WpfBrush(WpfColor.FromArgb(40, 255, 255, 255)) });
+        _contextMenu.Items.Add(new Separator());
 
-        // Exit item
+        // 6. Exit
         _exitItem = new MenuItem
         {
             Header = _loc.Get("Tray_Exit")
@@ -169,7 +302,6 @@ public class TrayIconService : IDisposable
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.Clear(Color.Transparent);
 
-                // Rounded background
                 using var bgBrush = new LinearGradientBrush(
                     new DrawingRectangle(0, 0, 32, 32),
                     Color.FromArgb(59, 130, 246),
@@ -179,12 +311,10 @@ public class TrayIconService : IDisposable
                 using var path = GetRoundedRect(new DrawingRectangle(2, 2, 28, 28), 6);
                 g.FillPath(bgBrush, path);
 
-                // Clipboard frame in center
                 using var pen = new Pen(Color.White, 2f);
                 g.DrawRectangle(pen, 9, 10, 14, 15);
                 g.FillRectangle(Brushes.White, 12, 7, 8, 4);
 
-                // Small content lines
                 using var linePen = new Pen(Color.FromArgb(210, 255, 255, 255), 1.5f);
                 g.DrawLine(linePen, 12, 14, 20, 14);
                 g.DrawLine(linePen, 12, 18, 18, 18);

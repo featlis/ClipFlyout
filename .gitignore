@@ -1,6 +1,6 @@
 ## .NET Build Artifacts
-bin/
-obj/
+**/[Bb]in/
+**/[Oo]bj/
 publish/
 dist/
 *.user
