@@ -1,10 +1,15 @@
 using System;
+using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using H.NotifyIcon;
 using ClipFlyout.Services;
+using WpfApplication = System.Windows.Application;
+using WpfColor = System.Windows.Media.Color;
+using WpfBrush = System.Windows.Media.SolidColorBrush;
+using DrawingSize = System.Drawing.Size;
+using DrawingRectangle = System.Drawing.Rectangle;
 
 namespace ClipFlyout.Services;
 
@@ -14,6 +19,7 @@ public class TrayIconService : IDisposable
     private readonly LocalizationService _loc = LocalizationService.Instance;
     private readonly TaskbarIcon _taskbarIcon;
     private readonly ContextMenu _contextMenu;
+    private readonly Icon _appIcon;
 
     private MenuItem? _toggleItem;
     private MenuItem? _langSubMenu;
@@ -26,13 +32,15 @@ public class TrayIconService : IDisposable
     {
         _clipboardMonitor = clipboardMonitor;
         _contextMenu = CreateDarkContextMenu();
+        _appIcon = CreateAppIcon();
 
         _taskbarIcon = new TaskbarIcon
         {
-            IconSource = CreateAppIconSource(),
+            Icon = _appIcon,
             ToolTipText = "ClipFlyout",
             ContextMenu = _contextMenu
         };
+        _taskbarIcon.ForceCreate();
 
         _loc.LanguageChanged += BuildMenu;
         BuildMenu();
@@ -42,9 +50,9 @@ public class TrayIconService : IDisposable
     {
         var menu = new ContextMenu
         {
-            Background = new SolidColorBrush(Color.FromRgb(26, 29, 38)),
-            Foreground = new SolidColorBrush(Color.FromRgb(243, 244, 246)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)),
+            Background = new WpfBrush(WpfColor.FromRgb(26, 29, 38)),
+            Foreground = new WpfBrush(WpfColor.FromRgb(243, 244, 246)),
+            BorderBrush = new WpfBrush(WpfColor.FromArgb(60, 255, 255, 255)),
             BorderThickness = new Thickness(1),
             FontSize = 12.5
         };
@@ -53,13 +61,13 @@ public class TrayIconService : IDisposable
 
     private void BuildMenu()
     {
-        if (Application.Current.Dispatcher.CheckAccess())
+        if (WpfApplication.Current.Dispatcher.CheckAccess())
         {
             RebuildContextMenu();
         }
         else
         {
-            Application.Current.Dispatcher.Invoke(RebuildContextMenu);
+            WpfApplication.Current.Dispatcher.Invoke(RebuildContextMenu);
         }
     }
 
@@ -73,10 +81,10 @@ public class TrayIconService : IDisposable
             Header = "ClipFlyout v1.0",
             IsEnabled = false,
             FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175))
+            Foreground = new WpfBrush(WpfColor.FromRgb(156, 163, 175))
         };
         _contextMenu.Items.Add(titleItem);
-        _contextMenu.Items.Add(new Separator { Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)) });
+        _contextMenu.Items.Add(new Separator { Background = new WpfBrush(WpfColor.FromArgb(40, 255, 255, 255)) });
 
         // Toggle item
         _toggleItem = new MenuItem
@@ -127,14 +135,14 @@ public class TrayIconService : IDisposable
         _langSubMenu.Items.Add(_langEnItem);
         _contextMenu.Items.Add(_langSubMenu);
 
-        _contextMenu.Items.Add(new Separator { Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)) });
+        _contextMenu.Items.Add(new Separator { Background = new WpfBrush(WpfColor.FromArgb(40, 255, 255, 255)) });
 
         // Exit item
         _exitItem = new MenuItem
         {
             Header = _loc.Get("Tray_Exit")
         };
-        _exitItem.Click += (s, e) => Application.Current.Shutdown();
+        _exitItem.Click += (s, e) => WpfApplication.Current.Shutdown();
         _contextMenu.Items.Add(_exitItem);
 
         UpdateStatus();
@@ -151,41 +159,74 @@ public class TrayIconService : IDisposable
         _taskbarIcon.ToolTipText = title.Length > 63 ? title[..63] : title;
     }
 
-    private static ImageSource CreateAppIconSource()
+    private static Icon CreateAppIcon()
     {
-        // 32x32 DrawingImage
-        var dv = new DrawingVisual();
-        using (var dc = dv.RenderOpen())
+        try
         {
-            // Gradient rounded rectangle
-            var gradient = new LinearGradientBrush(
-                Color.FromRgb(59, 130, 246),
-                Color.FromRgb(147, 51, 234),
-                new Point(0, 0),
-                new Point(1, 1)
-            );
-            dc.DrawRoundedRectangle(gradient, null, new Rect(2, 2, 28, 28), 6, 6);
+            using var bmp = new Bitmap(32, 32);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.Clear(Color.Transparent);
 
-            // Center clipboard icon
-            var whitePen = new Pen(Brushes.White, 2.0);
-            dc.DrawRoundedRectangle(null, whitePen, new Rect(9, 10, 14, 15), 2, 2);
-            dc.DrawRectangle(Brushes.White, null, new Rect(12, 7, 8, 4));
+                // Rounded background
+                using var bgBrush = new LinearGradientBrush(
+                    new DrawingRectangle(0, 0, 32, 32),
+                    Color.FromArgb(59, 130, 246),
+                    Color.FromArgb(147, 51, 234),
+                    45f
+                );
+                using var path = GetRoundedRect(new DrawingRectangle(2, 2, 28, 28), 6);
+                g.FillPath(bgBrush, path);
 
-            // Lines
-            var thinPen = new Pen(new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)), 1.5);
-            dc.DrawLine(thinPen, new Point(12, 15), new Point(20, 15));
-            dc.DrawLine(thinPen, new Point(12, 19), new Point(18, 19));
+                // Clipboard frame in center
+                using var pen = new Pen(Color.White, 2f);
+                g.DrawRectangle(pen, 9, 10, 14, 15);
+                g.FillRectangle(Brushes.White, 12, 7, 8, 4);
+
+                // Small content lines
+                using var linePen = new Pen(Color.FromArgb(210, 255, 255, 255), 1.5f);
+                g.DrawLine(linePen, 12, 14, 20, 14);
+                g.DrawLine(linePen, 12, 18, 18, 18);
+            }
+
+            IntPtr hIcon = bmp.GetHicon();
+            return (Icon)Icon.FromHandle(hIcon).Clone();
+        }
+        catch
+        {
+            return SystemIcons.Application;
+        }
+    }
+
+    private static GraphicsPath GetRoundedRect(DrawingRectangle bounds, int radius)
+    {
+        int diameter = radius * 2;
+        var size = new DrawingSize(diameter, diameter);
+        var arc = new DrawingRectangle(bounds.Location, size);
+        var path = new GraphicsPath();
+
+        if (radius == 0)
+        {
+            path.AddRectangle(bounds);
+            return path;
         }
 
-        var rtb = new RenderTargetBitmap(32, 32, 96, 96, PixelFormats.Pbgra32);
-        rtb.Render(dv);
-        rtb.Freeze();
-        return rtb;
+        path.AddArc(arc, 180, 90);
+        arc.X = bounds.Right - diameter;
+        path.AddArc(arc, 270, 90);
+        arc.Y = bounds.Bottom - diameter;
+        path.AddArc(arc, 0, 90);
+        arc.X = bounds.Left;
+        path.AddArc(arc, 90, 90);
+        path.CloseFigure();
+        return path;
     }
 
     public void Dispose()
     {
         _loc.LanguageChanged -= BuildMenu;
         _taskbarIcon.Dispose();
+        _appIcon.Dispose();
     }
 }

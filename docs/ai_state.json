@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "target_framework": "net9.0-windows",
   "architecture": {
-    "ui": "WPF + Wpf.Ui (Fluent Design / Dark Theme / Acrylic Glassmorphism)",
+    "ui": "WPF + Fluent Design (Dark Theme / Acrylic Glassmorphism / WS_EX_NOACTIVATE)",
     "native_interop": {
       "clipboard_listener": "user32.dll AddClipboardFormatListener / RemoveClipboardFormatListener (WM_CLIPBOARDUPDATE 0x031D)",
       "window_styles": "WS_EX_NOACTIVATE (0x08000000) | WS_EX_TOOLWINDOW (0x00000080) | WS_EX_TOPMOST (0x00000008)",
@@ -14,7 +14,7 @@
       "DataTypeDetector": "Services/DataTypeDetector.cs (Image -> HexColor -> JSON -> URL -> Code -> PlainText pipeline)",
       "ActionExecutor": "Services/ActionExecutor.cs (CopyText, CopyImage, OpenBrowser, GenerateAndCopyQrCode, SaveImageToFile)",
       "FlyoutWindowManager": "Services/FlyoutWindowManager.cs (3.5s auto-dismiss, hover pause, 1.5s leave countdown, multi-monitor right-bottom placement)",
-      "TrayIconService": "Services/TrayIconService.cs (Background residency, enable/disable toggle, dynamic i18n language switcher, exit)",
+      "TrayIconService": "Services/TrayIconService.cs (H.NotifyIcon.Wpf with native System.Drawing.Icon, enable/disable toggle, dynamic i18n language switcher, exit)",
       "LocalizationService": "Services/LocalizationService.cs (Auto/Ja/En i18n dictionary for all UI text & actions)"
     }
   },
@@ -55,5 +55,9 @@
     "mouse_leave_resume_ms": 1500,
     "clipboard_suppression_cooldown_ms": 300,
     "clipboard_lock_retries": 5
-  }
+  },
+  "resolved_issues": [
+    "Fixed H.NotifyIcon.Wpf RenderTargetBitmap exception by using native System.Drawing.Icon and ForceCreate()",
+    "Resolved namespace ambiguity between System.Drawing and System.Windows"
+  ]
 }

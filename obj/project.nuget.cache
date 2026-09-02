@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "RAZHfG+G888=",
+  "dgSpecHash": "ZCJWUdNwKr4=",
   "success": true,
-  "projectFilePath": "c:\\Users\\aggsh\\Documents\\ClipFlyout\\ClipFlyout.csproj",
+  "projectFilePath": "C:\\Users\\aggsh\\Documents\\ClipFlyout\\ClipFlyout.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\aggsh\\.nuget\\packages\\h.generatedicons.system.drawing\\2.4.1\\h.generatedicons.system.drawing.2.4.1.nupkg.sha512",
     "C:\\Users\\aggsh\\.nuget\\packages\\h.notifyicon\\2.4.1\\h.notifyicon.2.4.1.nupkg.sha512",
@@ -19,9 +19,9 @@
       "code": "NU1701",
       "level": "Warning",
       "message": "パッケージ 'H.NotifyIcon.Wpf 2.4.1' はプロジェクトのターゲット フレームワーク 'net9.0-windows7.0' ではなく '.NETFramework,Version=v4.6.1, .NETFramework,Version=v4.6.2, .NETFramework,Version=v4.7, .NETFramework,Version=v4.7.1, .NETFramework,Version=v4.7.2, .NETFramework,Version=v4.8, .NETFramework,Version=v4.8.1' を使用して復元されました。このパッケージは、使用しているプロジェクトとの完全な互換性がない可能性があります。",
-      "projectPath": "c:\\Users\\aggsh\\Documents\\ClipFlyout\\ClipFlyout.csproj",
+      "projectPath": "C:\\Users\\aggsh\\Documents\\ClipFlyout\\ClipFlyout.csproj",
       "warningLevel": 1,
-      "filePath": "c:\\Users\\aggsh\\Documents\\ClipFlyout\\ClipFlyout.csproj",
+      "filePath": "C:\\Users\\aggsh\\Documents\\ClipFlyout\\ClipFlyout.csproj",
       "libraryId": "H.NotifyIcon.Wpf",
       "targetGraphs": [
         "net9.0-windows7.0"

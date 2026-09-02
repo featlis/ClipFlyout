@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ClipFlyout")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ab37e9ac39d6b7d7f8ab58e2950f9d70bd394788")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6002fe8141499c0137322e55aa6b85c4574a7d6d")]
 [assembly: System.Reflection.AssemblyProductAttribute("ClipFlyout")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ClipFlyout")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

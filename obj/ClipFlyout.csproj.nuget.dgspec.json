@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "c:\\Users\\aggsh\\Documents\\ClipFlyout\\ClipFlyout.csproj": {}
+    "C:\\Users\\aggsh\\Documents\\ClipFlyout\\ClipFlyout.csproj": {}
   },
   "projects": {
-    "c:\\Users\\aggsh\\Documents\\ClipFlyout\\ClipFlyout.csproj": {
+    "C:\\Users\\aggsh\\Documents\\ClipFlyout\\ClipFlyout.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\Users\\aggsh\\Documents\\ClipFlyout\\ClipFlyout.csproj",
+        "projectUniqueName": "C:\\Users\\aggsh\\Documents\\ClipFlyout\\ClipFlyout.csproj",
         "projectName": "ClipFlyout",
-        "projectPath": "c:\\Users\\aggsh\\Documents\\ClipFlyout\\ClipFlyout.csproj",
+        "projectPath": "C:\\Users\\aggsh\\Documents\\ClipFlyout\\ClipFlyout.csproj",
         "packagesPath": "C:\\Users\\aggsh\\.nuget\\packages\\",
-        "outputPath": "c:\\Users\\aggsh\\Documents\\ClipFlyout\\obj\\",
+        "outputPath": "C:\\Users\\aggsh\\Documents\\ClipFlyout\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\aggsh\\AppData\\Roaming\\NuGet\\NuGet.Config"
