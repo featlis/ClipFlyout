@@ -1,6 +1,6 @@
 {
   "project": "ClipFlyout",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "target_framework": "net9.0-windows",
   "architecture": {
     "ui": "WPF + Fluent Design (Acrylic translucent backdrop, Opacity slider, Light/Dark/System follow, WS_EX_NOACTIVATE)",
