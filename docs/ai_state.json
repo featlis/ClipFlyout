@@ -1,6 +1,6 @@
 {
   "project": "ClipFlyout",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "target_framework": "net9.0-windows",
   "architecture": {
     "ui": "WPF + Fluent Design (Dark Theme / Acrylic Glassmorphism / WS_EX_NOACTIVATE)",
@@ -17,6 +17,11 @@
       "TrayIconService": "Services/TrayIconService.cs (H.NotifyIcon.Wpf with native System.Drawing.Icon, enable/disable toggle, dynamic i18n language switcher, exit)",
       "LocalizationService": "Services/LocalizationService.cs (Auto/Ja/En i18n dictionary for all UI text & actions)"
     }
+  },
+  "distribution": {
+    "installer": "installer/ClipFlyout.iss (Inno Setup 6, self-contained single-file win-x64, multi-language EN/JA)",
+    "package_script": "scripts/build-installer.ps1",
+    "github_actions": ".github/workflows/release.yml (auto-publish on tag v*)"
   },
   "detection_rules": {
     "HexColor": {
@@ -55,9 +60,5 @@
     "mouse_leave_resume_ms": 1500,
     "clipboard_suppression_cooldown_ms": 300,
     "clipboard_lock_retries": 5
-  },
-  "resolved_issues": [
-    "Fixed H.NotifyIcon.Wpf RenderTargetBitmap exception by using native System.Drawing.Icon and ForceCreate()",
-    "Resolved namespace ambiguity between System.Drawing and System.Windows"
-  ]
+  }
 }

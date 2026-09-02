@@ -29,29 +29,38 @@ Windows 11 Fluent Design に準拠した高機能・常駐型クリップボー�
 - **UI & スタイル:** Fluent Design (Acrylic / Mica風ダークグラデーション, 角丸, ドロップシャドウ)
 - **Win32 Interop:** `AddClipboardFormatListener`, `RemoveClipboardFormatListener`, `WM_CLIPBOARDUPDATE`, `WS_EX_NOACTIVATE`
 - **QRコード生成:** QRCoder
+- **インストーラー:** Inno Setup (スタンドアロン自己完結型、.NETの事前インストール不要)
 - **テスト:** xUnit (11テスト完全パス)
 
 ---
 
-## 🚀 起動方法 & ビルド
+## 📦 インストール & リリース
 
-### 必要要件
-- Windows 10 / 11
-- .NET 9.0 SDK
+### 1. インストーラーによる導入
+[Releases ページ](../../releases) より最新版のインストーラー（`ClipFlyout-Setup-vX.X.X.exe`）をダウンロードして実行してください。
+デスクトップショートカットや Windows 起動時の自動開始を設定できます。
 
-### ビルド
-```bash
-dotnet build -c Release
+### 2. ポータブル版（インストール不要）
+`ClipFlyout-vX.X.X-win-x64.zip` を解凍し、中にある `ClipFlyout.exe` を直接起動して利用することも可能です。
+
+---
+
+## 🔨 ローカルビルド & インストーラー作成
+
+### インストーラーのローカル生成
+```powershell
+./scripts/build-installer.ps1 -Version 0.1.0
 ```
+出力先: `dist/ClipFlyout-Setup-v0.1.0.exe` および `dist/ClipFlyout-v0.1.0-win-x64.zip`
 
-### 実行
+### GitHub Release の自動公開手順
+Git タグを付与してプッシュすると、GitHub Actions が自動でインストーラーと ZIP をビルドし、Release ページに公開します:
 ```bash
-dotnet run -c Release
-```
-
-### テスト実行
-```bash
-dotnet test
+git add .
+git commit -m "feat: release v0.1.0"
+git tag v0.1.0
+git push origin main
+git push origin v0.1.0
 ```
 
 ---
