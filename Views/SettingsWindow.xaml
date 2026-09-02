@@ -6,8 +6,8 @@
         xmlns:controls="clr-namespace:ClipFlyout.Controls"
         mc:Ignorable="d"
         Title="ClipFlyout Settings"
-        Width="800" Height="740"
-        MinWidth="660" MinHeight="560"
+        Width="820" Height="760"
+        MinWidth="680" MinHeight="560"
         WindowStartupLocation="CenterScreen"
         FontFamily="Segoe UI Variable Text, Segoe UI, sans-serif"
         UseLayoutRounding="True"
@@ -19,8 +19,8 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Top Header Banner -->
-        <Border Grid.Row="0" x:Name="HeaderBorder" Padding="28,24,28,18" BorderThickness="0,0,0,1">
+        <!-- Top Header Banner (Windows 11 Page Header) -->
+        <Border Grid.Row="0" x:Name="HeaderBorder" Padding="32,24,32,20" BorderThickness="0,0,0,1">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -28,16 +28,16 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- App Icon -->
-                <Border Grid.Column="0" Width="42" Height="42" CornerRadius="9" Margin="0,0,14,0" Background="#0078D4">
-                    <TextBlock Text="📋" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <!-- App Icon Plate -->
+                <Border Grid.Column="0" Width="40" Height="40" CornerRadius="8" Margin="0,0,14,0" Background="#0078D4">
+                    <TextBlock Text="📋" FontSize="19" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
 
                 <!-- Titles -->
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <TextBlock x:Name="AppHeaderTitle"
                                Text="ClipFlyout"
-                               FontSize="20"
+                               FontSize="22"
                                FontWeight="SemiBold"/>
                     <TextBlock x:Name="AppHeaderSubtitle"
                                Text="クリップボード検出と動作のカスタマイズ"
@@ -45,16 +45,17 @@
                                Margin="0,2,0,0"/>
                 </StackPanel>
 
-                <!-- Reset Button -->
+                <!-- Reset Button (Windows 11 Standard Secondary Button) -->
                 <Button Grid.Column="2"
                         x:Name="ResetDefaultsButton"
                         Content="初期値に戻す"
-                        Padding="14,6"
+                        Height="32"
+                        Padding="16,0"
                         Cursor="Hand"
                         Click="ResetDefaultsButton_Click">
                     <Button.Resources>
                         <Style TargetType="Border">
-                            <Setter Property="CornerRadius" Value="6"/>
+                            <Setter Property="CornerRadius" Value="5"/>
                         </Style>
                     </Button.Resources>
                 </Button>
@@ -62,25 +63,29 @@
         </Border>
 
         <!-- Main Scrollable Settings Cards -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="28,20,28,28">
-            <StackPanel MaxWidth="740">
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="32,20,32,28">
+            <StackPanel MaxWidth="750">
 
                 <!-- 1. GENERAL SECTION -->
-                <TextBlock x:Name="SecGeneralTitle" Text="全般" FontSize="14" FontWeight="SemiBold" Margin="4,0,0,8"/>
+                <TextBlock x:Name="SecGeneralTitle" Text="全般" FontSize="13.5" FontWeight="SemiBold" Margin="4,0,0,8"/>
                 <Border x:Name="CardGeneral" CornerRadius="8" BorderThickness="1" Margin="0,0,0,24">
                     <StackPanel>
                         <!-- Setting: Monitoring Toggle -->
                         <Border Padding="16,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="LblMonitoring" Text="クリップボード監視" FontSize="13.5" FontWeight="Medium"/>
-                                    <TextBlock x:Name="DescMonitoring" Text="クリップボードの変更を検知してアクションを提案します" FontSize="11.5" Margin="0,2,0,0"/>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#203B82F6" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="📋" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblMonitoring" Text="クリップボード監視" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescMonitoring" Text="クリップボードの変更を検知してアクションを提案します" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
-                                <controls:ToggleSwitch Grid.Column="1" x:Name="ToggleMonitoring" VerticalAlignment="Center"/>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleMonitoring" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
 
@@ -90,14 +95,18 @@
                         <Border Padding="16,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="LblStartup" Text="Windows 起動時に自動開始" FontSize="13.5" FontWeight="Medium"/>
-                                    <TextBlock x:Name="DescStartup" Text="PC起動時にバックグラウンドでClipFlyoutを開始します" FontSize="11.5" Margin="0,2,0,0"/>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#208B5CF6" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="🚀" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblStartup" Text="Windows 起動時に自動開始" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescStartup" Text="PC起動時にバックグラウンドでClipFlyoutを開始します" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
-                                <controls:ToggleSwitch Grid.Column="1" x:Name="ToggleStartup" VerticalAlignment="Center"/>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleStartup" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
 
@@ -107,14 +116,18 @@
                         <Border Padding="16,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="LblTheme" Text="アプリテーマ" FontSize="13.5" FontWeight="Medium"/>
-                                    <TextBlock x:Name="DescTheme" Text="フライアウトおよび設定画面の外観スタイル" FontSize="11.5" Margin="0,2,0,0"/>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#2064748B" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="🌓" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblTheme" Text="アプリテーマ" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescTheme" Text="フライアウトおよび設定画面の外観スタイル" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
-                                <ComboBox Grid.Column="1" x:Name="ComboTheme" Width="170" VerticalAlignment="Center"
+                                <ComboBox Grid.Column="2" x:Name="ComboTheme" Width="170" Height="32" VerticalAlignment="Center"
                                           SelectionChanged="ComboTheme_SelectionChanged"/>
                             </Grid>
                         </Border>
@@ -125,14 +138,18 @@
                         <Border Padding="16,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="LblLang" Text="表示言語" FontSize="13.5" FontWeight="Medium"/>
-                                    <TextBlock x:Name="DescLang" Text="インターフェースの表示言語を設定します" FontSize="11.5" Margin="0,2,0,0"/>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#200EA5E9" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="🌐" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblLang" Text="表示言語" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescLang" Text="インターフェースの表示言語を設定します" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
-                                <ComboBox Grid.Column="1" x:Name="ComboLanguage" Width="170" VerticalAlignment="Center"
+                                <ComboBox Grid.Column="2" x:Name="ComboLanguage" Width="170" Height="32" VerticalAlignment="Center"
                                           SelectionChanged="ComboLanguage_SelectionChanged"/>
                             </Grid>
                         </Border>
@@ -140,21 +157,25 @@
                 </Border>
 
                 <!-- 2. FLYOUT BEHAVIOR & APPEARANCE SECTION -->
-                <TextBlock x:Name="SecFlyoutTitle" Text="フライアウト動作 &amp; 外観" FontSize="14" FontWeight="SemiBold" Margin="4,0,0,8"/>
+                <TextBlock x:Name="SecFlyoutTitle" Text="フライアウト動作 &amp; 外観" FontSize="13.5" FontWeight="SemiBold" Margin="4,0,0,8"/>
                 <Border x:Name="CardFlyout" CornerRadius="8" BorderThickness="1" Margin="0,0,0,24">
                     <StackPanel>
                         <!-- Setting: Placement -->
                         <Border Padding="16,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="LblPlacement" Text="表示位置" FontSize="13.5" FontWeight="Medium"/>
-                                    <TextBlock x:Name="DescPlacement" Text="フライアウトが出現する画面上の位置" FontSize="11.5" Margin="0,2,0,0"/>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#20F97316" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="📐" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblPlacement" Text="表示位置" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescPlacement" Text="フライアウトが出現する画面上の位置" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
-                                <ComboBox Grid.Column="1" x:Name="ComboPlacement" Width="170" VerticalAlignment="Center"
+                                <ComboBox Grid.Column="2" x:Name="ComboPlacement" Width="170" Height="32" VerticalAlignment="Center"
                                           SelectionChanged="ComboPlacement_SelectionChanged"/>
                             </Grid>
                         </Border>
@@ -165,15 +186,19 @@
                         <Border Padding="16,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="200"/>
+                                    <ColumnDefinition Width="210"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="LblOpacity" Text="背景の透明度 (アクリル効果)" FontSize="13.5" FontWeight="Medium"/>
-                                    <TextBlock x:Name="DescOpacity" Text="フライアウトのすりガラス・半透明度を調整します" FontSize="11.5" Margin="0,2,0,0"/>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#2006B6D4" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="🪟" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblOpacity" Text="背景の透明度 (アクリル効果)" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescOpacity" Text="フライアウトのすりガラス・半透明度を調整します" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                    <Slider x:Name="SliderOpacity" Width="140" Minimum="50.0" Maximum="100.0" SmallChange="5.0" LargeChange="10.0"
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                    <Slider x:Name="SliderOpacity" Width="150" Minimum="50.0" Maximum="100.0" SmallChange="5.0" LargeChange="10.0"
                                             TickFrequency="5.0" IsSnapToTickEnabled="True" VerticalAlignment="Center"
                                             ValueChanged="SliderOpacity_ValueChanged"/>
                                     <TextBlock x:Name="TextOpacityVal" Text="85%" Width="44" TextAlignment="Right" VerticalAlignment="Center" FontSize="12.5" FontWeight="SemiBold"/>
@@ -187,15 +212,19 @@
                         <Border Padding="16,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="200"/>
+                                    <ColumnDefinition Width="210"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="LblDuration" Text="自動非表示タイマー" FontSize="13.5" FontWeight="Medium"/>
-                                    <TextBlock x:Name="DescDuration" Text="操作がない場合にフライアウトが消えるまでの時間" FontSize="11.5" Margin="0,2,0,0"/>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#20EAB308" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="⏳" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblDuration" Text="自動非表示タイマー" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescDuration" Text="操作がない場合にフライアウトが消えるまでの時間" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                    <Slider x:Name="SliderDuration" Width="140" Minimum="1.5" Maximum="10.0" SmallChange="0.5" LargeChange="1.0"
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                    <Slider x:Name="SliderDuration" Width="150" Minimum="1.5" Maximum="10.0" SmallChange="0.5" LargeChange="1.0"
                                             TickFrequency="0.5" IsSnapToTickEnabled="True" VerticalAlignment="Center"
                                             ValueChanged="SliderDuration_ValueChanged"/>
                                     <TextBlock x:Name="TextDurationVal" Text="3.5s" Width="44" TextAlignment="Right" VerticalAlignment="Center" FontSize="12.5" FontWeight="SemiBold"/>
@@ -209,15 +238,19 @@
                         <Border Padding="16,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="200"/>
+                                    <ColumnDefinition Width="210"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="LblHoverDuration" Text="マウス離脱後の消滅時間" FontSize="13.5" FontWeight="Medium"/>
-                                    <TextBlock x:Name="DescHoverDuration" Text="ホバー解除から消えるまでのカウントダウン時間" FontSize="11.5" Margin="0,2,0,0"/>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#2010B981" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="⏱️" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblHoverDuration" Text="マウス離脱後の消滅時間" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescHoverDuration" Text="ホバー解除から消えるまでのカウントダウン時間" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                    <Slider x:Name="SliderHoverDuration" Width="140" Minimum="0.5" Maximum="5.0" SmallChange="0.5" LargeChange="0.5"
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                    <Slider x:Name="SliderHoverDuration" Width="150" Minimum="0.5" Maximum="5.0" SmallChange="0.5" LargeChange="0.5"
                                             TickFrequency="0.5" IsSnapToTickEnabled="True" VerticalAlignment="Center"
                                             ValueChanged="SliderHoverDuration_ValueChanged"/>
                                     <TextBlock x:Name="TextHoverDurationVal" Text="1.5s" Width="44" TextAlignment="Right" VerticalAlignment="Center" FontSize="12.5" FontWeight="SemiBold"/>
@@ -228,7 +261,7 @@
                 </Border>
 
                 <!-- 3. DATA DETECTORS SECTION -->
-                <TextBlock x:Name="SecDetectorsTitle" Text="データ型検出フィルター" FontSize="14" FontWeight="SemiBold" Margin="4,0,0,4"/>
+                <TextBlock x:Name="SecDetectorsTitle" Text="データ型検出フィルター" FontSize="13.5" FontWeight="SemiBold" Margin="4,0,0,4"/>
                 <TextBlock x:Name="SecDetectorsSubtitle" Text="検知してフライアウトを表示するデータ型を選択できます" FontSize="12" Margin="4,0,0,10"/>
                 <Border x:Name="CardDetectors" CornerRadius="8" BorderThickness="1" Margin="0,0,0,24">
                     <StackPanel>
@@ -236,14 +269,18 @@
                         <Border Padding="16,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="LblDetHex" Text="HEXカラーコード" FontSize="13.5" FontWeight="Medium"/>
-                                    <TextBlock x:Name="DescDetHex" Text="#RGB, #RRGGBB などを検知し、色見本プレビューとRGB/HSL変換を提供" FontSize="11.5" Margin="0,2,0,0"/>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#208B5CF6" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="🎨" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblDetHex" Text="HEXカラーコード" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescDetHex" Text="#RGB, #RRGGBB などを検知し、色見本プレビューとRGB/HSL変換を提供" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
-                                <controls:ToggleSwitch Grid.Column="1" x:Name="ToggleDetHex" VerticalAlignment="Center"/>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleDetHex" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
 
@@ -253,14 +290,18 @@
                         <Border Padding="16,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="LblDetTimestamp" Text="Unix タイムスタンプ" FontSize="13.5" FontWeight="Medium"/>
-                                    <TextBlock x:Name="DescDetTimestamp" Text="10桁(秒)や13桁(ミリ秒)の数値を検出し、日時プレビューとISO変換を提供" FontSize="11.5" Margin="0,2,0,0"/>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#2006B6D4" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="⏱️" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblDetTimestamp" Text="Unix タイムスタンプ" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescDetTimestamp" Text="10桁(秒)や13桁(ミリ秒)の数値を検出し、日時プレビューとISO変換を提供" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
-                                <controls:ToggleSwitch Grid.Column="1" x:Name="ToggleDetTimestamp" VerticalAlignment="Center"/>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleDetTimestamp" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
 
@@ -270,14 +311,18 @@
                         <Border Padding="16,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="LblDetJson" Text="JSON テキスト" FontSize="13.5" FontWeight="Medium"/>
-                                    <TextBlock x:Name="DescDetJson" Text="JSON オブジェクト・配列を検証し、整形または1行化コピーを提供" FontSize="11.5" Margin="0,2,0,0"/>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#203B82F6" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="📦" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblDetJson" Text="JSON テキスト" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescDetJson" Text="JSON オブジェクト・配列を検証し、整形または1行化コピーを提供" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
-                                <controls:ToggleSwitch Grid.Column="1" x:Name="ToggleDetJson" VerticalAlignment="Center"/>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleDetJson" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
 
@@ -287,14 +332,18 @@
                         <Border Padding="16,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="LblDetUrl" Text="Web URL" FontSize="13.5" FontWeight="Medium"/>
-                                    <TextBlock x:Name="DescDetUrl" Text="Webリンクを検知し、ブラウザ起動やQRコード画像生成を提供" FontSize="11.5" Margin="0,2,0,0"/>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#2010B981" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="🌐" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblDetUrl" Text="Web URL" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescDetUrl" Text="Webリンクを検知し、ブラウザ起動やQRコード画像生成を提供" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
-                                <controls:ToggleSwitch Grid.Column="1" x:Name="ToggleDetUrl" VerticalAlignment="Center"/>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleDetUrl" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
 
@@ -304,14 +353,18 @@
                         <Border Padding="16,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="LblDetBase64" Text="Base64 データ" FontSize="13.5" FontWeight="Medium"/>
-                                    <TextBlock x:Name="DescDetBase64" Text="Base64文字列やData URIを検出し、テキスト復号や画像展開を提供" FontSize="11.5" Margin="0,2,0,0"/>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#206366F1" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="🔒" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblDetBase64" Text="Base64 データ" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescDetBase64" Text="Base64文字列やData URIを検出し、テキスト復号や画像展開を提供" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
-                                <controls:ToggleSwitch Grid.Column="1" x:Name="ToggleDetBase64" VerticalAlignment="Center"/>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleDetBase64" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
 
@@ -321,14 +374,18 @@
                         <Border Padding="16,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="LblDetTable" Text="表データ (CSV / TSV)" FontSize="13.5" FontWeight="Medium"/>
-                                    <TextBlock x:Name="DescDetTable" Text="ExcelやTSV/CSVのコピーからMarkdown表やJSON配列への自動変換を提供" FontSize="11.5" Margin="0,2,0,0"/>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#20059669" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="📊" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblDetTable" Text="表データ (CSV / TSV)" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescDetTable" Text="ExcelやTSV/CSVのコピーからMarkdown表やJSON配列への自動変換を提供" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
-                                <controls:ToggleSwitch Grid.Column="1" x:Name="ToggleDetTable" VerticalAlignment="Center"/>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleDetTable" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
 
@@ -338,14 +395,18 @@
                         <Border Padding="16,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="LblDetCode" Text="コードスニペット" FontSize="13.5" FontWeight="Medium"/>
-                                    <TextBlock x:Name="DescDetCode" Text="プログラミング構文を検知し、インデント調整やHTML特殊文字エスケープを提供" FontSize="11.5" Margin="0,2,0,0"/>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#20D97706" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="💻" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblDetCode" Text="コードスニペット" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescDetCode" Text="プログラミング構文を検知し、インデント調整やHTML特殊文字エスケープを提供" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
-                                <controls:ToggleSwitch Grid.Column="1" x:Name="ToggleDetCode" VerticalAlignment="Center"/>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleDetCode" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
 
@@ -355,14 +416,18 @@
                         <Border Padding="16,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="LblDetImage" Text="画像" FontSize="13.5" FontWeight="Medium"/>
-                                    <TextBlock x:Name="DescDetImage" Text="クリップボードの画像を検知し、PNG保存や解像度情報の確認を提供" FontSize="11.5" Margin="0,2,0,0"/>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#20DB2777" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="🖼️" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblDetImage" Text="画像" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescDetImage" Text="クリップボードの画像を検知し、PNG保存や解像度情報の確認を提供" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
-                                <controls:ToggleSwitch Grid.Column="1" x:Name="ToggleDetImage" VerticalAlignment="Center"/>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleDetImage" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
 
@@ -372,21 +437,25 @@
                         <Border Padding="16,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="LblDetText" Text="プレーンテキスト" FontSize="13.5" FontWeight="Medium"/>
-                                    <TextBlock x:Name="DescDetText" Text="通常の文字列の前後の余分な空白トリムや文字数・単語数統計を提供" FontSize="11.5" Margin="0,2,0,0"/>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#206B7280" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="📝" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblDetText" Text="プレーンテキスト" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescDetText" Text="通常の文字列の前後の余分な空白トリムや文字数・単語数統計を提供" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
-                                <controls:ToggleSwitch Grid.Column="1" x:Name="ToggleDetText" VerticalAlignment="Center"/>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleDetText" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
                     </StackPanel>
                 </Border>
 
                 <!-- 4. ABOUT & PRIVACY SECTION -->
-                <TextBlock x:Name="SecAboutTitle" Text="バージョン情報 &amp; プライバシー" FontSize="14" FontWeight="SemiBold" Margin="4,0,0,8"/>
+                <TextBlock x:Name="SecAboutTitle" Text="バージョン情報 &amp; プライバシー" FontSize="13.5" FontWeight="SemiBold" Margin="4,0,0,8"/>
                 <Border x:Name="CardAbout" CornerRadius="8" BorderThickness="1" Margin="0,0,0,16">
                     <StackPanel>
                         <!-- Privacy Guarantee Callout -->
@@ -408,7 +477,13 @@
                                     <TextBlock x:Name="AboutVersion" Text="バージョン: v0.2.0" FontSize="12.5" FontWeight="SemiBold"/>
                                     <TextBlock Text="Windows 11 Fluent Design Clipboard Utility" FontSize="11.5" Margin="0,1,0,0"/>
                                 </StackPanel>
-                                <Button Grid.Column="1" x:Name="GithubButton" Content="GitHub" Padding="14,5" Cursor="Hand" Click="GithubButton_Click"/>
+                                <Button Grid.Column="1" x:Name="GithubButton" Content="GitHub" Height="32" Padding="16,0" Cursor="Hand" Click="GithubButton_Click">
+                                    <Button.Resources>
+                                        <Style TargetType="Border">
+                                            <Setter Property="CornerRadius" Value="5"/>
+                                        </Style>
+                                    </Button.Resources>
+                                </Button>
                             </Grid>
                         </Border>
                     </StackPanel>

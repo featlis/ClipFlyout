@@ -2,8 +2,10 @@ using System;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using ClipFlyout.Models;
+using ClipFlyout.Native;
 using ClipFlyout.Services;
 
 namespace ClipFlyout.Views;
@@ -14,15 +16,31 @@ public partial class SettingsWindow : Window
     private readonly SettingsService _settings = SettingsService.Instance;
     private readonly ThemeService _theme = ThemeService.Instance;
     private readonly LocalizationService _loc = LocalizationService.Instance;
+    private IntPtr _hwnd = IntPtr.Zero;
 
     public SettingsWindow()
     {
         InitializeComponent();
 
+        SourceInitialized += SettingsWindow_SourceInitialized;
         _loc.LanguageChanged += () => Dispatcher.Invoke(ApplyLocalization);
         _theme.ThemeChanged += () => Dispatcher.Invoke(ApplyTheme);
 
         Loaded += SettingsWindow_Loaded;
+    }
+
+    private void SettingsWindow_SourceInitialized(object? sender, EventArgs e)
+    {
+        var helper = new WindowInteropHelper(this);
+        _hwnd = helper.Handle;
+        ApplyMicaEffect();
+    }
+
+    private void ApplyMicaEffect()
+    {
+        if (_hwnd == IntPtr.Zero) return;
+        bool isDark = _theme.IsDarkTheme;
+        Win32.EnableMica(_hwnd, isDark);
     }
 
     private void SettingsWindow_Loaded(object sender, RoutedEventArgs e)
@@ -189,14 +207,15 @@ public partial class SettingsWindow : Window
     public void ApplyTheme()
     {
         bool isDark = _theme.IsDarkTheme;
+        ApplyMicaEffect();
 
         if (isDark)
         {
-            Background = new SolidColorBrush(Color.FromRgb(28, 30, 36));
+            Background = new SolidColorBrush(Color.FromRgb(26, 28, 35));
             Foreground = new SolidColorBrush(Color.FromRgb(243, 244, 246));
 
-            HeaderBorder.Background = new SolidColorBrush(Color.FromRgb(22, 24, 29));
-            HeaderBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
+            HeaderBorder.Background = new SolidColorBrush(Color.FromArgb(200, 22, 24, 30));
+            HeaderBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
             AppHeaderTitle.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
             AppHeaderSubtitle.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
 
@@ -221,10 +240,10 @@ public partial class SettingsWindow : Window
         }
         else
         {
-            Background = new SolidColorBrush(Color.FromRgb(248, 249, 251));
+            Background = new SolidColorBrush(Color.FromRgb(246, 248, 250));
             Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
 
-            HeaderBorder.Background = new SolidColorBrush(Color.FromRgb(255, 255, 255));
+            HeaderBorder.Background = new SolidColorBrush(Color.FromArgb(220, 255, 255, 255));
             HeaderBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(226, 232, 240));
             AppHeaderTitle.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
             AppHeaderSubtitle.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
@@ -255,7 +274,7 @@ public partial class SettingsWindow : Window
         if (isDark)
         {
             card.Background = new SolidColorBrush(Color.FromRgb(34, 38, 47));
-            card.BorderBrush = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
+            card.BorderBrush = new SolidColorBrush(Color.FromArgb(35, 255, 255, 255));
         }
         else
         {
@@ -266,7 +285,7 @@ public partial class SettingsWindow : Window
 
     private void SetSeparatorColors(bool isDark)
     {
-        var sepBrush = isDark ? new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)) : new SolidColorBrush(Color.FromRgb(241, 245, 249));
+        var sepBrush = isDark ? new SolidColorBrush(Color.FromArgb(25, 255, 255, 255)) : new SolidColorBrush(Color.FromRgb(241, 245, 249));
         Sep1.Background = sepBrush;
         Sep2.Background = sepBrush;
         Sep3.Background = sepBrush;

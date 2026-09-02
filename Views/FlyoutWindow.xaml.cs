@@ -17,6 +17,7 @@ public partial class FlyoutWindow : Window
     private Storyboard? _showStoryboard;
     private Storyboard? _hideStoryboard;
     private bool _isClosing;
+    private IntPtr _hwnd = IntPtr.Zero;
 
     public event Action? MouseEntered;
     public event Action? MouseLeft;
@@ -42,11 +43,24 @@ public partial class FlyoutWindow : Window
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
         var helper = new WindowInteropHelper(this);
-        var exStyle = (int)Win32.GetWindowLongPtr(helper.Handle, Win32.GWL_EXSTYLE);
+        _hwnd = helper.Handle;
 
-        // Apply WS_EX_NOACTIVATE and WS_EX_TOOLWINDOW (prevents stealing focus and hiding from alt-tab)
+        var exStyle = (int)Win32.GetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE);
         exStyle |= Win32.WS_EX_NOACTIVATE | Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_TOPMOST;
-        Win32.SetWindowLongPtr(helper.Handle, Win32.GWL_EXSTYLE, (IntPtr)exStyle);
+        Win32.SetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE, (IntPtr)exStyle);
+
+        ApplyHardwareAcrylic();
+    }
+
+    private void ApplyHardwareAcrylic()
+    {
+        if (_hwnd == IntPtr.Zero) return;
+
+        bool isDark = ThemeService.Instance.IsDarkTheme;
+        double opacity = SettingsService.Instance.Current.OpacityPercent;
+        byte cardAlpha = (byte)Math.Clamp(Math.Round(opacity * 2.55), 100, 255);
+
+        Win32.EnableAcrylicBlur(_hwnd, isDark, cardAlpha);
     }
 
     public void ApplyTheme()
@@ -55,54 +69,62 @@ public partial class FlyoutWindow : Window
         double opacity = SettingsService.Instance.Current.OpacityPercent;
         byte cardAlpha = (byte)Math.Clamp(Math.Round(opacity * 2.55), 110, 255);
 
+        ApplyHardwareAcrylic();
+
         if (isDark)
         {
-            // Translucent frosted glass Acrylic dark theme
+            // Windows 11 Deep Smoky Frosted Acrylic
             RootCard.Background = new SolidColorBrush(Color.FromArgb(cardAlpha, 22, 25, 34));
-            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(55, 255, 255, 255));
-            CardShadow.Opacity = 0.38;
+            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(45, 255, 255, 255));
+            InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
+
+            CardShadow.Opacity = 0.36;
             CardShadow.Color = Colors.Black;
 
             HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
             HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
             CloseButton.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
 
-            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(170, 16, 19, 26));
-            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(70, 255, 255, 255));
+            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(140, 16, 18, 25));
+            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(35, 255, 255, 255));
             BodyPreviewText.Foreground = new SolidColorBrush(Color.FromRgb(226, 232, 240));
 
-            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(170, 16, 19, 26));
-            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(70, 255, 255, 255));
+            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(140, 16, 18, 25));
+            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(35, 255, 255, 255));
 
             ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
             ColorValuesText.Foreground = new SolidColorBrush(Color.FromRgb(209, 213, 219));
 
             InlineFeedbackBar.Background = new SolidColorBrush(Color.FromArgb(cardAlpha, 30, 41, 59));
+            InlineFeedbackBar.BorderBrush = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
             InlineFeedbackText.Foreground = new SolidColorBrush(Color.FromRgb(241, 245, 249));
         }
         else
         {
-            // Translucent frosted glass Acrylic light theme
-            RootCard.Background = new SolidColorBrush(Color.FromArgb(cardAlpha, 255, 255, 255));
-            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(45, 0, 0, 0));
-            CardShadow.Opacity = 0.16;
+            // Windows 11 Light Frosted Acrylic
+            RootCard.Background = new SolidColorBrush(Color.FromArgb(cardAlpha, 252, 253, 255));
+            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(35, 0, 0, 0));
+            InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255));
+
+            CardShadow.Opacity = 0.15;
             CardShadow.Color = Color.FromRgb(15, 23, 42);
 
             HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
             HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
             CloseButton.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
 
-            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(160, 241, 245, 249));
-            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 0, 0, 0));
+            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(140, 241, 245, 249));
+            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
             BodyPreviewText.Foreground = new SolidColorBrush(Color.FromRgb(30, 41, 59));
 
-            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(160, 241, 245, 249));
-            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 0, 0, 0));
+            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(140, 241, 245, 249));
+            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
 
             ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
             ColorValuesText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
 
             InlineFeedbackBar.Background = new SolidColorBrush(Color.FromArgb(cardAlpha, 226, 232, 240));
+            InlineFeedbackBar.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
             InlineFeedbackText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
         }
 
@@ -170,14 +192,14 @@ public partial class FlyoutWindow : Window
             {
                 if (isDark)
                 {
-                    btn.Background = new SolidColorBrush(Color.FromArgb(210, 42, 47, 61));
-                    btn.BorderBrush = new SolidColorBrush(Color.FromArgb(120, 75, 85, 110));
+                    btn.Background = new SolidColorBrush(Color.FromArgb(200, 42, 47, 61));
+                    btn.BorderBrush = new SolidColorBrush(Color.FromArgb(100, 75, 85, 110));
                     btn.Foreground = new SolidColorBrush(Color.FromRgb(243, 244, 246));
                 }
                 else
                 {
-                    btn.Background = new SolidColorBrush(Color.FromArgb(230, 255, 255, 255));
-                    btn.BorderBrush = new SolidColorBrush(Color.FromArgb(80, 0, 0, 0));
+                    btn.Background = new SolidColorBrush(Color.FromArgb(225, 255, 255, 255));
+                    btn.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 0, 0, 0));
                     btn.Foreground = new SolidColorBrush(Color.FromRgb(31, 41, 55));
                 }
             }
@@ -190,12 +212,10 @@ public partial class FlyoutWindow : Window
         _currentResult = result;
         _isClosing = false;
 
-        // Reset visibility
         ColorPreviewPanel.Visibility = Visibility.Collapsed;
         ImagePreviewPanel.Visibility = Visibility.Collapsed;
         TextPreviewPanel.Visibility = Visibility.Collapsed;
 
-        // Reset action/feedback state
         ActionsItemsControl.Visibility = Visibility.Visible;
         InlineFeedbackBar.Visibility = Visibility.Collapsed;
 
@@ -231,7 +251,6 @@ public partial class FlyoutWindow : Window
         Show();
         _showStoryboard?.Begin(this);
 
-        // Apply styles to newly bound buttons after render
         Dispatcher.BeginInvoke(() => StyleActionButtons(isDark));
     }
 

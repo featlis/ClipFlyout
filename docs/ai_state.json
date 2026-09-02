@@ -3,11 +3,12 @@
   "version": "0.2.0",
   "target_framework": "net9.0-windows",
   "architecture": {
-    "ui": "WPF + Fluent Design (Acrylic translucent backdrop, Opacity slider, Light/Dark/System follow, WS_EX_NOACTIVATE)",
+    "ui": "WPF + Fluent Design (Hardware DWM Acrylic blur via ACCENT_ENABLE_ACRYLICBLURBEHIND / DWMSBT_TRANSIENTWINDOW, Mica for Settings, WS_EX_NOACTIVATE)",
     "native_interop": {
       "clipboard_listener": "user32.dll AddClipboardFormatListener / RemoveClipboardFormatListener (WM_CLIPBOARDUPDATE 0x031D)",
       "window_styles": "WS_EX_NOACTIVATE (0x08000000) | WS_EX_TOOLWINDOW (0x00000080) | WS_EX_TOPMOST (0x00000008)",
       "monitor_positioning": "GetCursorPos -> MonitorFromPoint -> GetMonitorInfo (BottomRight, TopRight, TopLeft, BottomLeft, NearCursor)",
+      "dwm_blur": "dwmapi.dll DwmSetWindowAttribute (DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_USE_IMMERSIVE_DARK_MODE, DWMWA_WINDOW_CORNER_PREFERENCE) + user32.dll SetWindowCompositionAttribute (WCA_ACCENT_POLICY, ACCENT_ENABLE_ACRYLICBLURBEHIND)",
       "theme_detection": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\\AppsUseLightTheme + SystemEvents.UserPreferenceChanged",
       "startup_sync": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\ClipFlyout"
     },
@@ -15,13 +16,13 @@
       "ClipboardMonitor": "Services/ClipboardMonitor.cs (HwndSource message hook, 5x lock retry, suppression scope for internal writes)",
       "DataTypeDetector": "Services/DataTypeDetector.cs (Configurable filters: HexColor, UnixTimestamp, Json, Url, Base64, TableData, Code, Image, PlainText)",
       "ActionExecutor": "Services/ActionExecutor.cs (CopyText, CopyImage, CopyBase64Image, OpenBrowser, GenerateAndCopyQrCode, SaveImageToFile)",
-      "FlyoutWindowManager": "Services/FlyoutWindowManager.cs (Placement: BottomRight, TopRight, TopLeft, BottomLeft, NearCursor; dynamic opacity)",
+      "FlyoutWindowManager": "Services/FlyoutWindowManager.cs (Placement: BottomRight, TopRight, TopLeft, BottomLeft, NearCursor; dynamic hardware acrylic blur)",
       "SettingsService": "Services/SettingsService.cs (Persistence in %LocalAppData%\\ClipFlyout\\settings.json, Windows startup sync)",
       "ThemeService": "Services/ThemeService.cs (System, Light, Dark dynamic theme switching)",
       "TrayIconService": "Services/TrayIconService.cs (H.NotifyIcon.Wpf with native Icon, Settings menu, theme & language submenu)",
       "LocalizationService": "Services/LocalizationService.cs (Auto/Ja/En full i18n dictionary for flyout and settings)",
       "ToggleSwitch": "Controls/ToggleSwitch.xaml (Windows 11 styled animated toggle switch)",
-      "SettingsWindow": "Views/SettingsWindow.xaml (PowerToys card-style configuration window with opacity slider and detector toggles)"
+      "SettingsWindow": "Views/SettingsWindow.xaml (Windows 11 Settings / PowerToys SettingsCard layout with Mica and 32x32 icon plates)"
     }
   },
   "distribution": {
@@ -77,14 +78,12 @@
     }
   },
   "resolved_issues": [
-    "Added Fluent acrylic translucency with customizable opacity slider (50%~100%)",
-    "Added TopLeft placement option for multi-monitor work areas",
-    "Added Unix timestamp detection with local/ISO/epoch actions",
-    "Added Base64 detection with text decode and image extraction",
-    "Added CSV/TSV table detection with Markdown table and JSON array conversions",
-    "Eliminated toast overlap by replacing action buttons with inline checkmark feedback banner during confirmation",
-    "Replaced gaudy high-saturation badges with refined Windows 11 Fluent design pastel/tint badges",
-    "Added full System/Light/Dark theme support with live Windows OS theme tracking",
-    "Added PowerToys-style grouped card Settings window with persistence in settings.json"
+    "Implemented authentic hardware-accelerated DWM Acrylic blur behind window (SetWindowCompositionAttribute + DWMSBT_TRANSIENTWINDOW)",
+    "Applied Mica backdrop to SettingsWindow (DWMSBT_MAINWINDOW)",
+    "Overhauled SettingsWindow with Microsoft PowerToys / WinUI 3 SettingsCard design with 32x32 icon plates and subtle hover elevation",
+    "Added Top specular edge highlight and layered luminance border per Microsoft Fluent Design guidelines",
+    "Updated action buttons to WinUI 3 standard specification (height 30px, corner radius 5px, subtle border, smooth hover elevation)",
+    "Added customizable opacity slider (50%~100%) and TopLeft placement option",
+    "Added Unix timestamp, Base64, and CSV/TSV table detection features"
   ]
 }
