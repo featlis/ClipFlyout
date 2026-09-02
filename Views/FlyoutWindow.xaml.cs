@@ -78,9 +78,6 @@ public partial class FlyoutWindow : Window
             RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(45, 255, 255, 255));
             InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
 
-            CardShadow.Opacity = 0.36;
-            CardShadow.Color = Colors.Black;
-
             HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
             HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
             CloseButton.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
@@ -105,9 +102,6 @@ public partial class FlyoutWindow : Window
             RootCard.Background = new SolidColorBrush(Color.FromArgb(cardAlpha, 252, 253, 255));
             RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(35, 0, 0, 0));
             InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255));
-
-            CardShadow.Opacity = 0.15;
-            CardShadow.Color = Color.FromRgb(15, 23, 42);
 
             HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
             HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));

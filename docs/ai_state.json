@@ -1,14 +1,15 @@
 {
   "project": "ClipFlyout",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "target_framework": "net9.0-windows",
   "architecture": {
-    "ui": "WPF + Fluent Design (Hardware DWM Acrylic blur via ACCENT_ENABLE_ACRYLICBLURBEHIND / DWMSBT_TRANSIENTWINDOW, Mica for Settings, WS_EX_NOACTIVATE)",
+    "ui": "WPF + Fluent Design (ACCENT_ENABLE_ACRYLICBLURBEHIND frosted acrylic without double-frame, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings)",
     "native_interop": {
       "clipboard_listener": "user32.dll AddClipboardFormatListener / RemoveClipboardFormatListener (WM_CLIPBOARDUPDATE 0x031D)",
       "window_styles": "WS_EX_NOACTIVATE (0x08000000) | WS_EX_TOOLWINDOW (0x00000080) | WS_EX_TOPMOST (0x00000008)",
       "monitor_positioning": "GetCursorPos -> MonitorFromPoint -> GetMonitorInfo (BottomRight, TopRight, TopLeft, BottomLeft, NearCursor)",
-      "dwm_blur": "dwmapi.dll DwmSetWindowAttribute (DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_USE_IMMERSIVE_DARK_MODE, DWMWA_WINDOW_CORNER_PREFERENCE) + user32.dll SetWindowCompositionAttribute (WCA_ACCENT_POLICY, ACCENT_ENABLE_ACRYLICBLURBEHIND)",
+      "acrylic_blur": "user32.dll SetWindowCompositionAttribute (WCA_ACCENT_POLICY, ACCENT_ENABLE_ACRYLICBLURBEHIND) + DwmSetWindowAttribute (DWMWA_USE_IMMERSIVE_DARK_MODE)",
+      "mica_backdrop": "dwmapi.dll DwmSetWindowAttribute (DWMWA_SYSTEMBACKDROP_TYPE=2, DWMWA_WINDOW_CORNER_PREFERENCE=2)",
       "theme_detection": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\\AppsUseLightTheme + SystemEvents.UserPreferenceChanged",
       "startup_sync": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\ClipFlyout"
     },
@@ -16,13 +17,14 @@
       "ClipboardMonitor": "Services/ClipboardMonitor.cs (HwndSource message hook, 5x lock retry, suppression scope for internal writes)",
       "DataTypeDetector": "Services/DataTypeDetector.cs (Configurable filters: HexColor, UnixTimestamp, Json, Url, Base64, TableData, Code, Image, PlainText)",
       "ActionExecutor": "Services/ActionExecutor.cs (CopyText, CopyImage, CopyBase64Image, OpenBrowser, GenerateAndCopyQrCode, SaveImageToFile)",
-      "FlyoutWindowManager": "Services/FlyoutWindowManager.cs (Placement: BottomRight, TopRight, TopLeft, BottomLeft, NearCursor; dynamic hardware acrylic blur)",
+      "FlyoutWindowManager": "Services/FlyoutWindowManager.cs (Placement: BottomRight, TopRight, TopLeft, BottomLeft, NearCursor; width 352px compact, zero margin single unified card)",
       "SettingsService": "Services/SettingsService.cs (Persistence in %LocalAppData%\\ClipFlyout\\settings.json, Windows startup sync)",
       "ThemeService": "Services/ThemeService.cs (System, Light, Dark dynamic theme switching)",
       "TrayIconService": "Services/TrayIconService.cs (H.NotifyIcon.Wpf with native Icon, Settings menu, theme & language submenu)",
       "LocalizationService": "Services/LocalizationService.cs (Auto/Ja/En full i18n dictionary for flyout and settings)",
-      "ToggleSwitch": "Controls/ToggleSwitch.xaml (Windows 11 styled animated toggle switch)",
-      "SettingsWindow": "Views/SettingsWindow.xaml (Windows 11 Settings / PowerToys SettingsCard layout with Mica and 32x32 icon plates)"
+      "FluentControls": "Themes/FluentControls.xaml (Windows 11 Fluent ComboBox with vector chevron, Slide popup, 4px track Slider, 6px minimal ScrollBar)",
+      "ToggleSwitch": "Controls/ToggleSwitch.xaml (Windows 11 pixel-perfect animated toggle switch)",
+      "SettingsWindow": "Views/SettingsWindow.xaml (PowerToys / WinUI 3 SettingsCard layout with Mica and 32x32 icon plates)"
     }
   },
   "distribution": {
@@ -78,12 +80,11 @@
     }
   },
   "resolved_issues": [
-    "Implemented authentic hardware-accelerated DWM Acrylic blur behind window (SetWindowCompositionAttribute + DWMSBT_TRANSIENTWINDOW)",
-    "Applied Mica backdrop to SettingsWindow (DWMSBT_MAINWINDOW)",
-    "Overhauled SettingsWindow with Microsoft PowerToys / WinUI 3 SettingsCard design with 32x32 icon plates and subtle hover elevation",
-    "Added Top specular edge highlight and layered luminance border per Microsoft Fluent Design guidelines",
-    "Updated action buttons to WinUI 3 standard specification (height 30px, corner radius 5px, subtle border, smooth hover elevation)",
-    "Added customizable opacity slider (50%~100%) and TopLeft placement option",
-    "Added Unix timestamp, Base64, and CSV/TSV table detection features"
+    "Fixed double popup / double border artifact by eliminating outer margin and DWM window clipping conflicts, unifying into single 352px acrylic card",
+    "Created custom Windows 11 Fluent ComboBox with flat rounded container, clean vector chevron, and 6px rounded floating popup menu with slide animation",
+    "Created Windows 11 Fluent Slider with 4px pill track and modern circle thumb",
+    "Created Windows 11 minimalist ScrollBar with 6px width and auto-fade thumb",
+    "Replaced classic WPF aero controls with unified Themes/FluentControls.xaml",
+    "Released v0.2.1"
   ]
 }

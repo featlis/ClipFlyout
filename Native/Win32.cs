@@ -129,7 +129,8 @@ public static class Win32
     public static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WindowCompositionAttributeData data);
 
     /// <summary>
-    /// Enables real hardware-accelerated Acrylic frosted glass blur on the given window.
+    /// Enables hardware-accelerated Acrylic frosted glass blur for transparent WPF windows.
+    /// Uses SetWindowCompositionAttribute (ACCENT_ENABLE_ACRYLICBLURBEHIND) which respects WPF AllowsTransparency.
     /// </summary>
     public static void EnableAcrylicBlur(IntPtr hwnd, bool isDark, byte alpha = 175)
     {
@@ -138,14 +139,6 @@ public static class Win32
             int darkModeVal = isDark ? 1 : 0;
             DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref darkModeVal, sizeof(int));
 
-            int cornerVal = DWMWCP_ROUND;
-            DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref cornerVal, sizeof(int));
-
-            // Windows 11 22H2+ Transient Backdrop
-            int backdropVal = DWMSBT_TRANSIENTWINDOW;
-            int res = DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropVal, sizeof(int));
-
-            // SetWindowCompositionAttribute Acrylic blur behind
             // GradientColor format: AABBGGRR
             byte r = isDark ? (byte)24 : (byte)245;
             byte g = isDark ? (byte)27 : (byte)248;
@@ -180,7 +173,7 @@ public static class Win32
         }
         catch
         {
-            // Fallback gracefully if API is not supported on older OS
+            // Fallback gracefully
         }
     }
 

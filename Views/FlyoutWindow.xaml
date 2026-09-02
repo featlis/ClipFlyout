@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="ClipFlyout"
-        Width="396"
+        Width="352"
         SizeToContent="Height"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -18,7 +18,7 @@
         FontFamily="Segoe UI Variable Text, Segoe UI, sans-serif">
 
     <Window.Resources>
-        <!-- Open/Close Animations with Fluid Windows 11 Cubic Bezier Easing -->
+        <!-- Windows 11 Smooth Easing Entrance Animation -->
         <Storyboard x:Key="ShowStoryboard">
             <DoubleAnimation Storyboard.TargetName="RootCard"
                              Storyboard.TargetProperty="Opacity"
@@ -30,7 +30,7 @@
             </DoubleAnimation>
             <DoubleAnimation Storyboard.TargetName="RootTransform"
                              Storyboard.TargetProperty="Y"
-                             From="16.0" To="0.0"
+                             From="12.0" To="0.0"
                              Duration="0:0:0.18">
                 <DoubleAnimation.EasingFunction>
                     <CubicEase EasingMode="EaseOut"/>
@@ -49,7 +49,7 @@
             </DoubleAnimation>
             <DoubleAnimation Storyboard.TargetName="RootTransform"
                              Storyboard.TargetProperty="Y"
-                             From="0.0" To="8.0"
+                             From="0.0" To="6.0"
                              Duration="0:0:0.14">
                 <DoubleAnimation.EasingFunction>
                     <CubicEase EasingMode="EaseIn"/>
@@ -58,215 +58,204 @@
         </Storyboard>
     </Window.Resources>
 
-    <Grid Margin="18">
-        <!-- Main Card Container: Windows 11 Frosted Acrylic Layer -->
-        <Border x:Name="RootCard"
-                CornerRadius="10"
-                BorderThickness="1"
-                Padding="0"
-                RenderTransformOrigin="0.5,0.5">
-            <Border.RenderTransform>
-                <TranslateTransform x:Name="RootTransform" Y="0"/>
-            </Border.RenderTransform>
-            <Border.Effect>
-                <DropShadowEffect x:Name="CardShadow"
-                                  BlurRadius="28"
-                                  Color="#000000"
-                                  Opacity="0.32"
-                                  ShadowDepth="8"
-                                  Direction="270"/>
-            </Border.Effect>
+    <!-- Single Unified Root Card (Zero outer margin to eliminate double frame) -->
+    <Border x:Name="RootCard"
+            CornerRadius="8"
+            BorderThickness="1"
+            Padding="0"
+            Margin="0"
+            RenderTransformOrigin="0.5,0.5">
+        <Border.RenderTransform>
+            <TranslateTransform x:Name="RootTransform" Y="0"/>
+        </Border.RenderTransform>
 
-            <!-- Inner Layer with Top Highlight Specular Edge -->
-            <Border x:Name="InnerHighlightBorder"
-                    CornerRadius="9"
-                    BorderThickness="0,1,0,0">
-                <Grid>
-                    <StackPanel Margin="16,14,16,14">
-                        <!-- Header: Badge, Title, Subtitle, Close Button -->
-                        <Grid Margin="0,0,0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
+        <!-- Inner Top Highlight Specular Edge -->
+        <Border x:Name="InnerHighlightBorder"
+                CornerRadius="7"
+                BorderThickness="0,1,0,0">
+            <StackPanel Margin="14,12,14,12">
+                <!-- Header: Badge, Title, Subtitle, Close Button -->
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-                            <!-- Fluent Type Badge -->
-                            <Border Grid.Column="0"
-                                    x:Name="TypeBadgeBorder"
-                                    CornerRadius="4"
-                                    Padding="7,2.5"
-                                    VerticalAlignment="Center"
-                                    Margin="0,0,10,0">
-                                <TextBlock x:Name="TypeBadgeText"
-                                           Text="JSON"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"/>
-                            </Border>
+                    <!-- Type Badge -->
+                    <Border Grid.Column="0"
+                            x:Name="TypeBadgeBorder"
+                            CornerRadius="4"
+                            Padding="6,2"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,0">
+                        <TextBlock x:Name="TypeBadgeText"
+                                   Text="JSON"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"/>
+                    </Border>
 
-                            <!-- Title & Subtitle -->
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock x:Name="HeaderTitleText"
-                                           Text="JSON Object"
-                                           FontSize="13.5"
-                                           FontWeight="SemiBold"
-                                           TextTrimming="CharacterEllipsis"/>
-                                <TextBlock x:Name="HeaderSubtitleText"
-                                           Text="4 properties"
-                                           FontSize="11.5"
-                                           TextTrimming="CharacterEllipsis"
-                                           Margin="0,1,0,0"/>
-                            </StackPanel>
-
-                            <!-- Close Button (Windows 11 Subtle Icon Button) -->
-                            <Button Grid.Column="2"
-                                    x:Name="CloseButton"
-                                    Width="26" Height="26"
-                                    Padding="0"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Cursor="Hand"
-                                    Click="CloseButton_Click">
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border x:Name="btnBorder" Background="Transparent" CornerRadius="13">
-                                            <TextBlock Text="✕" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="btnBorder" Property="Background" Value="#18888888"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Button.Template>
-                            </Button>
-                        </Grid>
-
-                        <!-- Preview Content Area -->
-                        <Grid x:Name="PreviewArea" Margin="0,0,0,10">
-                            <!-- 1. Color Preview -->
-                            <Grid x:Name="ColorPreviewPanel" Visibility="Collapsed">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="46"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <Border x:Name="ColorSwatch"
-                                        Grid.Column="0"
-                                        Width="42" Height="42"
-                                        CornerRadius="8"
-                                        BorderThickness="1"
-                                        BorderBrush="#35888888"
-                                        Background="#3498DB"/>
-                                <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock x:Name="ColorHexText"
-                                               Text="#3498DB"
-                                               FontSize="13"
-                                               FontWeight="Bold"/>
-                                    <TextBlock x:Name="ColorValuesText"
-                                               Text="RGB(52, 152, 219) • HSL(204°, 70%, 53%)"
-                                               FontSize="11"
-                                               Margin="0,2,0,0"/>
-                                </StackPanel>
-                            </Grid>
-
-                            <!-- 2. Image Preview -->
-                            <Grid x:Name="ImagePreviewPanel" Visibility="Collapsed">
-                                <Border x:Name="ImagePreviewBorder"
-                                        CornerRadius="6"
-                                        BorderThickness="1"
-                                        MaxHeight="120"
-                                        ClipToBounds="True">
-                                    <Image x:Name="ImageThumbnail"
-                                           Stretch="Uniform"
-                                           MaxHeight="120"
-                                           HorizontalAlignment="Center"/>
-                                </Border>
-                            </Grid>
-
-                            <!-- 3. Textual / JSON / Code Preview -->
-                            <Border x:Name="TextPreviewPanel"
-                                    BorderThickness="1"
-                                    CornerRadius="6"
-                                    Padding="10,8"
-                                    MaxHeight="86">
-                                <TextBlock x:Name="BodyPreviewText"
-                                           Text="{}{...}"
-                                           FontFamily="Cascadia Code, Consolas, Segoe UI"
-                                           FontSize="11.5"
-                                           TextWrapping="Wrap"
-                                           TextTrimming="CharacterEllipsis"/>
-                            </Border>
-                        </Grid>
-
-                        <!-- Bottom Area: Actions OR Inline Toast Feedback -->
-                        <Grid MinHeight="32">
-                            <!-- Action Buttons List (WrapPanel with WinUI 3 Button style) -->
-                            <ItemsControl x:Name="ActionsItemsControl">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel HorizontalAlignment="Right" Orientation="Horizontal"/>
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Button Margin="4,2,0,2"
-                                                Height="30"
-                                                Padding="12,0"
-                                                BorderThickness="1"
-                                                Cursor="Hand"
-                                                ToolTip="{Binding Description}"
-                                                Click="ActionButton_Click"
-                                                Tag="{Binding}">
-                                            <Button.Template>
-                                                <ControlTemplate TargetType="Button">
-                                                    <Border x:Name="btnBorder"
-                                                            Background="{TemplateBinding Background}"
-                                                            BorderBrush="{TemplateBinding BorderBrush}"
-                                                            BorderThickness="{TemplateBinding BorderThickness}"
-                                                            CornerRadius="5"
-                                                            Padding="{TemplateBinding Padding}">
-                                                        <TextBlock Text="{Binding Label}"
-                                                                   FontSize="11.5"
-                                                                   FontWeight="Medium"
-                                                                   VerticalAlignment="Center"
-                                                                   Foreground="{TemplateBinding Foreground}"/>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="btnBorder" Property="Background" Value="#25888888"/>
-                                                            <Setter TargetName="btnBorder" Property="BorderBrush" Value="#45888888"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsPressed" Value="True">
-                                                            <Setter TargetName="btnBorder" Property="Background" Value="#40888888"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Button.Template>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <!-- Inline Feedback Bar (Zero overlap) -->
-                            <Border x:Name="InlineFeedbackBar"
-                                    Visibility="Collapsed"
-                                    CornerRadius="5"
-                                    Height="30"
-                                    Padding="14,0"
-                                    HorizontalAlignment="Right">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="✓" FontWeight="Bold" FontSize="12" Margin="0,0,6,0" Foreground="#10B981"/>
-                                    <TextBlock x:Name="InlineFeedbackText"
-                                               Text="コピーしました"
-                                               FontSize="11.5"
-                                               FontWeight="SemiBold"/>
-                                </StackPanel>
-                            </Border>
-                        </Grid>
+                    <!-- Title & Subtitle -->
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock x:Name="HeaderTitleText"
+                                   Text="JSON Object"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock x:Name="HeaderSubtitleText"
+                                   Text="4 properties"
+                                   FontSize="11"
+                                   TextTrimming="CharacterEllipsis"
+                                   Margin="0,1,0,0"/>
                     </StackPanel>
+
+                    <!-- Close Button -->
+                    <Button Grid.Column="2"
+                            x:Name="CloseButton"
+                            Width="24" Height="24"
+                            Padding="0"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            Click="CloseButton_Click">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="btnBorder" Background="Transparent" CornerRadius="12">
+                                    <TextBlock Text="✕" FontSize="10.5" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="btnBorder" Property="Background" Value="#20888888"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
                 </Grid>
-            </Border>
+
+                <!-- Content Preview Area -->
+                <Grid x:Name="PreviewArea" Margin="0,0,0,8">
+                    <!-- 1. Color Preview -->
+                    <Grid x:Name="ColorPreviewPanel" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="40"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="ColorSwatch"
+                                Grid.Column="0"
+                                Width="36" Height="36"
+                                CornerRadius="6"
+                                BorderThickness="1"
+                                BorderBrush="#35888888"
+                                Background="#3498DB"/>
+                        <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="ColorHexText"
+                                       Text="#3498DB"
+                                       FontSize="12.5"
+                                       FontWeight="Bold"/>
+                            <TextBlock x:Name="ColorValuesText"
+                                       Text="RGB(52, 152, 219) • HSL(204°, 70%, 53%)"
+                                       FontSize="10.5"
+                                       Margin="0,1,0,0"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- 2. Image Preview -->
+                    <Grid x:Name="ImagePreviewPanel" Visibility="Collapsed">
+                        <Border x:Name="ImagePreviewBorder"
+                                CornerRadius="6"
+                                BorderThickness="1"
+                                MaxHeight="105"
+                                ClipToBounds="True">
+                            <Image x:Name="ImageThumbnail"
+                                   Stretch="Uniform"
+                                   MaxHeight="105"
+                                   HorizontalAlignment="Center"/>
+                        </Border>
+                    </Grid>
+
+                    <!-- 3. Textual / JSON / Code Preview -->
+                    <Border x:Name="TextPreviewPanel"
+                            BorderThickness="1"
+                            CornerRadius="5"
+                            Padding="8,6"
+                            MaxHeight="80">
+                        <TextBlock x:Name="BodyPreviewText"
+                                   Text="{}{...}"
+                                   FontFamily="Cascadia Code, Consolas, Segoe UI"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </Border>
+                </Grid>
+
+                <!-- Actions List OR Inline Feedback -->
+                <Grid MinHeight="30">
+                    <!-- Actions (WrapPanel) -->
+                    <ItemsControl x:Name="ActionsItemsControl">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel HorizontalAlignment="Right" Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Margin="4,2,0,2"
+                                        Height="28"
+                                        Padding="10,0"
+                                        BorderThickness="1"
+                                        Cursor="Hand"
+                                        ToolTip="{Binding Description}"
+                                        Click="ActionButton_Click"
+                                        Tag="{Binding}">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="btnBorder"
+                                                    Background="{TemplateBinding Background}"
+                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                    CornerRadius="4"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <TextBlock Text="{Binding Label}"
+                                                           FontSize="11"
+                                                           FontWeight="Medium"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{TemplateBinding Foreground}"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="btnBorder" Property="Background" Value="#25888888"/>
+                                                    <Setter TargetName="btnBorder" Property="BorderBrush" Value="#45888888"/>
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="btnBorder" Property="Background" Value="#40888888"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Inline Feedback -->
+                    <Border x:Name="InlineFeedbackBar"
+                            Visibility="Collapsed"
+                            CornerRadius="4"
+                            Height="28"
+                            Padding="12,0"
+                            HorizontalAlignment="Right">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="✓" FontWeight="Bold" FontSize="11.5" Margin="0,0,5,0" Foreground="#10B981"/>
+                            <TextBlock x:Name="InlineFeedbackText"
+                                       Text="コピーしました"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </StackPanel>
         </Border>
-    </Grid>
+    </Border>
 </Window>

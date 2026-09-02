@@ -228,6 +228,13 @@ public partial class SettingsWindow : Window
             SetCardStyle(CardDetectors, isDark);
             SetCardStyle(CardAbout, isDark);
 
+            var darkComboBg = new SolidColorBrush(Color.FromRgb(38, 42, 53));
+            var darkComboBorder = new SolidColorBrush(Color.FromRgb(62, 70, 88));
+            var darkComboFg = new SolidColorBrush(Color.FromRgb(243, 244, 246));
+            SetComboStyle(ComboTheme, darkComboBg, darkComboBorder, darkComboFg);
+            SetComboStyle(ComboLanguage, darkComboBg, darkComboBorder, darkComboFg);
+            SetComboStyle(ComboPlacement, darkComboBg, darkComboBorder, darkComboFg);
+
             SetSeparatorColors(isDark);
 
             PrivacyCallout.Background = new SolidColorBrush(Color.FromArgb(30, 16, 185, 129));
@@ -257,6 +264,13 @@ public partial class SettingsWindow : Window
             SetCardStyle(CardDetectors, isDark);
             SetCardStyle(CardAbout, isDark);
 
+            var lightComboBg = new SolidColorBrush(Color.FromRgb(255, 255, 255));
+            var lightComboBorder = new SolidColorBrush(Color.FromRgb(203, 213, 225));
+            var lightComboFg = new SolidColorBrush(Color.FromRgb(15, 23, 42));
+            SetComboStyle(ComboTheme, lightComboBg, lightComboBorder, lightComboFg);
+            SetComboStyle(ComboLanguage, lightComboBg, lightComboBorder, lightComboFg);
+            SetComboStyle(ComboPlacement, lightComboBg, lightComboBorder, lightComboFg);
+
             SetSeparatorColors(isDark);
 
             PrivacyCallout.Background = new SolidColorBrush(Color.FromRgb(236, 253, 245));
@@ -281,6 +295,13 @@ public partial class SettingsWindow : Window
             card.Background = new SolidColorBrush(Color.FromRgb(255, 255, 255));
             card.BorderBrush = new SolidColorBrush(Color.FromRgb(226, 232, 240));
         }
+    }
+
+    private static void SetComboStyle(ComboBox combo, Brush bg, Brush border, Brush fg)
+    {
+        combo.Background = bg;
+        combo.BorderBrush = border;
+        combo.Foreground = fg;
     }
 
     private void SetSeparatorColors(bool isDark)
