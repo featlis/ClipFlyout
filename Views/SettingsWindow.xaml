@@ -6,8 +6,8 @@
         xmlns:controls="clr-namespace:ClipFlyout.Controls"
         mc:Ignorable="d"
         Title="ClipFlyout Settings"
-        Width="780" Height="720"
-        MinWidth="640" MinHeight="540"
+        Width="800" Height="740"
+        MinWidth="660" MinHeight="560"
         WindowStartupLocation="CenterScreen"
         FontFamily="Segoe UI Variable Text, Segoe UI, sans-serif"
         UseLayoutRounding="True"
@@ -63,7 +63,7 @@
 
         <!-- Main Scrollable Settings Cards -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="28,20,28,28">
-            <StackPanel MaxWidth="720">
+            <StackPanel MaxWidth="740">
 
                 <!-- 1. GENERAL SECTION -->
                 <TextBlock x:Name="SecGeneralTitle" Text="全般" FontSize="14" FontWeight="SemiBold" Margin="4,0,0,8"/>
@@ -139,8 +139,8 @@
                     </StackPanel>
                 </Border>
 
-                <!-- 2. FLYOUT BEHAVIOR SECTION -->
-                <TextBlock x:Name="SecFlyoutTitle" Text="フライアウト動作" FontSize="14" FontWeight="SemiBold" Margin="4,0,0,8"/>
+                <!-- 2. FLYOUT BEHAVIOR & APPEARANCE SECTION -->
+                <TextBlock x:Name="SecFlyoutTitle" Text="フライアウト動作 &amp; 外観" FontSize="14" FontWeight="SemiBold" Margin="4,0,0,8"/>
                 <Border x:Name="CardFlyout" CornerRadius="8" BorderThickness="1" Margin="0,0,0,24">
                     <StackPanel>
                         <!-- Setting: Placement -->
@@ -160,6 +160,28 @@
                         </Border>
 
                         <Separator x:Name="Sep4" Margin="16,0"/>
+
+                        <!-- Setting: Opacity (Acrylic) -->
+                        <Border Padding="16,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="200"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock x:Name="LblOpacity" Text="背景の透明度 (アクリル効果)" FontSize="13.5" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescOpacity" Text="フライアウトのすりガラス・半透明度を調整します" FontSize="11.5" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                    <Slider x:Name="SliderOpacity" Width="140" Minimum="50.0" Maximum="100.0" SmallChange="5.0" LargeChange="10.0"
+                                            TickFrequency="5.0" IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                            ValueChanged="SliderOpacity_ValueChanged"/>
+                                    <TextBlock x:Name="TextOpacityVal" Text="85%" Width="44" TextAlignment="Right" VerticalAlignment="Center" FontSize="12.5" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Separator x:Name="Sep5" Margin="16,0"/>
 
                         <!-- Setting: Auto Hide Timeout -->
                         <Border Padding="16,12">
@@ -181,7 +203,7 @@
                             </Grid>
                         </Border>
 
-                        <Separator x:Name="Sep5" Margin="16,0"/>
+                        <Separator x:Name="Sep5b" Margin="16,0"/>
 
                         <!-- Setting: Hover Leave Timeout -->
                         <Border Padding="16,12">
@@ -227,6 +249,23 @@
 
                         <Separator x:Name="Sep6" Margin="16,0"/>
 
+                        <!-- Detector: Unix Timestamp -->
+                        <Border Padding="16,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock x:Name="LblDetTimestamp" Text="Unix タイムスタンプ" FontSize="13.5" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescDetTimestamp" Text="10桁(秒)や13桁(ミリ秒)の数値を検出し、日時プレビューとISO変換を提供" FontSize="11.5" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <controls:ToggleSwitch Grid.Column="1" x:Name="ToggleDetTimestamp" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <Separator x:Name="Sep7" Margin="16,0"/>
+
                         <!-- Detector: JSON -->
                         <Border Padding="16,12">
                             <Grid>
@@ -242,7 +281,7 @@
                             </Grid>
                         </Border>
 
-                        <Separator x:Name="Sep7" Margin="16,0"/>
+                        <Separator x:Name="Sep8" Margin="16,0"/>
 
                         <!-- Detector: URL -->
                         <Border Padding="16,12">
@@ -259,7 +298,41 @@
                             </Grid>
                         </Border>
 
-                        <Separator x:Name="Sep8" Margin="16,0"/>
+                        <Separator x:Name="Sep9" Margin="16,0"/>
+
+                        <!-- Detector: Base64 -->
+                        <Border Padding="16,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock x:Name="LblDetBase64" Text="Base64 データ" FontSize="13.5" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescDetBase64" Text="Base64文字列やData URIを検出し、テキスト復号や画像展開を提供" FontSize="11.5" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <controls:ToggleSwitch Grid.Column="1" x:Name="ToggleDetBase64" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <Separator x:Name="Sep10" Margin="16,0"/>
+
+                        <!-- Detector: Table Data (CSV / TSV) -->
+                        <Border Padding="16,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock x:Name="LblDetTable" Text="表データ (CSV / TSV)" FontSize="13.5" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescDetTable" Text="ExcelやTSV/CSVのコピーからMarkdown表やJSON配列への自動変換を提供" FontSize="11.5" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <controls:ToggleSwitch Grid.Column="1" x:Name="ToggleDetTable" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <Separator x:Name="Sep11" Margin="16,0"/>
 
                         <!-- Detector: Code Snippet -->
                         <Border Padding="16,12">
@@ -276,7 +349,7 @@
                             </Grid>
                         </Border>
 
-                        <Separator x:Name="Sep9" Margin="16,0"/>
+                        <Separator x:Name="Sep12" Margin="16,0"/>
 
                         <!-- Detector: Image -->
                         <Border Padding="16,12">
@@ -293,7 +366,7 @@
                             </Grid>
                         </Border>
 
-                        <Separator x:Name="Sep10" Margin="16,0"/>
+                        <Separator x:Name="Sep13" Margin="16,0"/>
 
                         <!-- Detector: Plain Text -->
                         <Border Padding="16,12">

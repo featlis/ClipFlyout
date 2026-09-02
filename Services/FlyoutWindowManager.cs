@@ -104,6 +104,11 @@ public class FlyoutWindowManager : IDisposable
                     _window.Top = workTop + 24;
                     break;
 
+                case FlyoutPlacement.TopLeft:
+                    _window.Left = workLeft + 24;
+                    _window.Top = workTop + 24;
+                    break;
+
                 case FlyoutPlacement.BottomLeft:
                     _window.Left = workLeft + 24;
                     _window.Top = workBottom - targetHeight - 24;

@@ -34,6 +34,8 @@ public partial class FlyoutWindow : Window
         MouseLeave += (_, _) => MouseLeft?.Invoke();
 
         ThemeService.Instance.ThemeChanged += () => Dispatcher.Invoke(ApplyTheme);
+        SettingsService.Instance.SettingsChanged += _ => Dispatcher.Invoke(ApplyTheme);
+
         ApplyTheme();
     }
 
@@ -50,10 +52,13 @@ public partial class FlyoutWindow : Window
     public void ApplyTheme()
     {
         bool isDark = ThemeService.Instance.IsDarkTheme;
+        double opacity = SettingsService.Instance.Current.OpacityPercent;
+        byte cardAlpha = (byte)Math.Clamp(Math.Round(opacity * 2.55), 110, 255);
 
         if (isDark)
         {
-            RootCard.Background = new SolidColorBrush(Color.FromArgb(246, 31, 34, 43));
+            // Translucent frosted glass Acrylic dark theme
+            RootCard.Background = new SolidColorBrush(Color.FromArgb(cardAlpha, 22, 25, 34));
             RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(55, 255, 255, 255));
             CardShadow.Opacity = 0.38;
             CardShadow.Color = Colors.Black;
@@ -62,41 +67,42 @@ public partial class FlyoutWindow : Window
             HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
             CloseButton.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
 
-            TextPreviewPanel.Background = new SolidColorBrush(Color.FromRgb(22, 25, 34));
-            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromRgb(40, 45, 60));
+            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(170, 16, 19, 26));
+            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(70, 255, 255, 255));
             BodyPreviewText.Foreground = new SolidColorBrush(Color.FromRgb(226, 232, 240));
 
-            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromRgb(22, 25, 34));
-            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(40, 45, 60));
+            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(170, 16, 19, 26));
+            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(70, 255, 255, 255));
 
             ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
             ColorValuesText.Foreground = new SolidColorBrush(Color.FromRgb(209, 213, 219));
 
-            InlineFeedbackBar.Background = new SolidColorBrush(Color.FromRgb(30, 41, 59));
+            InlineFeedbackBar.Background = new SolidColorBrush(Color.FromArgb(cardAlpha, 30, 41, 59));
             InlineFeedbackText.Foreground = new SolidColorBrush(Color.FromRgb(241, 245, 249));
         }
         else
         {
-            RootCard.Background = new SolidColorBrush(Color.FromArgb(252, 253, 254, 255));
-            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(220, 226, 232, 240));
-            CardShadow.Opacity = 0.14;
+            // Translucent frosted glass Acrylic light theme
+            RootCard.Background = new SolidColorBrush(Color.FromArgb(cardAlpha, 255, 255, 255));
+            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(45, 0, 0, 0));
+            CardShadow.Opacity = 0.16;
             CardShadow.Color = Color.FromRgb(15, 23, 42);
 
             HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
             HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
             CloseButton.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
 
-            TextPreviewPanel.Background = new SolidColorBrush(Color.FromRgb(241, 245, 249));
-            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromRgb(226, 232, 240));
+            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(160, 241, 245, 249));
+            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 0, 0, 0));
             BodyPreviewText.Foreground = new SolidColorBrush(Color.FromRgb(30, 41, 59));
 
-            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromRgb(241, 245, 249));
-            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(226, 232, 240));
+            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(160, 241, 245, 249));
+            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 0, 0, 0));
 
             ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
             ColorValuesText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
 
-            InlineFeedbackBar.Background = new SolidColorBrush(Color.FromRgb(226, 232, 240));
+            InlineFeedbackBar.Background = new SolidColorBrush(Color.FromArgb(cardAlpha, 226, 232, 240));
             InlineFeedbackText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
         }
 
@@ -118,6 +124,9 @@ public partial class FlyoutWindow : Window
                 ClipDataType.Url => (Color.FromArgb(40, 16, 185, 129), Color.FromRgb(110, 231, 183)),
                 ClipDataType.Code => (Color.FromArgb(40, 245, 158, 11), Color.FromRgb(252, 211, 77)),
                 ClipDataType.Image => (Color.FromArgb(40, 236, 72, 153), Color.FromRgb(244, 114, 182)),
+                ClipDataType.UnixTimestamp => (Color.FromArgb(40, 6, 182, 212), Color.FromRgb(103, 232, 249)),
+                ClipDataType.Base64 => (Color.FromArgb(40, 99, 102, 241), Color.FromRgb(165, 180, 252)),
+                ClipDataType.TableData => (Color.FromArgb(40, 16, 185, 129), Color.FromRgb(110, 231, 183)),
                 _ => (Color.FromArgb(40, 107, 114, 128), Color.FromRgb(209, 213, 219))
             };
             TypeBadgeBorder.Background = new SolidColorBrush(bg);
@@ -132,6 +141,9 @@ public partial class FlyoutWindow : Window
                 ClipDataType.Url => (Color.FromRgb(236, 253, 245), Color.FromRgb(5, 150, 105)),
                 ClipDataType.Code => (Color.FromRgb(255, 251, 235), Color.FromRgb(217, 119, 6)),
                 ClipDataType.Image => (Color.FromRgb(253, 242, 248), Color.FromRgb(219, 39, 119)),
+                ClipDataType.UnixTimestamp => (Color.FromRgb(236, 254, 255), Color.FromRgb(8, 145, 178)),
+                ClipDataType.Base64 => (Color.FromRgb(238, 242, 255), Color.FromRgb(79, 70, 229)),
+                ClipDataType.TableData => (Color.FromRgb(236, 253, 245), Color.FromRgb(5, 150, 105)),
                 _ => (Color.FromRgb(241, 245, 249), Color.FromRgb(71, 85, 105))
             };
             TypeBadgeBorder.Background = new SolidColorBrush(bg);
@@ -141,7 +153,6 @@ public partial class FlyoutWindow : Window
 
     private void StyleActionButtons(bool isDark)
     {
-        // Update loaded buttons colors
         for (int i = 0; i < VisualTreeHelper.GetChildrenCount(ActionsItemsControl); i++)
         {
             var child = VisualTreeHelper.GetChild(ActionsItemsControl, i);
@@ -159,14 +170,14 @@ public partial class FlyoutWindow : Window
             {
                 if (isDark)
                 {
-                    btn.Background = new SolidColorBrush(Color.FromRgb(42, 47, 61));
-                    btn.BorderBrush = new SolidColorBrush(Color.FromRgb(62, 70, 90));
+                    btn.Background = new SolidColorBrush(Color.FromArgb(210, 42, 47, 61));
+                    btn.BorderBrush = new SolidColorBrush(Color.FromArgb(120, 75, 85, 110));
                     btn.Foreground = new SolidColorBrush(Color.FromRgb(243, 244, 246));
                 }
                 else
                 {
-                    btn.Background = new SolidColorBrush(Color.FromRgb(255, 255, 255));
-                    btn.BorderBrush = new SolidColorBrush(Color.FromRgb(209, 213, 219));
+                    btn.Background = new SolidColorBrush(Color.FromArgb(230, 255, 255, 255));
+                    btn.BorderBrush = new SolidColorBrush(Color.FromArgb(80, 0, 0, 0));
                     btn.Foreground = new SolidColorBrush(Color.FromRgb(31, 41, 55));
                 }
             }
@@ -184,7 +195,7 @@ public partial class FlyoutWindow : Window
         ImagePreviewPanel.Visibility = Visibility.Collapsed;
         TextPreviewPanel.Visibility = Visibility.Collapsed;
 
-        // Reset action/feedback state (Buttons visible, feedback hidden)
+        // Reset action/feedback state
         ActionsItemsControl.Visibility = Visibility.Visible;
         InlineFeedbackBar.Visibility = Visibility.Collapsed;
 
@@ -254,7 +265,6 @@ public partial class FlyoutWindow : Window
     {
         InlineFeedbackText.Text = message;
 
-        // Clean inline transition: hide buttons and show feedback bar (ZERO OVERLAP!)
         ActionsItemsControl.Visibility = Visibility.Collapsed;
         InlineFeedbackBar.Visibility = Visibility.Visible;
 

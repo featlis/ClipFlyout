@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Net;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Windows.Media.Imaging;
@@ -22,6 +24,9 @@ public partial class DataTypeDetector : IDataTypeDetector
 
     [GeneratedRegex(@"\b(class|function|def|import|export|const|let|var|public|private|protected|namespace|using|interface|struct|enum|async|await|return|SELECT|FROM|WHERE|INSERT|UPDATE|DELETE)\b")]
     private static partial Regex CodeKeywordsRegex();
+
+    [GeneratedRegex(@"^\d{10}$|^\d{13}$")]
+    private static partial Regex TimestampRegex();
 
     public DataTypeDetector(ActionExecutor executor)
     {
@@ -52,27 +57,48 @@ public partial class DataTypeDetector : IDataTypeDetector
                 if (colorResult != null) return colorResult;
             }
 
-            // 2b. JSON
+            // 2b. Unix Timestamp
+            if (cfg.DetectTimestamp && TimestampRegex().IsMatch(trimmed))
+            {
+                var tsResult = TryDetectTimestamp(trimmed);
+                if (tsResult != null) return tsResult;
+            }
+
+            // 2c. JSON
             if (cfg.DetectJson && ((trimmed.StartsWith('{') && trimmed.EndsWith('}')) || (trimmed.StartsWith('[') && trimmed.EndsWith(']'))))
             {
                 var jsonResult = TryDetectJson(trimmed, text);
                 if (jsonResult != null) return jsonResult;
             }
 
-            // 2c. URL
+            // 2d. URL
             if (cfg.DetectUrl && Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) &&
                 (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
             {
                 return DetectUrl(uri, trimmed);
             }
 
-            // 2d. Code Snippet
+            // 2e. Base64
+            if (cfg.DetectBase64 && (trimmed.StartsWith("data:", StringComparison.OrdinalIgnoreCase) || IsBase64String(trimmed)))
+            {
+                var b64Result = TryDetectBase64(trimmed);
+                if (b64Result != null) return b64Result;
+            }
+
+            // 2f. Table Data (CSV / TSV)
+            if (cfg.DetectTable)
+            {
+                var tableResult = TryDetectTableData(trimmed);
+                if (tableResult != null) return tableResult;
+            }
+
+            // 2g. Code Snippet
             if (cfg.DetectCode && IsCodeSnippet(text))
             {
                 return DetectCodeSnippet(text);
             }
 
-            // 2e. Fallback: Plain Text
+            // 2h. Fallback: Plain Text
             if (cfg.DetectPlainText)
             {
                 return DetectPlainText(text);
@@ -195,6 +221,282 @@ public partial class DataTypeDetector : IDataTypeDetector
                 HexColorCode: hex.ToUpperInvariant(),
                 ColorValue: mediaColor,
                 BadgeText: "Color"
+            );
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private DetectionResult? TryDetectTimestamp(string text)
+    {
+        try
+        {
+            if (!long.TryParse(text, out long val)) return null;
+
+            DateTimeOffset dto;
+            if (text.Length == 10) // seconds
+            {
+                dto = DateTimeOffset.FromUnixTimeSeconds(val);
+            }
+            else if (text.Length == 13) // milliseconds
+            {
+                dto = DateTimeOffset.FromUnixTimeMilliseconds(val);
+            }
+            else
+            {
+                return null;
+            }
+
+            // Reasonableness check: 1990 <= year <= 2100
+            if (dto.Year < 1990 || dto.Year > 2100) return null;
+
+            var local = dto.ToLocalTime();
+            string localStr = local.ToString("yyyy-MM-dd HH:mm:ss");
+            string isoStr = dto.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
+            string subtitle = $"UTC: {dto.ToUniversalTime():yyyy-MM-dd HH:mm:ss}Z ({local.ToString("zzz")})";
+
+            var actions = new List<ActionItem>
+            {
+                new(
+                    "Action_CopyLocalDate",
+                    _loc.Get("Action_CopyLocalDate"),
+                    "Calendar24",
+                    _loc.Get("Action_CopyLocalDate_Desc"),
+                    () => _executor.CopyText(localStr, "Toast_Copied")
+                ),
+                new(
+                    "Action_CopyIsoDate",
+                    _loc.Get("Action_CopyIsoDate"),
+                    "Globe24",
+                    _loc.Get("Action_CopyIsoDate_Desc"),
+                    () => _executor.CopyText(isoStr, "Toast_Copied")
+                ),
+                new(
+                    "Action_CopyCurrentTimestamp",
+                    _loc.Get("Action_CopyCurrentTimestamp"),
+                    "Clock24",
+                    _loc.Get("Action_CopyCurrentTimestamp_Desc"),
+                    () => _executor.CopyText(DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), "Toast_Copied")
+                )
+            };
+
+            return new DetectionResult(
+                Type: ClipDataType.UnixTimestamp,
+                RawData: text,
+                PreviewTitle: localStr,
+                PreviewSubtitle: subtitle,
+                PreviewBody: $"Epoch: {text} ({(text.Length == 10 ? "sec" : "ms")})",
+                AvailableActions: actions,
+                BadgeText: "Timestamp"
+            );
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private DetectionResult? TryDetectBase64(string text)
+    {
+        try
+        {
+            string payload = text;
+            bool isDataUri = text.StartsWith("data:", StringComparison.OrdinalIgnoreCase);
+            string? mimeType = null;
+
+            if (isDataUri)
+            {
+                int commaIdx = text.IndexOf(',');
+                if (commaIdx == -1) return null;
+                string header = text[..commaIdx];
+                payload = text[(commaIdx + 1)..];
+
+                int semiIdx = header.IndexOf(';');
+                if (semiIdx > 5)
+                {
+                    mimeType = header[5..semiIdx];
+                }
+            }
+
+            byte[] bytes = Convert.FromBase64String(payload.Trim());
+            if (bytes.Length < 4) return null;
+
+            bool isImage = (mimeType != null && mimeType.StartsWith("image/")) || IsImageBytes(bytes);
+
+            var actions = new List<ActionItem>();
+
+            if (isImage)
+            {
+                actions.Add(new(
+                    "Action_CopyDecodedImage",
+                    _loc.Get("Action_CopyDecodedImage"),
+                    "Image24",
+                    _loc.Get("Action_CopyDecodedImage_Desc"),
+                    () => _executor.CopyBase64Image(bytes)
+                ));
+            }
+
+            // Also check if valid text
+            string decodedText = Encoding.UTF8.GetString(bytes);
+            bool isPrintableText = decodedText.All(c => !char.IsControl(c) || c == '\n' || c == '\r' || c == '\t');
+
+            if (isPrintableText && decodedText.Length > 0)
+            {
+                actions.Add(new(
+                    "Action_DecodeBase64",
+                    _loc.Get("Action_DecodeBase64"),
+                    "DocumentText24",
+                    _loc.Get("Action_DecodeBase64_Desc"),
+                    () => _executor.CopyText(decodedText, "Toast_Base64Decoded")
+                ));
+            }
+
+            if (actions.Count == 0) return null;
+
+            string title = isImage ? "Base64 Image" : "Base64 Text";
+            string subtitle = $"{bytes.Length} bytes decoded";
+            string snippet = isPrintableText && decodedText.Length > 0
+                ? (decodedText.Length > 120 ? decodedText[..120] + "..." : decodedText)
+                : $"Decoded binary data ({bytes.Length} bytes)";
+
+            return new DetectionResult(
+                Type: ClipDataType.Base64,
+                RawData: text,
+                PreviewTitle: title,
+                PreviewSubtitle: subtitle,
+                PreviewBody: snippet,
+                AvailableActions: actions,
+                BadgeText: "Base64"
+            );
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool IsBase64String(string s)
+    {
+        if (s.Length < 16 || s.Length % 4 != 0) return false;
+        if (s.Contains(' ') || s.Contains('\n') || s.Contains('\r')) return false;
+
+        // Fast character validation
+        for (int i = 0; i < s.Length; i++)
+        {
+            char c = s[i];
+            bool ok = (c >= 'A' && c <= 'Z') ||
+                      (c >= 'a' && c <= 'z') ||
+                      (c >= '0' && c <= '9') ||
+                      c == '+' || c == '/' || c == '=';
+            if (!ok) return false;
+        }
+        return true;
+    }
+
+    private static bool IsImageBytes(byte[] bytes)
+    {
+        if (bytes.Length < 8) return false;
+        // PNG: 89 50 4E 47
+        if (bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) return true;
+        // JPEG: FF D8 FF
+        if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) return true;
+        // GIF: 47 49 46
+        if (bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46) return true;
+        // BMP: 42 4D
+        if (bytes[0] == 0x42 && bytes[1] == 0x4D) return true;
+        // WebP: RIFF ... WEBP
+        if (bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 &&
+            bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50) return true;
+
+        return false;
+    }
+
+    private DetectionResult? TryDetectTableData(string text)
+    {
+        try
+        {
+            var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(l => l.Trim())
+                            .Where(l => !string.IsNullOrEmpty(l))
+                            .ToList();
+
+            if (lines.Count < 2) return null;
+
+            // Check if TSV (Tab separated)
+            bool isTsv = lines.All(l => l.Contains('\t'));
+            char separator = isTsv ? '\t' : ',';
+
+            if (!isTsv)
+            {
+                // Check if CSV: at least 1 comma per line and equal or close column count
+                if (!lines.All(l => l.Contains(','))) return null;
+            }
+
+            var rows = lines.Select(l => l.Split(separator).Select(cell => cell.Trim()).ToArray()).ToList();
+            int colCount = rows[0].Length;
+            if (colCount < 2) return null;
+
+            // Check if roughly uniform column counts
+            if (rows.Any(r => Math.Abs(r.Length - colCount) > 1)) return null;
+
+            // Generate Markdown table
+            var mdSb = new StringBuilder();
+            mdSb.AppendLine("| " + string.Join(" | ", rows[0]) + " |");
+            mdSb.AppendLine("| " + string.Join(" | ", Enumerable.Repeat("---", colCount)) + " |");
+            for (int i = 1; i < rows.Count; i++)
+            {
+                var r = rows[i];
+                var padded = r.Length == colCount ? r : r.Concat(Enumerable.Repeat("", Math.Max(0, colCount - r.Length))).Take(colCount);
+                mdSb.AppendLine("| " + string.Join(" | ", padded) + " |");
+            }
+            string markdownTable = mdSb.ToString().TrimEnd();
+
+            // Generate JSON Array
+            var jsonList = new List<Dictionary<string, string>>();
+            var headers = rows[0];
+            for (int i = 1; i < rows.Count; i++)
+            {
+                var dict = new Dictionary<string, string>();
+                for (int j = 0; j < headers.Length; j++)
+                {
+                    string val = j < rows[i].Length ? rows[i][j] : "";
+                    dict[headers[j]] = val;
+                }
+                jsonList.Add(dict);
+            }
+            string jsonArray = JsonSerializer.Serialize(jsonList, new JsonSerializerOptions { WriteIndented = true });
+
+            var actions = new List<ActionItem>
+            {
+                new(
+                    "Action_ToMarkdownTable",
+                    _loc.Get("Action_ToMarkdownTable"),
+                    "Table24",
+                    _loc.Get("Action_ToMarkdownTable_Desc"),
+                    () => _executor.CopyText(markdownTable, "Toast_MarkdownTableCopied")
+                ),
+                new(
+                    "Action_ToJsonArray",
+                    _loc.Get("Action_ToJsonArray"),
+                    "Code24",
+                    _loc.Get("Action_ToJsonArray_Desc"),
+                    () => _executor.CopyText(jsonArray, "Toast_JsonArrayCopied")
+                )
+            };
+
+            string subtitle = $"{rows.Count} rows × {colCount} columns ({(isTsv ? "TSV" : "CSV")})";
+            string snippet = lines[0] + "\n" + (lines.Count > 1 ? lines[1] : "");
+
+            return new DetectionResult(
+                Type: ClipDataType.TableData,
+                RawData: text,
+                PreviewTitle: _loc.Get("Type_TableData"),
+                PreviewSubtitle: subtitle,
+                PreviewBody: snippet,
+                AvailableActions: actions,
+                BadgeText: isTsv ? "TSV Table" : "CSV Table"
             );
         }
         catch

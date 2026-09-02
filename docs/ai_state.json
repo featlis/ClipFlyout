@@ -3,25 +3,25 @@
   "version": "0.1.0",
   "target_framework": "net9.0-windows",
   "architecture": {
-    "ui": "WPF + Fluent Design (Light / Dark / Windows System Follow, Acrylic / Mica Feel, WS_EX_NOACTIVATE)",
+    "ui": "WPF + Fluent Design (Acrylic translucent backdrop, Opacity slider, Light/Dark/System follow, WS_EX_NOACTIVATE)",
     "native_interop": {
       "clipboard_listener": "user32.dll AddClipboardFormatListener / RemoveClipboardFormatListener (WM_CLIPBOARDUPDATE 0x031D)",
       "window_styles": "WS_EX_NOACTIVATE (0x08000000) | WS_EX_TOOLWINDOW (0x00000080) | WS_EX_TOPMOST (0x00000008)",
-      "monitor_positioning": "GetCursorPos -> MonitorFromPoint -> GetMonitorInfo (BottomRight, TopRight, BottomLeft, NearCursor)",
+      "monitor_positioning": "GetCursorPos -> MonitorFromPoint -> GetMonitorInfo (BottomRight, TopRight, TopLeft, BottomLeft, NearCursor)",
       "theme_detection": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\\AppsUseLightTheme + SystemEvents.UserPreferenceChanged",
       "startup_sync": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\ClipFlyout"
     },
     "subsystems": {
       "ClipboardMonitor": "Services/ClipboardMonitor.cs (HwndSource message hook, 5x lock retry, suppression scope for internal writes)",
-      "DataTypeDetector": "Services/DataTypeDetector.cs (Configurable filters: Image, HexColor, JSON, URL, Code, PlainText)",
-      "ActionExecutor": "Services/ActionExecutor.cs (CopyText, CopyImage, OpenBrowser, GenerateAndCopyQrCode, SaveImageToFile)",
-      "FlyoutWindowManager": "Services/FlyoutWindowManager.cs (Configurable position & timers, hover pause, leave countdown, multi-monitor)",
+      "DataTypeDetector": "Services/DataTypeDetector.cs (Configurable filters: HexColor, UnixTimestamp, Json, Url, Base64, TableData, Code, Image, PlainText)",
+      "ActionExecutor": "Services/ActionExecutor.cs (CopyText, CopyImage, CopyBase64Image, OpenBrowser, GenerateAndCopyQrCode, SaveImageToFile)",
+      "FlyoutWindowManager": "Services/FlyoutWindowManager.cs (Placement: BottomRight, TopRight, TopLeft, BottomLeft, NearCursor; dynamic opacity)",
       "SettingsService": "Services/SettingsService.cs (Persistence in %LocalAppData%\\ClipFlyout\\settings.json, Windows startup sync)",
       "ThemeService": "Services/ThemeService.cs (System, Light, Dark dynamic theme switching)",
       "TrayIconService": "Services/TrayIconService.cs (H.NotifyIcon.Wpf with native Icon, Settings menu, theme & language submenu)",
       "LocalizationService": "Services/LocalizationService.cs (Auto/Ja/En full i18n dictionary for flyout and settings)",
       "ToggleSwitch": "Controls/ToggleSwitch.xaml (Windows 11 styled animated toggle switch)",
-      "SettingsWindow": "Views/SettingsWindow.xaml (PowerToys card-style configuration window)"
+      "SettingsWindow": "Views/SettingsWindow.xaml (PowerToys card-style configuration window with opacity slider and detector toggles)"
     }
   },
   "distribution": {
@@ -35,6 +35,11 @@
       "actions": ["Copy RGB", "Copy HSL", "Copy RGBA"],
       "preview": "Color swatch + Hex + RGB + HSL"
     },
+    "UnixTimestamp": {
+      "pattern": "10-digit (seconds) or 13-digit (ms) number, years 1990-2100",
+      "actions": ["Copy Local Time", "Copy ISO 8601", "Copy Current Epoch"],
+      "preview": "Local time string + UTC offset"
+    },
     "Json": {
       "pattern": "Trimmed starts with { or [ and ends with } or ], validated via JsonDocument.Parse",
       "actions": ["Format & Copy (Indented)", "Minify & Copy"],
@@ -44,6 +49,16 @@
       "pattern": "Uri.TryCreate http/https scheme",
       "actions": ["Open in Browser", "Generate & Copy QR Image (QRCoder)", "Copy Domain"],
       "preview": "Host + path preview"
+    },
+    "Base64": {
+      "pattern": "data:image/... or valid Base64 encoded string",
+      "actions": ["Decode to Text", "Copy as Image"],
+      "preview": "Decoded summary / byte length"
+    },
+    "TableData": {
+      "pattern": "Multi-line TSV (tabs) or CSV (commas) with uniform columns",
+      "actions": ["To Markdown Table", "To JSON Array"],
+      "preview": "Row x Col count + snippet"
     },
     "Code": {
       "pattern": "Code keywords regex / braces / semicolons / indentation heuristics",
@@ -62,11 +77,14 @@
     }
   },
   "resolved_issues": [
+    "Added Fluent acrylic translucency with customizable opacity slider (50%~100%)",
+    "Added TopLeft placement option for multi-monitor work areas",
+    "Added Unix timestamp detection with local/ISO/epoch actions",
+    "Added Base64 detection with text decode and image extraction",
+    "Added CSV/TSV table detection with Markdown table and JSON array conversions",
     "Eliminated toast overlap by replacing action buttons with inline checkmark feedback banner during confirmation",
     "Replaced gaudy high-saturation badges with refined Windows 11 Fluent design pastel/tint badges",
     "Added full System/Light/Dark theme support with live Windows OS theme tracking",
-    "Added PowerToys-style grouped card Settings window with persistence in settings.json",
-    "Prevented action button text clipping with WrapPanel layout",
-    "Fixed H.NotifyIcon.Wpf RenderTargetBitmap exception by using native System.Drawing.Icon and ForceCreate()"
+    "Added PowerToys-style grouped card Settings window with persistence in settings.json"
   ]
 }

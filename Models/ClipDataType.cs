@@ -10,5 +10,8 @@ public enum ClipDataType
     Json,
     Url,
     Code,
-    Image
+    Image,
+    UnixTimestamp,
+    Base64,
+    TableData
 }

@@ -96,6 +96,9 @@ public class LocalizationService
         { "Type_Code", new("コードスニペット", "Code Snippet") },
         { "Type_Image", new("画像", "Image") },
         { "Type_PlainText", new("プレーンテキスト", "Plain Text") },
+        { "Type_Timestamp", new("Unix タイムスタンプ", "Unix Timestamp") },
+        { "Type_Base64", new("Base64 データ", "Base64 Data") },
+        { "Type_TableData", new("表データ (CSV/TSV)", "Table Data (CSV/TSV)") },
 
         // Actions: Hex Color
         { "Action_CopyRgb", new("RGBコピー", "Copy RGB") },
@@ -141,6 +144,26 @@ public class LocalizationService
         { "Action_LowerCase", new("小文字化", "lowercase") },
         { "Action_LowerCase_Desc", new("すべての英字を小文字に変換してコピー", "Convert all letters to lowercase") },
 
+        // Actions: Unix Timestamp
+        { "Action_CopyLocalDate", new("ローカル日時コピー", "Copy Local Time") },
+        { "Action_CopyLocalDate_Desc", new("現在のタイムゾーンでフォーマットしてコピー", "Format and copy in local timezone") },
+        { "Action_CopyIsoDate", new("ISO 8601コピー", "Copy ISO 8601") },
+        { "Action_CopyIsoDate_Desc", new("UTC ISO 8601形式 (YYYY-MM-DDTHH:mm:ssZ) でコピー", "Copy in UTC ISO 8601 format") },
+        { "Action_CopyCurrentTimestamp", new("現在Epochコピー", "Copy Current Epoch") },
+        { "Action_CopyCurrentTimestamp_Desc", new("現在日時のUnix秒タイムスタンプをコピー", "Copy current unix epoch timestamp in seconds") },
+
+        // Actions: Base64
+        { "Action_DecodeBase64", new("デコードしてコピー", "Decode & Copy") },
+        { "Action_DecodeBase64_Desc", new("Base64文字列をプレーンテキストに復号", "Decode Base64 string into plain text") },
+        { "Action_CopyDecodedImage", new("画像としてコピー", "Copy as Image") },
+        { "Action_CopyDecodedImage_Desc", new("Base64画像データを画像としてクリップボードへ展開", "Copy decoded image to clipboard") },
+
+        // Actions: Table Data (CSV / TSV)
+        { "Action_ToMarkdownTable", new("Markdown表に変換", "To Markdown Table") },
+        { "Action_ToMarkdownTable_Desc", new("TSV/CSVを表形式のMarkdownテーブルに整形してコピー", "Format TSV/CSV into a Markdown table") },
+        { "Action_ToJsonArray", new("JSON配列に変換", "To JSON Array") },
+        { "Action_ToJsonArray_Desc", new("ヘッダー行をキーとしたJSONオブジェクトの配列に変換", "Convert table rows into an array of JSON objects") },
+
         // Toasts & Notifications
         { "Toast_Copied", new("コピーしました", "Copied to clipboard") },
         { "Toast_FormattedJsonCopied", new("整形済みJSONをコピーしました", "Prettified JSON copied") },
@@ -148,6 +171,9 @@ public class LocalizationService
         { "Toast_QrCopied", new("QRコード画像をコピーしました", "QR Code image copied") },
         { "Toast_ImageSaved", new("画像を保存しました: {0}", "Image saved: {0}") },
         { "Toast_BrowserOpened", new("ブラウザを開きました", "Opened in browser") },
+        { "Toast_Base64Decoded", new("Base64をデコードしてコピーしました", "Base64 decoded & copied") },
+        { "Toast_MarkdownTableCopied", new("Markdownテーブルをコピーしました", "Markdown table copied") },
+        { "Toast_JsonArrayCopied", new("JSON配列をコピーしました", "JSON array copied") },
 
         // Tray Menu & Status
         { "Tray_Settings", new("設定...", "Settings...") },
@@ -183,17 +209,20 @@ public class LocalizationService
         { "Lang_Ja", new("日本語 (Japanese)", "Japanese") },
         { "Lang_En", new("English (英語)", "English") },
 
-        { "Section_Flyout", new("フライアウト動作", "Flyout Behavior") },
+        { "Section_Flyout", new("フライアウト動作 & 外観", "Flyout Behavior & Appearance") },
         { "Setting_Placement", new("表示位置", "Flyout Placement") },
         { "Setting_Placement_Desc", new("フライアウトが出現する画面上の位置を指定します", "Screen position where flyout appears") },
         { "Placement_BottomRight", new("画面右下 (標準)", "Bottom Right (Default)") },
         { "Placement_TopRight", new("画面右上", "Top Right") },
+        { "Placement_TopLeft", new("画面左上", "Top Left") },
         { "Placement_BottomLeft", new("画面左下", "Bottom Left") },
         { "Placement_NearCursor", new("マウスカーソル付近", "Near Mouse Cursor") },
         { "Setting_Duration", new("自動非表示タイマー", "Auto-Dismiss Timeout") },
         { "Setting_Duration_Desc", new("操作がない場合にフライアウトが消えるまでの時間", "Time before flyout automatically fades out") },
         { "Setting_HoverDuration", new("マウス離脱後の消滅時間", "Mouse Leave Dismiss Timeout") },
         { "Setting_HoverDuration_Desc", new("ホバー解除から消えるまでのカウントダウン時間", "Countdown after cursor leaves flyout") },
+        { "Setting_Opacity", new("背景の透明度 (アクリル効果)", "Background Opacity (Acrylic)") },
+        { "Setting_Opacity_Desc", new("フライアウトのすりガラス・半透明度を調整します", "Adjust translucency of the flyout frosted card") },
 
         { "Section_Detectors", new("データ型検出フィルター", "Data Type Detection Filters") },
         { "Section_Detectors_Desc", new("検知してフライアウトを表示するデータ型を選択できます", "Select which clipboard data types to detect and act upon") },
@@ -209,6 +238,12 @@ public class LocalizationService
         { "Detector_Image_Desc", new("クリップボードの画像を検知し、PNG保存や解像度情報の確認を提供", "Detects clipboard bitmap, provides PNG export and image stats") },
         { "Detector_PlainText", new("プレーンテキスト", "Plain Text") },
         { "Detector_PlainText_Desc", new("通常の文字列の前後の余分な空白トリムや文字数・単語数統計を提供", "Provides whitespace trim and character/word statistics") },
+        { "Detector_Timestamp", new("Unix タイムスタンプ", "Unix Timestamp") },
+        { "Detector_Timestamp_Desc", new("10桁(秒)や13桁(ミリ秒)の数値を検出し、日時プレビューとISO変換を提供", "Detects 10-digit (s) and 13-digit (ms) timestamps with human date previews") },
+        { "Detector_Base64", new("Base64 データ", "Base64 Data") },
+        { "Detector_Base64_Desc", new("Base64文字列やData URIを検出し、テキスト復号や画像展開を提供", "Detects Base64 text and Data URIs, provides decode and image extraction") },
+        { "Detector_Table", new("表データ (CSV / TSV)", "Table Data (CSV / TSV)") },
+        { "Detector_Table_Desc", new("ExcelやTSV/CSVのコピーからMarkdown表やJSON配列への自動変換を提供", "Detects spreadsheets / CSV rows, converts to Markdown table or JSON array") },
 
         { "Section_About", new("バージョン情報 & プライバシー", "About & Privacy") },
         { "About_Privacy_Title", new("完全オフライン・プライバシー保護", "100% Offline & Private") },

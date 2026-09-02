@@ -52,6 +52,26 @@ public class ActionExecutor
         }
     }
 
+    public void CopyBase64Image(byte[] imageBytes)
+    {
+        try
+        {
+            using var ms = new MemoryStream(imageBytes);
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.StreamSource = ms;
+            bitmap.EndInit();
+            bitmap.Freeze();
+
+            CopyImage(bitmap, "Toast_Copied");
+        }
+        catch (Exception ex)
+        {
+            ActionExecuted?.Invoke($"Image Decode Error: {ex.Message}");
+        }
+    }
+
     public void OpenBrowser(string url)
     {
         try

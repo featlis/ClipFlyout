@@ -14,6 +14,7 @@ public enum FlyoutPlacement
 {
     BottomRight,
     TopRight,
+    TopLeft,
     BottomLeft,
     NearCursor
 }
@@ -29,10 +30,11 @@ public class AppSettings
     public AppThemeMode Theme { get; set; } = AppThemeMode.System;
     public AppLanguage Language { get; set; } = AppLanguage.Auto;
 
-    // Flyout Behavior
+    // Flyout Visuals & Behavior
     public FlyoutPlacement Placement { get; set; } = FlyoutPlacement.BottomRight;
     public double DisplayDurationSeconds { get; set; } = 3.5;
     public double HoverLeaveDurationSeconds { get; set; } = 1.5;
+    public double OpacityPercent { get; set; } = 85.0;
 
     // Data Type Detectors
     public bool DetectHexColor { get; set; } = true;
@@ -41,6 +43,9 @@ public class AppSettings
     public bool DetectCode { get; set; } = true;
     public bool DetectImage { get; set; } = true;
     public bool DetectPlainText { get; set; } = true;
+    public bool DetectTimestamp { get; set; } = true;
+    public bool DetectBase64 { get; set; } = true;
+    public bool DetectTable { get; set; } = true;
 
     public AppSettings Clone()
     {

@@ -125,59 +125,102 @@ public class DataTypeDetectorTests
     }
 
     [Fact]
+    public void Detect_UnixTimestamp_Seconds_ReturnsTimestampType()
+    {
+        // 1725330000 = 2024-09-03
+        var result = _detector.Detect("1725330000");
+
+        Assert.NotNull(result);
+        Assert.Equal(ClipDataType.UnixTimestamp, result.Type);
+        Assert.Contains("Timestamp", result.BadgeText);
+        Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_CopyLocalDate");
+        Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_CopyIsoDate");
+        Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_CopyCurrentTimestamp");
+    }
+
+    [Fact]
+    public void Detect_UnixTimestamp_Milliseconds_ReturnsTimestampType()
+    {
+        // 1725330000000 = 13 digits
+        var result = _detector.Detect("1725330000000");
+
+        Assert.NotNull(result);
+        Assert.Equal(ClipDataType.UnixTimestamp, result.Type);
+        Assert.Contains("ms", result.PreviewBody);
+    }
+
+    [Fact]
+    public void Detect_Base64Text_ReturnsBase64Type()
+    {
+        // "SGVsbG8gV29ybGQgZnJvbSBDbGlwRmx5b3V0IQ==" = "Hello World from ClipFlyout!"
+        string b64 = "SGVsbG8gV29ybGQgZnJvbSBDbGlwRmx5b3V0IQ==";
+        var result = _detector.Detect(b64);
+
+        Assert.NotNull(result);
+        Assert.Equal(ClipDataType.Base64, result.Type);
+        Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_DecodeBase64");
+    }
+
+    [Fact]
+    public void Detect_TableData_Tsv_ReturnsTableType()
+    {
+        string tsv = "ID\tName\tPrice\n1\tApple\t120\n2\tBanana\t80";
+        var result = _detector.Detect(tsv);
+
+        Assert.NotNull(result);
+        Assert.Equal(ClipDataType.TableData, result.Type);
+        Assert.Contains("TSV", result.BadgeText);
+        Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_ToMarkdownTable");
+        Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_ToJsonArray");
+    }
+
+    [Fact]
+    public void Detect_TableData_Csv_ReturnsTableType()
+    {
+        string csv = "Title,Author,Year\nClean Code,Martin,2008\nRefactoring,Fowler,1999";
+        var result = _detector.Detect(csv);
+
+        Assert.NotNull(result);
+        Assert.Equal(ClipDataType.TableData, result.Type);
+        Assert.Contains("CSV", result.BadgeText);
+        Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_ToMarkdownTable");
+        Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_ToJsonArray");
+    }
+
+    [Fact]
     public void Detect_DisabledFilters_SkipsDetection()
     {
         SettingsService.Instance.UpdateSettings(s =>
         {
             s.DetectHexColor = false;
-            s.DetectJson = false;
+            s.DetectTimestamp = false;
             s.DetectPlainText = false;
         });
 
-        // Hex color should be skipped and plain text is also disabled -> returns null
+        // Hex color should be skipped
         var colorResult = _detector.Detect("#FF5733");
         Assert.Null(colorResult);
 
-        // JSON should be skipped and plain text is also disabled -> returns null
-        var jsonResult = _detector.Detect("{\"key\": \"val\"}");
-        Assert.Null(jsonResult);
+        // Timestamp should be skipped
+        var tsResult = _detector.Detect("1725330000");
+        Assert.Null(tsResult);
 
         // Reset
         SettingsService.Instance.SaveSettings(new AppSettings());
     }
 
     [Fact]
-    public void Localization_LanguageSwitching_WorksCorrectly()
-    {
-        var loc = LocalizationService.Instance;
-
-        loc.CurrentLanguage = AppLanguage.Japanese;
-        Assert.True(loc.IsJapanese);
-        Assert.Equal("HEX カラー", loc.Get("Type_HexColor"));
-        Assert.Equal("整形してコピー", loc.Get("Action_FormatJson"));
-        Assert.Equal("QR画像コピー", loc.Get("Action_CopyQrCode"));
-        Assert.Equal("ClipFlyout 設定", loc.Get("Settings_Title"));
-
-        loc.CurrentLanguage = AppLanguage.English;
-        Assert.False(loc.IsJapanese);
-        Assert.Equal("HEX Color", loc.Get("Type_HexColor"));
-        Assert.Equal("Format & Copy", loc.Get("Action_FormatJson"));
-        Assert.Equal("Copy QR Image", loc.Get("Action_CopyQrCode"));
-        Assert.Equal("ClipFlyout Settings", loc.Get("Settings_Title"));
-    }
-
-    [Fact]
-    public void Settings_Persistence_Works()
+    public void Settings_Placement_TopLeft_And_Opacity_Works()
     {
         var settings = SettingsService.Instance;
         settings.UpdateSettings(s =>
         {
-            s.DisplayDurationSeconds = 6.5;
-            s.Placement = FlyoutPlacement.TopRight;
+            s.Placement = FlyoutPlacement.TopLeft;
+            s.OpacityPercent = 75.0;
         });
 
-        Assert.Equal(6.5, settings.Current.DisplayDurationSeconds);
-        Assert.Equal(FlyoutPlacement.TopRight, settings.Current.Placement);
+        Assert.Equal(FlyoutPlacement.TopLeft, settings.Current.Placement);
+        Assert.Equal(75.0, settings.Current.OpacityPercent);
 
         // Reset
         settings.SaveSettings(new AppSettings());

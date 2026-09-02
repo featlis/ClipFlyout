@@ -53,10 +53,11 @@ public partial class SettingsWindow : Window
         ComboLanguage.Items.Add(new ComboBoxItem { Content = _loc.Get("Lang_Ja"), Tag = AppLanguage.Japanese });
         ComboLanguage.Items.Add(new ComboBoxItem { Content = _loc.Get("Lang_En"), Tag = AppLanguage.English });
 
-        // Placement dropdown
+        // Placement dropdown (including TopLeft)
         ComboPlacement.Items.Clear();
         ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_BottomRight"), Tag = FlyoutPlacement.BottomRight });
         ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_TopRight"), Tag = FlyoutPlacement.TopRight });
+        ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_TopLeft"), Tag = FlyoutPlacement.TopLeft });
         ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_BottomLeft"), Tag = FlyoutPlacement.BottomLeft });
         ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_NearCursor"), Tag = FlyoutPlacement.NearCursor });
     }
@@ -72,6 +73,9 @@ public partial class SettingsWindow : Window
         SelectComboByTag(ComboLanguage, cfg.Language);
         SelectComboByTag(ComboPlacement, cfg.Placement);
 
+        SliderOpacity.Value = cfg.OpacityPercent;
+        TextOpacityVal.Text = $"{cfg.OpacityPercent:0}%";
+
         SliderDuration.Value = cfg.DisplayDurationSeconds;
         TextDurationVal.Text = $"{cfg.DisplayDurationSeconds:0.0}s";
 
@@ -79,8 +83,11 @@ public partial class SettingsWindow : Window
         TextHoverDurationVal.Text = $"{cfg.HoverLeaveDurationSeconds:0.0}s";
 
         ToggleDetHex.IsOn = cfg.DetectHexColor;
+        ToggleDetTimestamp.IsOn = cfg.DetectTimestamp;
         ToggleDetJson.IsOn = cfg.DetectJson;
         ToggleDetUrl.IsOn = cfg.DetectUrl;
+        ToggleDetBase64.IsOn = cfg.DetectBase64;
+        ToggleDetTable.IsOn = cfg.DetectTable;
         ToggleDetCode.IsOn = cfg.DetectCode;
         ToggleDetImage.IsOn = cfg.DetectImage;
         ToggleDetText.IsOn = cfg.DetectPlainText;
@@ -92,8 +99,11 @@ public partial class SettingsWindow : Window
         ToggleStartup.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.LaunchOnStartup = val); };
 
         ToggleDetHex.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectHexColor = val); };
+        ToggleDetTimestamp.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectTimestamp = val); };
         ToggleDetJson.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectJson = val); };
         ToggleDetUrl.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectUrl = val); };
+        ToggleDetBase64.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectBase64 = val); };
+        ToggleDetTable.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectTable = val); };
         ToggleDetCode.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectCode = val); };
         ToggleDetImage.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectImage = val); };
         ToggleDetText.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectPlainText = val); };
@@ -137,6 +147,18 @@ public partial class SettingsWindow : Window
         if (ComboPlacement.SelectedItem is ComboBoxItem { Tag: FlyoutPlacement placement })
         {
             _settings.UpdateSettings(s => s.Placement = placement);
+        }
+    }
+
+    private void SliderOpacity_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (TextOpacityVal != null)
+        {
+            TextOpacityVal.Text = $"{e.NewValue:0}%";
+        }
+        if (!_isInitializing)
+        {
+            _settings.UpdateSettings(s => s.OpacityPercent = Math.Round(e.NewValue, 0));
         }
     }
 
@@ -250,11 +272,15 @@ public partial class SettingsWindow : Window
         Sep3.Background = sepBrush;
         Sep4.Background = sepBrush;
         Sep5.Background = sepBrush;
+        Sep5b.Background = sepBrush;
         Sep6.Background = sepBrush;
         Sep7.Background = sepBrush;
         Sep8.Background = sepBrush;
         Sep9.Background = sepBrush;
         Sep10.Background = sepBrush;
+        Sep11.Background = sepBrush;
+        Sep12.Background = sepBrush;
+        Sep13.Background = sepBrush;
     }
 
     public void ApplyLocalization()
@@ -277,6 +303,8 @@ public partial class SettingsWindow : Window
         SecFlyoutTitle.Text = _loc.Get("Section_Flyout");
         LblPlacement.Text = _loc.Get("Setting_Placement");
         DescPlacement.Text = _loc.Get("Setting_Placement_Desc");
+        LblOpacity.Text = _loc.Get("Setting_Opacity");
+        DescOpacity.Text = _loc.Get("Setting_Opacity_Desc");
         LblDuration.Text = _loc.Get("Setting_Duration");
         DescDuration.Text = _loc.Get("Setting_Duration_Desc");
         LblHoverDuration.Text = _loc.Get("Setting_HoverDuration");
@@ -286,10 +314,16 @@ public partial class SettingsWindow : Window
         SecDetectorsSubtitle.Text = _loc.Get("Section_Detectors_Desc");
         LblDetHex.Text = _loc.Get("Detector_HexColor");
         DescDetHex.Text = _loc.Get("Detector_HexColor_Desc");
+        LblDetTimestamp.Text = _loc.Get("Detector_Timestamp");
+        DescDetTimestamp.Text = _loc.Get("Detector_Timestamp_Desc");
         LblDetJson.Text = _loc.Get("Detector_Json");
         DescDetJson.Text = _loc.Get("Detector_Json_Desc");
         LblDetUrl.Text = _loc.Get("Detector_Url");
         DescDetUrl.Text = _loc.Get("Detector_Url_Desc");
+        LblDetBase64.Text = _loc.Get("Detector_Base64");
+        DescDetBase64.Text = _loc.Get("Detector_Base64_Desc");
+        LblDetTable.Text = _loc.Get("Detector_Table");
+        DescDetTable.Text = _loc.Get("Detector_Table_Desc");
         LblDetCode.Text = _loc.Get("Detector_Code");
         DescDetCode.Text = _loc.Get("Detector_Code_Desc");
         LblDetImage.Text = _loc.Get("Detector_Image");
