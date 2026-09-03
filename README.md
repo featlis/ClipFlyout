@@ -4,7 +4,7 @@
 
 JSON、URL、カラーコード、画像、CSV / TSV などをコピーすると、画面端の小さなフライアウトに変換・保存・コピーの操作が現れます。フライアウトはフォーカスを奪わないため、作業を中断せずに使えます。
 
-> 現在のバージョン: **v0.3.0**
+> 現在のバージョン: **v0.4.0**
 
 ## できること
 
@@ -48,6 +48,7 @@ JSON、URL、カラーコード、画像、CSV / TSV などをコピーすると
 - Windows起動時の開始
 - システム連動 / ライト / ダークテーマ
 - 日本語 / English / OS設定に合わせた表示言語
+- GitHub Releases の SHA-256 を検証する自動アップデート（設定からオフにもできます）
 
 クリップボードの解析はローカルで行われます。
 
@@ -70,13 +71,13 @@ dotnet test tests/ClipFlyout.Tests/ClipFlyout.Tests.csproj -c Release
 ### 配布物の作成
 
 ```powershell
-./scripts/build-installer.ps1 -Version 0.3.0
+./scripts/build-installer.ps1 -Version 0.4.0
 ```
 
 以下が `dist/` に生成されます。
 
-- `ClipFlyout-Setup-v0.3.0.exe`
-- `ClipFlyout-v0.3.0-win-x64.zip`
+- `ClipFlyout-Setup-v0.4.0.exe`
+- `ClipFlyout-v0.4.0-win-x64.zip`
 
 `dist/`、`publish/`、`bin/`、`obj/` はGitの追跡対象外です。
 
@@ -86,8 +87,8 @@ dotnet test tests/ClipFlyout.Tests/ClipFlyout.Tests.csproj -c Release
 
 ```bash
 git add .
-git commit -m "feat: release v0.3.0"
-git tag v0.3.0
+git commit -m "feat: release v0.4.0"
+git tag v0.4.0
 git push origin main
 git push origin v0.3.0
 ```

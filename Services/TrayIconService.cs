@@ -37,6 +37,7 @@ public class TrayIconService : IDisposable
     private MenuItem? _langJaItem;
     private MenuItem? _langEnItem;
     private MenuItem? _exitItem;
+    private MenuItem? _checkUpdatesItem;
 
     public TrayIconService(IClipboardMonitor clipboardMonitor)
     {
@@ -101,6 +102,10 @@ public class TrayIconService : IDisposable
     private void UpdateMenuTheme()
     {
         bool isDark = _theme.IsDarkTheme;
+        var itemForeground = new WpfBrush(isDark ? WpfColor.FromRgb(245, 247, 250) : WpfColor.FromRgb(24, 32, 45));
+        var hoverBackground = new WpfBrush(isDark ? WpfColor.FromRgb(67, 76, 96) : WpfColor.FromRgb(220, 232, 248));
+        var pressedBackground = new WpfBrush(isDark ? WpfColor.FromRgb(79, 91, 116) : WpfColor.FromRgb(198, 220, 245));
+
         if (isDark)
         {
             _contextMenu.Background = new WpfBrush(WpfColor.FromRgb(28, 31, 40));
@@ -115,6 +120,28 @@ public class TrayIconService : IDisposable
             _contextMenu.BorderBrush = new WpfBrush(WpfColor.FromRgb(226, 232, 240));
             _contextMenu.BorderThickness = new Thickness(1);
         }
+
+        // H.NotifyIcon uses a WPF ContextMenu. Without an explicit item style,
+        // nested menus can inherit the light system hover brush in dark mode.
+        // IsHighlighted covers both mouse hover and keyboard navigation.
+        var style = new Style(typeof(MenuItem));
+        style.Setters.Add(new Setter(Control.ForegroundProperty, itemForeground));
+        style.Setters.Add(new Setter(Control.BackgroundProperty, new WpfBrush(WpfColor.FromArgb(0, 0, 0, 0))));
+        style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(12, 7, 12, 7)));
+        style.Setters.Add(new Setter(Control.MinHeightProperty, 30.0));
+        style.Triggers.Add(new Trigger
+        {
+            Property = MenuItem.IsHighlightedProperty,
+            Value = true,
+            Setters = { new Setter(Control.BackgroundProperty, hoverBackground), new Setter(Control.ForegroundProperty, itemForeground) }
+        });
+        style.Triggers.Add(new Trigger
+        {
+            Property = MenuItem.IsPressedProperty,
+            Value = true,
+            Setters = { new Setter(Control.BackgroundProperty, pressedBackground) }
+        });
+        _contextMenu.Resources[typeof(MenuItem)] = style;
     }
 
     private void BuildMenu()
@@ -270,6 +297,10 @@ public class TrayIconService : IDisposable
 
         _contextMenu.Items.Add(new Separator());
 
+        _checkUpdatesItem = new MenuItem { Header = _loc.Get("Tray_CheckUpdates") };
+        _checkUpdatesItem.Click += async (_, _) => await CheckForUpdatesAsync();
+        _contextMenu.Items.Add(_checkUpdatesItem);
+
         // 6. Exit
         _exitItem = new MenuItem
         {
@@ -279,6 +310,39 @@ public class TrayIconService : IDisposable
         _contextMenu.Items.Add(_exitItem);
 
         UpdateStatus();
+    }
+
+    private async System.Threading.Tasks.Task CheckForUpdatesAsync()
+    {
+        if (_checkUpdatesItem != null) _checkUpdatesItem.IsEnabled = false;
+        try
+        {
+            var result = await UpdateService.Instance.CheckForUpdateAsync();
+            if (result is null)
+            {
+                MessageBox.Show(_loc.Get("Update_UpToDate"), "ClipFlyout", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var choice = MessageBox.Show(
+                _loc.Get("Update_Available", result.Version),
+                "ClipFlyout",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Information);
+            if (choice == MessageBoxResult.Yes)
+            {
+                await UpdateService.Instance.DownloadAndStartInstallerAsync(result);
+                WpfApplication.Current.Shutdown();
+            }
+        }
+        catch
+        {
+            MessageBox.Show(_loc.Get("Update_Failed"), "ClipFlyout", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            if (_checkUpdatesItem != null) _checkUpdatesItem.IsEnabled = true;
+        }
     }
 
     private void UpdateStatus()

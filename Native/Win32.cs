@@ -162,8 +162,10 @@ public static class Win32
     }
 
     /// <summary>
-    /// Enables hardware-accelerated Acrylic frosted glass blur behind transparent WPF windows.
-    /// Activates blur with minimal OS-level tint so that WPF handles the dynamic opacity cleanly.
+    /// Enables Windows 11's transient acrylic backdrop and falls back to the
+    /// Accent Policy path on older builds. This must be used on a non-layered
+    /// window: WPF's AllowsTransparency turns a window into a layered window
+    /// and prevents DWM from composing real acrylic behind it.
     /// </summary>
     public static void EnableAcrylicBlur(IntPtr hwnd, bool isDark)
     {
@@ -172,11 +174,20 @@ public static class Win32
             int darkModeVal = isDark ? 1 : 0;
             DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref darkModeVal, sizeof(int));
 
-            // Use 0x01 alpha so blur filter is active without doubling up tint over WPF
+            int cornerVal = DWMWCP_ROUND;
+            DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref cornerVal, sizeof(int));
+
+            // Windows 11 22H2+ uses the system backdrop; the Accent Policy
+            // below remains as a compatible fallback and adds the blur noise.
+            int backdropVal = DWMSBT_TRANSIENTWINDOW;
+            DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropVal, sizeof(int));
+
+            // Keep a real, but subtle, tint in the compositor. An alpha of 1
+            // makes acrylic practically invisible on many Windows 11 builds.
             byte r = isDark ? (byte)20 : (byte)245;
             byte g = isDark ? (byte)22 : (byte)248;
             byte b = isDark ? (byte)30 : (byte)252;
-            uint abgrColor = (0x01u << 24) | ((uint)b << 16) | ((uint)g << 8) | (uint)r;
+            uint abgrColor = (0xB8u << 24) | ((uint)b << 16) | ((uint)g << 8) | (uint)r;
 
             var policy = new AccentPolicy
             {

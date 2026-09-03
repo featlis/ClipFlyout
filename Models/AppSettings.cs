@@ -36,6 +36,10 @@ public class AppSettings
     public double HoverLeaveDurationSeconds { get; set; } = 1.5;
     public double OpacityPercent { get; set; } = 85.0;
 
+    // Updates are downloaded only from this project's GitHub Releases and are
+    // verified against the release SHA-256 manifest before they are started.
+    public bool AutomaticallyInstallUpdates { get; set; } = true;
+
     // Data Type Detectors
     public bool DetectHexColor { get; set; } = true;
     public bool DetectJson { get; set; } = true;

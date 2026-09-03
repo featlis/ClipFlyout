@@ -189,6 +189,7 @@ public class LocalizationService
         { "Tray_LangEnglish", new("English", "English") },
         { "Tray_LangAuto", new("自動検出 (Auto)", "Auto Detect") },
         { "Tray_Exit", new("終了", "Exit") },
+        { "Tray_CheckUpdates", new("更新プログラムを確認", "Check for updates") },
 
         // Settings Window
         { "Settings_Title", new("ClipFlyout 設定", "ClipFlyout Settings") },
@@ -205,6 +206,8 @@ public class LocalizationService
         { "Theme_Dark", new("ダーク (Dark)", "Dark") },
         { "Setting_Language", new("表示言語", "Display Language") },
         { "Setting_Language_Desc", new("インターフェースの表示言語を設定します", "Interface language for the application") },
+        { "Setting_AutoUpdate", new("自動アップデート", "Automatic updates") },
+        { "Setting_AutoUpdate_Desc", new("GitHub Releases から更新を確認し、安全にインストールします", "Check GitHub Releases and securely install updates") },
         { "Lang_Auto", new("自動検出 (OS設定)", "Auto Detect (System)") },
         { "Lang_Ja", new("日本語 (Japanese)", "Japanese") },
         { "Lang_En", new("English (英語)", "English") },
@@ -248,9 +251,13 @@ public class LocalizationService
         { "Section_About", new("アプリについて", "About") },
         { "About_Privacy_Title", new("ローカル処理について", "Local processing") },
         { "About_Privacy_Desc", new("クリップボードの解析はこのPC上で行われます。", "Clipboard analysis is performed on this PC.") },
-        { "About_Version", new("バージョン: v0.3.0", "Version: v0.3.0") },
+        { "About_Version", new("バージョン: v0.4.0", "Version: v0.4.0") },
         { "About_Github", new("GitHub リポジトリ", "GitHub Repository") },
         { "About_Reset", new("設定を初期値に戻す", "Reset to Defaults") },
-        { "About_Reset_Confirm", new("すべての設定を初期値に戻しますか？", "Reset all settings to defaults?") }
+        { "About_Reset_Confirm", new("すべての設定を初期値に戻しますか？", "Reset all settings to defaults?") },
+        { "Update_CheckNow", new("更新プログラムを確認", "Check for updates") },
+        { "Update_UpToDate", new("最新バージョンです。", "You're up to date.") },
+        { "Update_Available", new("v{0} を利用できます。今すぐ更新しますか？", "Version {0} is available. Update now?") },
+        { "Update_Failed", new("更新プログラムを確認またはダウンロードできませんでした。", "Couldn't check for or download an update.") }
     };
 }

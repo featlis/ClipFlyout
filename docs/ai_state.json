@@ -1,15 +1,15 @@
 {
   "project": "ClipFlyout",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "target_framework": "net9.0-windows",
   "architecture": {
-    "ui": "WPF + restrained Fluent Design (ACCENT_ENABLE_ACRYLICBLURBEHIND frosted acrylic with single-layer tint, 20%-100% opacity, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings; no emoji-based settings icon plates)",
+    "ui": "WPF + PowerToys-inspired settings cards (Windows 11 transient DWM acrylic with Accent Policy fallback, 20%-100% opacity, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings; no emoji-based settings icon plates)",
     "native_interop": {
       "clipboard_listener": "user32.dll AddClipboardFormatListener / RemoveClipboardFormatListener (WM_CLIPBOARDUPDATE 0x031D)",
       "window_styles": "WS_EX_NOACTIVATE (0x08000000) | WS_EX_TOOLWINDOW (0x00000080) | WS_EX_TOPMOST (0x00000008)",
       "dpi_scaling": "user32.dll GetDpiForWindow + shcore.dll GetDpiForMonitor (accurate multi-monitor scaling, avoids null PresentationSource bug)",
       "monitor_positioning": "GetCursorPos -> MonitorFromPoint -> GetMonitorInfo (BottomRight, TopRight, TopLeft, BottomLeft, NearCursor; with strict screen-edge 12px clamping)",
-      "acrylic_blur": "user32.dll SetWindowCompositionAttribute (WCA_ACCENT_POLICY, ACCENT_ENABLE_ACRYLICBLURBEHIND) with minimal OS tint + WPF dynamic cardAlpha",
+      "acrylic_blur": "dwmapi.dll transient window backdrop (DWMSBT_TRANSIENTWINDOW) plus user32.dll Accent Policy fallback; flyout remains non-layered so DWM can compose real acrylic",
       "mica_backdrop": "dwmapi.dll DwmSetWindowAttribute (DWMWA_SYSTEMBACKDROP_TYPE=2, DWMWA_WINDOW_CORNER_PREFERENCE=2)",
       "theme_detection": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\\AppsUseLightTheme + SystemEvents.UserPreferenceChanged",
       "startup_sync": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\ClipFlyout"
@@ -25,7 +25,8 @@
       "LocalizationService": "Services/LocalizationService.cs (Auto/Ja/En full i18n dictionary for flyout and settings)",
       "FluentControls": "Themes/FluentControls.xaml (Windows 11 Fluent ComboBox with vector chevron, Slide popup, 4px track Slider, 6px minimal ScrollBar)",
       "ToggleSwitch": "Controls/ToggleSwitch.xaml (Windows 11 pixel-perfect animated toggle switch)",
-      "SettingsWindow": "Views/SettingsWindow.xaml (restrained SettingsCard layout with Mica, text-first setting rows, neutral local-processing notice, 20%-100% opacity slider)"
+      "SettingsWindow": "Views/SettingsWindow.xaml (PowerToys-inspired restrained SettingsCard layout with Mica, text-first setting rows, update controls, neutral local-processing notice, 20%-100% opacity slider)",
+      "UpdateService": "Services/UpdateService.cs (GitHub Releases latest check, SHA-256 manifest verification, silent Inno Setup handoff; automatic checks can be disabled)"
     }
   },
   "distribution": {
@@ -91,6 +92,7 @@
     "Added settings validation, atomic saves, and isolated test settings from LocalAppData and the startup registry",
     "Replaced naive CSV splitting with quoted-field CSV/TSV parsing, Markdown escaping, and duplicate-header handling",
     "Removed emoji-led settings decoration, introduced a clear primary flyout action, and rewrote privacy copy as a neutral local-processing note",
-    "Updated to v0.3.0 and pinned the tray icon dependency to H.NotifyIcon.Wpf 2.3.0, which supplies compatible modern .NET Windows assets"
+    "Updated to v0.3.0 and pinned the tray icon dependency to H.NotifyIcon.Wpf 2.3.0, which supplies compatible modern .NET Windows assets",
+    "v0.4.0: replaced layered-window pseudo acrylic with DWM transient acrylic, defined high-contrast dark tray-menu hover states, added secure GitHub Releases automatic updates and visible update controls"
   ]
 }

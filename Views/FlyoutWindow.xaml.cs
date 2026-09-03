@@ -65,7 +65,9 @@ public partial class FlyoutWindow : Window
     {
         bool isDark = ThemeService.Instance.IsDarkTheme;
         double opacity = SettingsService.Instance.Current.OpacityPercent;
-        byte cardAlpha = (byte)Math.Clamp(Math.Round(opacity * 2.55), 25, 255);
+        // DWM owns the translucent backdrop. Keep the WPF surface mostly
+        // transparent so it does not mask the acrylic with an opaque card.
+        byte cardAlpha = (byte)Math.Clamp(Math.Round(opacity * 1.45), 55, 175);
 
         ApplyHardwareAcrylic();
 
