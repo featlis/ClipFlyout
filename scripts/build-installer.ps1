@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.4.0"
+    [string]$Version = "0.4.1"
 )
 
 $ErrorActionPreference = "Stop"
@@ -8,6 +8,10 @@ $ProjectRoot = Split-Path -Parent $ScriptDir
 $PublishDir = Join-Path $ProjectRoot "publish\win-x64"
 $DistDir = Join-Path $ProjectRoot "dist"
 $IssFile = Join-Path $ProjectRoot "installer\ClipFlyout.iss"
+
+if ($Version -notmatch '^0\.\d+\.\d+$') {
+    throw "Version must use the pre-1.0 format 0.x.x (for example, 0.4.1)."
+}
 
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "  ClipFlyout Installer & Package Builder  " -ForegroundColor Cyan
@@ -30,7 +34,7 @@ $dotnet = if (Test-Path $localDotnet) {
 } else {
     throw "dotnet SDK was not found. Install the .NET 9 SDK first."
 }
-& $dotnet publish (Join-Path $ProjectRoot "ClipFlyout.csproj") -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o $PublishDir
+& $dotnet publish (Join-Path $ProjectRoot "ClipFlyout.csproj") -c Release -r win-x64 --self-contained true -p:RestoreLockedMode=true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:Version=$Version -p:AssemblyVersion="$Version.0" -p:FileVersion="$Version.0" -o $PublishDir
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "dotnet publish failed!"

@@ -297,6 +297,25 @@ public class DataTypeDetectorTests : IDisposable
         Assert.Equal(FlyoutPlacement.BottomRight, _settings.Current.Placement);
     }
 
+    [Fact]
+    public void Settings_Normalize_RejectsFarFutureUpdateCheck()
+    {
+        _settings.SaveSettings(new AppSettings { LastUpdateCheckUtc = DateTimeOffset.UtcNow.AddDays(3) });
+
+        Assert.Null(_settings.Current.LastUpdateCheckUtc);
+    }
+
+    [Fact]
+    public void UpdateService_FindsMatchingChecksumOnly()
+    {
+        const string expected = "AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899";
+        string manifest = $"{expected}  ClipFlyout-Setup-v0.4.1.exe\n" +
+                          "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF  other.exe";
+
+        Assert.Equal(expected, UpdateService.FindSha256(manifest, "ClipFlyout-Setup-v0.4.1.exe"));
+        Assert.Null(UpdateService.FindSha256(manifest, "missing.exe"));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_settingsDirectory))

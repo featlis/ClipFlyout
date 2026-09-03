@@ -54,16 +54,22 @@ public sealed class UpdateService
         string tempDirectory = Path.Combine(Path.GetTempPath(), "ClipFlyout", "updates", release.Version.ToString());
         Directory.CreateDirectory(tempDirectory);
         string installerPath = Path.Combine(tempDirectory, $"ClipFlyout-Setup-v{release.Version}.exe");
+        string partialInstallerPath = installerPath + ".partial";
 
         string checksums = await Client.GetStringAsync(release.ChecksumsUrl).ConfigureAwait(false);
         string? expectedHash = FindSha256(checksums, Path.GetFileName(installerPath));
         if (expectedHash is null) throw new InvalidDataException("The release checksum does not include the installer.");
 
-        await using (var source = await Client.GetStreamAsync(release.InstallerUrl).ConfigureAwait(false))
-        await using (var destination = File.Create(installerPath))
+        if (File.Exists(partialInstallerPath)) File.Delete(partialInstallerPath);
+        using var downloadResponse = await Client.GetAsync(release.InstallerUrl, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+        downloadResponse.EnsureSuccessStatusCode();
+        await using (var source = await downloadResponse.Content.ReadAsStreamAsync().ConfigureAwait(false))
+        await using (var destination = File.Create(partialInstallerPath))
         {
             await source.CopyToAsync(destination).ConfigureAwait(false);
         }
+
+        File.Move(partialInstallerPath, installerPath, true);
 
         string actualHash;
         await using (var file = File.OpenRead(installerPath))
@@ -76,12 +82,13 @@ public sealed class UpdateService
             throw new CryptographicException("The downloaded update did not match its SHA-256 checksum.");
         }
 
-        Process.Start(new ProcessStartInfo
+        var installer = Process.Start(new ProcessStartInfo
         {
             FileName = installerPath,
             Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NOCANCEL /CLOSEAPPLICATIONS",
             UseShellExecute = true
         });
+        if (installer is null) throw new InvalidOperationException("The update installer could not be started.");
     }
 
     internal static Version CurrentVersion => typeof(UpdateService).Assembly.GetName().Version ?? new Version(0, 0, 0);

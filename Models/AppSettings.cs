@@ -39,6 +39,7 @@ public class AppSettings
     // Updates are downloaded only from this project's GitHub Releases and are
     // verified against the release SHA-256 manifest before they are started.
     public bool AutomaticallyInstallUpdates { get; set; } = true;
+    public DateTimeOffset? LastUpdateCheckUtc { get; set; }
 
     // Data Type Detectors
     public bool DetectHexColor { get; set; } = true;
@@ -83,6 +84,12 @@ public class AppSettings
         normalized.OpacityPercent = Math.Clamp(normalized.OpacityPercent, 20.0, 100.0);
         normalized.DisplayDurationSeconds = Math.Clamp(normalized.DisplayDurationSeconds, 1.5, 10.0);
         normalized.HoverLeaveDurationSeconds = Math.Clamp(normalized.HoverLeaveDurationSeconds, 0.5, 5.0);
+
+        // A clock change must not suppress checks indefinitely.
+        if (normalized.LastUpdateCheckUtc > DateTimeOffset.UtcNow.AddDays(2))
+        {
+            normalized.LastUpdateCheckUtc = null;
+        }
 
         return normalized;
     }

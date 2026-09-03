@@ -1,6 +1,6 @@
 {
   "project": "ClipFlyout",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "target_framework": "net9.0-windows",
   "architecture": {
     "ui": "WPF + PowerToys-inspired settings cards (Windows 11 transient DWM acrylic with Accent Policy fallback, 20%-100% opacity, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings; no emoji-based settings icon plates)",
@@ -31,7 +31,7 @@
   },
   "distribution": {
     "installer": "installer/ClipFlyout.iss (Inno Setup 6, self-contained single-file win-x64, multi-language EN/JA)",
-    "package_script": "scripts/build-installer.ps1",
+    "package_script": "scripts/build-installer.ps1 (requires a 0.x.x version, publishes with matching assembly metadata and a locked NuGet graph)",
     "github_actions": ".github/workflows/release.yml (auto-publish on tag v*)"
   },
   "detection_rules": {
@@ -93,6 +93,7 @@
     "Replaced naive CSV splitting with quoted-field CSV/TSV parsing, Markdown escaping, and duplicate-header handling",
     "Removed emoji-led settings decoration, introduced a clear primary flyout action, and rewrote privacy copy as a neutral local-processing note",
     "Updated to v0.3.0 and pinned the tray icon dependency to H.NotifyIcon.Wpf 2.3.0, which supplies compatible modern .NET Windows assets",
-    "v0.4.0: replaced layered-window pseudo acrylic with DWM transient acrylic, defined high-contrast dark tray-menu hover states, added secure GitHub Releases automatic updates and visible update controls"
+    "v0.4.0: replaced layered-window pseudo acrylic with DWM transient acrylic, defined high-contrast dark tray-menu hover states, added secure GitHub Releases automatic updates and visible update controls",
+    "v0.4.1: rate-limited automatic update checks, atomically staged downloads, restored post-update launch for silent installs, locked dependencies, and updated QRCoder to 1.8.0"
   ]
 }

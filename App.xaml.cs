@@ -41,7 +41,7 @@ public partial class App : WpfApplication
             _windowManager = new FlyoutWindowManager(_actionExecutor);
             _trayIconService = new TrayIconService(_clipboardMonitor);
 
-            if (_settingsService.Current.AutomaticallyInstallUpdates)
+            if (ShouldCheckForUpdates(_settingsService.Current))
             {
                 _ = CheckForAutomaticUpdateAsync();
             }
@@ -70,6 +70,8 @@ public partial class App : WpfApplication
         {
             // Let startup and clipboard monitoring become responsive first.
             await Task.Delay(TimeSpan.FromSeconds(8));
+            if (_settingsService?.Current.AutomaticallyInstallUpdates != true) return;
+            _settingsService?.UpdateSettings(s => s.LastUpdateCheckUtc = DateTimeOffset.UtcNow);
             var update = await UpdateService.Instance.CheckForUpdateAsync();
             if (update is not null && _settingsService?.Current.AutomaticallyInstallUpdates == true)
             {
@@ -81,6 +83,13 @@ public partial class App : WpfApplication
         {
             System.Diagnostics.Debug.WriteLine($"Automatic update check failed: {ex.Message}");
         }
+    }
+
+    private static bool ShouldCheckForUpdates(Models.AppSettings settings)
+    {
+        return settings.AutomaticallyInstallUpdates &&
+               (!settings.LastUpdateCheckUtc.HasValue ||
+                DateTimeOffset.UtcNow - settings.LastUpdateCheckUtc.Value >= TimeSpan.FromHours(12));
     }
 
     private void OnClipboardChanged(object? sender, object rawData)
