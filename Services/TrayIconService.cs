@@ -105,17 +105,18 @@ public class TrayIconService : IDisposable
         var itemForeground = new WpfBrush(isDark ? WpfColor.FromRgb(245, 247, 250) : WpfColor.FromRgb(24, 32, 45));
         var hoverBackground = new WpfBrush(isDark ? WpfColor.FromRgb(67, 76, 96) : WpfColor.FromRgb(220, 232, 248));
         var pressedBackground = new WpfBrush(isDark ? WpfColor.FromRgb(79, 91, 116) : WpfColor.FromRgb(198, 220, 245));
+        var menuBackground = new WpfBrush(isDark ? WpfColor.FromRgb(28, 31, 40) : WpfColor.FromRgb(255, 255, 255));
 
         if (isDark)
         {
-            _contextMenu.Background = new WpfBrush(WpfColor.FromRgb(28, 31, 40));
+            _contextMenu.Background = menuBackground;
             _contextMenu.Foreground = new WpfBrush(WpfColor.FromRgb(243, 244, 246));
             _contextMenu.BorderBrush = new WpfBrush(WpfColor.FromArgb(60, 255, 255, 255));
             _contextMenu.BorderThickness = new Thickness(1);
         }
         else
         {
-            _contextMenu.Background = new WpfBrush(WpfColor.FromRgb(255, 255, 255));
+            _contextMenu.Background = menuBackground;
             _contextMenu.Foreground = new WpfBrush(WpfColor.FromRgb(15, 23, 42));
             _contextMenu.BorderBrush = new WpfBrush(WpfColor.FromRgb(226, 232, 240));
             _contextMenu.BorderThickness = new Thickness(1);
@@ -142,6 +143,16 @@ public class TrayIconService : IDisposable
             Setters = { new Setter(Control.BackgroundProperty, pressedBackground) }
         });
         _contextMenu.Resources[typeof(MenuItem)] = style;
+
+        // MenuItem popups are separate visual trees. Supplying the system
+        // menu keys here is what keeps child menus dark as well; setting only
+        // ContextMenu.Background leaves the submenu on the light OS palette.
+        _contextMenu.Resources[System.Windows.SystemColors.MenuBrushKey] = menuBackground;
+        _contextMenu.Resources[System.Windows.SystemColors.MenuTextBrushKey] = itemForeground;
+        _contextMenu.Resources[System.Windows.SystemColors.HighlightBrushKey] = hoverBackground;
+        _contextMenu.Resources[System.Windows.SystemColors.HighlightTextBrushKey] = itemForeground;
+        _contextMenu.Resources[System.Windows.SystemColors.ControlBrushKey] = menuBackground;
+        _contextMenu.Resources[System.Windows.SystemColors.ControlTextBrushKey] = itemForeground;
     }
 
     private void BuildMenu()

@@ -35,6 +35,7 @@ public class AppSettings
     public double DisplayDurationSeconds { get; set; } = 3.5;
     public double HoverLeaveDurationSeconds { get; set; } = 1.5;
     public double OpacityPercent { get; set; } = 85.0;
+    public string AccentColor { get; set; } = "#0078D4";
 
     // Updates are downloaded only from this project's GitHub Releases and are
     // verified against the release SHA-256 manifest before they are started.
@@ -51,6 +52,7 @@ public class AppSettings
     public bool DetectTimestamp { get; set; } = true;
     public bool DetectBase64 { get; set; } = true;
     public bool DetectTable { get; set; } = true;
+    public bool DetectEmail { get; set; } = true;
 
     public AppSettings Clone()
     {
@@ -84,6 +86,10 @@ public class AppSettings
         normalized.OpacityPercent = Math.Clamp(normalized.OpacityPercent, 20.0, 100.0);
         normalized.DisplayDurationSeconds = Math.Clamp(normalized.DisplayDurationSeconds, 1.5, 10.0);
         normalized.HoverLeaveDurationSeconds = Math.Clamp(normalized.HoverLeaveDurationSeconds, 0.5, 5.0);
+        if (normalized.AccentColor is not ("#0078D4" or "#7C3AED" or "#DB2777" or "#059669" or "#D97706"))
+        {
+            normalized.AccentColor = "#0078D4";
+        }
 
         // A clock change must not suppress checks indefinitely.
         if (normalized.LastUpdateCheckUtc > DateTimeOffset.UtcNow.AddDays(2))

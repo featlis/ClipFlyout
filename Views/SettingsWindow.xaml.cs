@@ -78,6 +78,13 @@ public partial class SettingsWindow : Window
         ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_TopLeft"), Tag = FlyoutPlacement.TopLeft });
         ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_BottomLeft"), Tag = FlyoutPlacement.BottomLeft });
         ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_NearCursor"), Tag = FlyoutPlacement.NearCursor });
+
+        ComboAccentColor.Items.Clear();
+        ComboAccentColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Accent_Blue"), Tag = "#0078D4" });
+        ComboAccentColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Accent_Purple"), Tag = "#7C3AED" });
+        ComboAccentColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Accent_Pink"), Tag = "#DB2777" });
+        ComboAccentColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Accent_Green"), Tag = "#059669" });
+        ComboAccentColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Accent_Orange"), Tag = "#D97706" });
     }
 
     private void LoadSettingsValues()
@@ -91,6 +98,7 @@ public partial class SettingsWindow : Window
         SelectComboByTag(ComboTheme, cfg.Theme);
         SelectComboByTag(ComboLanguage, cfg.Language);
         SelectComboByTag(ComboPlacement, cfg.Placement);
+        SelectComboByTag(ComboAccentColor, cfg.AccentColor);
 
         SliderOpacity.Value = cfg.OpacityPercent;
         TextOpacityVal.Text = $"{cfg.OpacityPercent:0}%";
@@ -105,6 +113,7 @@ public partial class SettingsWindow : Window
         ToggleDetTimestamp.IsOn = cfg.DetectTimestamp;
         ToggleDetJson.IsOn = cfg.DetectJson;
         ToggleDetUrl.IsOn = cfg.DetectUrl;
+        ToggleDetEmail.IsOn = cfg.DetectEmail;
         ToggleDetBase64.IsOn = cfg.DetectBase64;
         ToggleDetTable.IsOn = cfg.DetectTable;
         ToggleDetCode.IsOn = cfg.DetectCode;
@@ -122,6 +131,7 @@ public partial class SettingsWindow : Window
         ToggleDetTimestamp.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectTimestamp = val); };
         ToggleDetJson.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectJson = val); };
         ToggleDetUrl.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectUrl = val); };
+        ToggleDetEmail.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectEmail = val); };
         ToggleDetBase64.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectBase64 = val); };
         ToggleDetTable.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectTable = val); };
         ToggleDetCode.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectCode = val); };
@@ -167,6 +177,14 @@ public partial class SettingsWindow : Window
         if (ComboPlacement.SelectedItem is ComboBoxItem { Tag: FlyoutPlacement placement })
         {
             _settings.UpdateSettings(s => s.Placement = placement);
+        }
+    }
+
+    private void ComboAccentColor_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isInitializing && ComboAccentColor.SelectedItem is ComboBoxItem { Tag: string accent })
+        {
+            _settings.UpdateSettings(s => s.AccentColor = accent);
         }
     }
 
@@ -236,6 +254,7 @@ public partial class SettingsWindow : Window
             SetComboStyle(ComboTheme, darkComboBg, darkComboBorder, darkComboFg);
             SetComboStyle(ComboLanguage, darkComboBg, darkComboBorder, darkComboFg);
             SetComboStyle(ComboPlacement, darkComboBg, darkComboBorder, darkComboFg);
+            SetComboStyle(ComboAccentColor, darkComboBg, darkComboBorder, darkComboFg);
 
             SetSeparatorColors(isDark);
 
@@ -275,6 +294,7 @@ public partial class SettingsWindow : Window
             SetComboStyle(ComboTheme, lightComboBg, lightComboBorder, lightComboFg);
             SetComboStyle(ComboLanguage, lightComboBg, lightComboBorder, lightComboFg);
             SetComboStyle(ComboPlacement, lightComboBg, lightComboBorder, lightComboFg);
+            SetComboStyle(ComboAccentColor, lightComboBg, lightComboBorder, lightComboFg);
 
             SetSeparatorColors(isDark);
 
@@ -354,6 +374,8 @@ public partial class SettingsWindow : Window
         DescPlacement.Text = _loc.Get("Setting_Placement_Desc");
         LblOpacity.Text = _loc.Get("Setting_Opacity");
         DescOpacity.Text = _loc.Get("Setting_Opacity_Desc");
+        LblAccentColor.Text = _loc.Get("Setting_AccentColor");
+        DescAccentColor.Text = _loc.Get("Setting_AccentColor_Desc");
         LblDuration.Text = _loc.Get("Setting_Duration");
         DescDuration.Text = _loc.Get("Setting_Duration_Desc");
         LblHoverDuration.Text = _loc.Get("Setting_HoverDuration");
@@ -369,6 +391,8 @@ public partial class SettingsWindow : Window
         DescDetJson.Text = _loc.Get("Detector_Json_Desc");
         LblDetUrl.Text = _loc.Get("Detector_Url");
         DescDetUrl.Text = _loc.Get("Detector_Url_Desc");
+        LblDetEmail.Text = _loc.Get("Detector_Email");
+        DescDetEmail.Text = _loc.Get("Detector_Email_Desc");
         LblDetBase64.Text = _loc.Get("Detector_Base64");
         DescDetBase64.Text = _loc.Get("Detector_Base64_Desc");
         LblDetTable.Text = _loc.Get("Detector_Table");
@@ -392,12 +416,14 @@ public partial class SettingsWindow : Window
         int themeIdx = ComboTheme.SelectedIndex;
         int langIdx = ComboLanguage.SelectedIndex;
         int placementIdx = ComboPlacement.SelectedIndex;
+        int accentIdx = ComboAccentColor.SelectedIndex;
 
         PopulateDropdowns();
 
         ComboTheme.SelectedIndex = themeIdx;
         ComboLanguage.SelectedIndex = langIdx;
         ComboPlacement.SelectedIndex = placementIdx;
+        ComboAccentColor.SelectedIndex = accentIdx;
     }
 
     private void ResetDefaultsButton_Click(object sender, RoutedEventArgs e)

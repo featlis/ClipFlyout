@@ -34,6 +34,9 @@ public partial class DataTypeDetector : IDataTypeDetector
     [GeneratedRegex(@"^\d{10}$|^\d{13}$")]
     private static partial Regex TimestampRegex();
 
+    [GeneratedRegex(@"^(?<local>[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+)@(?<domain>(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,63})$", RegexOptions.IgnoreCase)]
+    private static partial Regex EmailRegex();
+
     public DataTypeDetector(ActionExecutor executor, SettingsService? settings = null)
     {
         _executor = executor;
@@ -94,7 +97,13 @@ public partial class DataTypeDetector : IDataTypeDetector
                 return DetectUrl(uri, trimmed);
             }
 
-            // 2e. Base64
+            // 2e. Email address
+            if (cfg.DetectEmail && EmailRegex().Match(trimmed) is { Success: true } emailMatch)
+            {
+                return DetectEmail(trimmed, emailMatch.Groups["local"].Value, emailMatch.Groups["domain"].Value);
+            }
+
+            // 2f. Base64
             if (cfg.DetectBase64 && trimmed.Length <= MaxBase64Length &&
                 (trimmed.StartsWith("data:", StringComparison.OrdinalIgnoreCase) || IsBase64String(trimmed)))
             {
@@ -724,6 +733,25 @@ public partial class DataTypeDetector : IDataTypeDetector
             AvailableActions: actions,
             BadgeText: "URL"
         );
+    }
+
+    private DetectionResult DetectEmail(string emailAddress, string localPart, string domain)
+    {
+        var actions = new List<ActionItem>
+        {
+            new("Action_OpenEmail", _loc.Get("Action_OpenEmail"), "Mail24", _loc.Get("Action_OpenEmail_Desc"), () => _executor.OpenEmail(emailAddress)),
+            new("Action_CopyEmailDomain", _loc.Get("Action_CopyEmailDomain"), "Link24", _loc.Get("Action_CopyEmailDomain_Desc"), () => _executor.CopyText(domain, "Toast_Copied")),
+            new("Action_CopyEmailUser", _loc.Get("Action_CopyEmailUser"), "Person24", _loc.Get("Action_CopyEmailUser_Desc"), () => _executor.CopyText(localPart, "Toast_Copied"))
+        };
+
+        return new DetectionResult(
+            Type: ClipDataType.Email,
+            RawData: emailAddress,
+            PreviewTitle: emailAddress,
+            PreviewSubtitle: domain,
+            PreviewBody: emailAddress,
+            AvailableActions: actions,
+            BadgeText: "Email");
     }
 
     private bool IsCodeSnippet(string text)

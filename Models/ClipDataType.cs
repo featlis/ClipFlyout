@@ -9,6 +9,7 @@ public enum ClipDataType
     HexColor,
     Json,
     Url,
+    Email,
     Code,
     Image,
     UnixTimestamp,

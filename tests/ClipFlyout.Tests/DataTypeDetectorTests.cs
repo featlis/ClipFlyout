@@ -120,6 +120,17 @@ public class DataTypeDetectorTests : IDisposable
     }
 
     [Fact]
+    public void Detect_Email_ReturnsEmailActions()
+    {
+        var result = _detector.Detect("hello+news@example.co.jp");
+
+        Assert.NotNull(result);
+        Assert.Equal(ClipDataType.Email, result.Type);
+        Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_OpenEmail");
+        Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_CopyEmailDomain");
+    }
+
+    [Fact]
     public void Detect_CodeSnippet_ReturnsCodeType()
     {
         string code = "public class MyService {\n    public async Task<int> GetDataAsync() {\n        return await Task.FromResult(42);\n    }\n}";

@@ -1,5 +1,5 @@
 #define MyAppName "ClipFlyout"
-#define MyAppVersion "0.4.1"
+#define MyAppVersion "0.5.0"
 #define MyAppPublisher "ClipFlyout Team"
 #define MyAppURL "https://github.com/featlis/ClipFlyout"
 #define MyAppExeName "ClipFlyout.exe"

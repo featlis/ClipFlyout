@@ -10,7 +10,7 @@
         SizeToContent="Height"
         WindowStyle="None"
         AllowsTransparency="False"
-        Background="#01000000"
+        Background="Transparent"
         Topmost="True"
         ShowInTaskbar="False"
         ResizeMode="NoResize"
