@@ -12,12 +12,14 @@ public class ActionExecutor
 {
     private readonly IClipboardMonitor _clipboardMonitor;
     private readonly LocalizationService _loc = LocalizationService.Instance;
+    private readonly Action<string> _setClipboardText;
 
     public event Action<string>? ActionExecuted;
 
-    public ActionExecutor(IClipboardMonitor clipboardMonitor)
+    public ActionExecutor(IClipboardMonitor clipboardMonitor, Action<string>? setClipboardText = null)
     {
         _clipboardMonitor = clipboardMonitor;
+        _setClipboardText = setClipboardText ?? (text => WpfClipboard.SetDataObject(text, true));
     }
 
     public void CopyText(string text, string successMessageKey = "Toast_Copied")
@@ -26,7 +28,7 @@ public class ActionExecutor
         {
             using (_clipboardMonitor.SuppressNotifications())
             {
-                WpfClipboard.SetDataObject(text, true);
+                _setClipboardText(text);
             }
             ActionExecuted?.Invoke(_loc.Get(successMessageKey));
         }

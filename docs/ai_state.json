@@ -1,9 +1,9 @@
 {
   "project": "ClipFlyout",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "target_framework": "net9.0-windows",
   "architecture": {
-    "ui": "WPF + Fluent Design (ACCENT_ENABLE_ACRYLICBLURBEHIND frosted acrylic with single-layer tint, 20%-100% opacity, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings)",
+    "ui": "WPF + restrained Fluent Design (ACCENT_ENABLE_ACRYLICBLURBEHIND frosted acrylic with single-layer tint, 20%-100% opacity, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings; no emoji-based settings icon plates)",
     "native_interop": {
       "clipboard_listener": "user32.dll AddClipboardFormatListener / RemoveClipboardFormatListener (WM_CLIPBOARDUPDATE 0x031D)",
       "window_styles": "WS_EX_NOACTIVATE (0x08000000) | WS_EX_TOOLWINDOW (0x00000080) | WS_EX_TOPMOST (0x00000008)",
@@ -15,8 +15,8 @@
       "startup_sync": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\ClipFlyout"
     },
     "subsystems": {
-      "ClipboardMonitor": "Services/ClipboardMonitor.cs (HwndSource message hook, 5x lock retry, suppression scope for internal writes)",
-      "DataTypeDetector": "Services/DataTypeDetector.cs (Configurable filters: HexColor, UnixTimestamp, Json, Url, Base64, TableData, Code, Image, PlainText)",
+      "ClipboardMonitor": "Services/ClipboardMonitor.cs (HwndSource message hook, async 5x lock retry, monotonically ordered reads, GetClipboardSequenceNumber-based suppression for internal writes)",
+      "DataTypeDetector": "Services/DataTypeDetector.cs (Configurable filters: HexColor, UnixTimestamp, Json, Url, Base64, quoted CSV/TSV TableData, Code, Image, PlainText; bounds structured parsing to 1 MB)",
       "ActionExecutor": "Services/ActionExecutor.cs (CopyText, CopyImage, CopyBase64Image, OpenBrowser, GenerateAndCopyQrCode, SaveImageToFile)",
       "FlyoutWindowManager": "Services/FlyoutWindowManager.cs (Placement: BottomRight, TopRight, TopLeft, BottomLeft, NearCursor; strict screen boundary clamp, accurate DPI)",
       "SettingsService": "Services/SettingsService.cs (Persistence in %LocalAppData%\\ClipFlyout\\settings.json, Windows startup sync)",
@@ -25,7 +25,7 @@
       "LocalizationService": "Services/LocalizationService.cs (Auto/Ja/En full i18n dictionary for flyout and settings)",
       "FluentControls": "Themes/FluentControls.xaml (Windows 11 Fluent ComboBox with vector chevron, Slide popup, 4px track Slider, 6px minimal ScrollBar)",
       "ToggleSwitch": "Controls/ToggleSwitch.xaml (Windows 11 pixel-perfect animated toggle switch)",
-      "SettingsWindow": "Views/SettingsWindow.xaml (PowerToys / WinUI 3 SettingsCard layout with Mica and 32x32 icon plates, 20%-100% opacity slider)"
+      "SettingsWindow": "Views/SettingsWindow.xaml (restrained SettingsCard layout with Mica, text-first setting rows, neutral local-processing notice, 20%-100% opacity slider)"
     }
   },
   "distribution": {
@@ -85,6 +85,12 @@
     "Fixed screen right-edge overflow: constrained MaxWidth, forced word wrapping, added strict 12px screen boundary clamping",
     "Fixed high-DPI scaling bug: added native GetDpiForWindow / GetDpiForMonitor APIs",
     "Fixed double-tint opacity bug: separated OS hardware blur activation from WPF single-layer tint, expanded opacity slider range to 20%~100%",
-    "Released v0.2.3"
+    "Fixed JSON action closures referencing a disposed JsonDocument by cloning JsonElement before registering actions",
+    "Prevented stale clipboard reads and old hide-animation callbacks from replacing or hiding newer flyouts",
+    "Replaced timing-based internal clipboard suppression with Windows clipboard sequence numbers",
+    "Added settings validation, atomic saves, and isolated test settings from LocalAppData and the startup registry",
+    "Replaced naive CSV splitting with quoted-field CSV/TSV parsing, Markdown escaping, and duplicate-header handling",
+    "Removed emoji-led settings decoration, introduced a clear primary flyout action, and rewrote privacy copy as a neutral local-processing note",
+    "Updated to v0.3.0 and pinned the tray icon dependency to H.NotifyIcon.Wpf 2.3.0, which supplies compatible modern .NET Windows assets"
   ]
 }

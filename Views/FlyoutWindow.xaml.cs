@@ -18,6 +18,7 @@ public partial class FlyoutWindow : Window
     private Storyboard? _hideStoryboard;
     private bool _isClosing;
     private IntPtr _hwnd = IntPtr.Zero;
+    private long _presentationGeneration;
 
     public event Action? MouseEntered;
     public event Action? MouseLeft;
@@ -168,14 +169,15 @@ public partial class FlyoutWindow : Window
 
     private void StyleActionButtons(bool isDark)
     {
+        bool primaryAssigned = false;
         for (int i = 0; i < VisualTreeHelper.GetChildrenCount(ActionsItemsControl); i++)
         {
             var child = VisualTreeHelper.GetChild(ActionsItemsControl, i);
-            ApplyButtonStylesRecursive(child, isDark);
+            ApplyButtonStylesRecursive(child, isDark, ref primaryAssigned);
         }
     }
 
-    private void ApplyButtonStylesRecursive(DependencyObject parent, bool isDark)
+    private void ApplyButtonStylesRecursive(DependencyObject parent, bool isDark, ref bool primaryAssigned)
     {
         int count = VisualTreeHelper.GetChildrenCount(parent);
         for (int i = 0; i < count; i++)
@@ -183,7 +185,22 @@ public partial class FlyoutWindow : Window
             var child = VisualTreeHelper.GetChild(parent, i);
             if (child is Button btn)
             {
-                if (isDark)
+                bool isPrimary = !primaryAssigned;
+                primaryAssigned = true;
+
+                if (isPrimary)
+                {
+                    btn.Height = 30;
+                    btn.Padding = new Thickness(12, 0, 12, 0);
+                    btn.Background = new SolidColorBrush(isDark
+                        ? Color.FromRgb(59, 130, 246)
+                        : Color.FromRgb(0, 95, 184));
+                    btn.BorderBrush = new SolidColorBrush(isDark
+                        ? Color.FromRgb(96, 165, 250)
+                        : Color.FromRgb(0, 82, 160));
+                    btn.Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 255));
+                }
+                else if (isDark)
                 {
                     btn.Background = new SolidColorBrush(Color.FromArgb(200, 42, 47, 61));
                     btn.BorderBrush = new SolidColorBrush(Color.FromArgb(100, 75, 85, 110));
@@ -196,14 +213,24 @@ public partial class FlyoutWindow : Window
                     btn.Foreground = new SolidColorBrush(Color.FromRgb(31, 41, 55));
                 }
             }
-            ApplyButtonStylesRecursive(child, isDark);
+            ApplyButtonStylesRecursive(child, isDark, ref primaryAssigned);
         }
     }
 
     public void Present(DetectionResult result)
     {
+        _presentationGeneration++;
         _currentResult = result;
         _isClosing = false;
+
+        // A new clipboard value can arrive while the previous card is fading
+        // out. Remove that clock before displaying the new content; otherwise
+        // its Completed callback would hide the new card.
+        _hideStoryboard?.Remove(this);
+        RootCard.BeginAnimation(OpacityProperty, null);
+        RootTransform.BeginAnimation(TranslateTransform.YProperty, null);
+        RootCard.Opacity = 1;
+        RootTransform.Y = 0;
 
         ColorPreviewPanel.Visibility = Visibility.Collapsed;
         ImagePreviewPanel.Visibility = Visibility.Collapsed;
@@ -251,6 +278,7 @@ public partial class FlyoutWindow : Window
     {
         if (_isClosing) return;
         _isClosing = true;
+        long generation = _presentationGeneration;
 
         if (_hideStoryboard != null)
         {
@@ -258,6 +286,10 @@ public partial class FlyoutWindow : Window
             handler = (_, _) =>
             {
                 _hideStoryboard.Completed -= handler;
+                if (generation != _presentationGeneration)
+                {
+                    return;
+                }
                 Hide();
                 _isClosing = false;
                 onCompleted();
@@ -275,6 +307,7 @@ public partial class FlyoutWindow : Window
 
     public void ShowToastFeedback(string message)
     {
+        long generation = _presentationGeneration;
         InlineFeedbackText.Text = message;
 
         ActionsItemsControl.Visibility = Visibility.Collapsed;
@@ -284,7 +317,10 @@ public partial class FlyoutWindow : Window
         {
             Dispatcher.Invoke(() =>
             {
-                CloseRequested?.Invoke();
+                if (generation == _presentationGeneration && IsVisible)
+                {
+                    CloseRequested?.Invoke();
+                }
             });
         });
     }

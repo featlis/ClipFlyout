@@ -12,21 +12,40 @@ public class SettingsService
     public static SettingsService Instance => _instance.Value;
 
     private readonly string _settingsFilePath;
-    private AppSettings _currentSettings;
+    private readonly bool _syncStartupRegistry;
+    private volatile AppSettings _currentSettings;
 
     public event Action<AppSettings>? SettingsChanged;
 
-    public AppSettings Current => _currentSettings;
+    public AppSettings Current => _currentSettings.Clone();
 
-    public SettingsService()
+    public SettingsService(string? settingsFilePath = null, bool syncStartupRegistry = true)
     {
-        string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        string folder = Path.Combine(localAppData, "ClipFlyout");
-        Directory.CreateDirectory(folder);
-        _settingsFilePath = Path.Combine(folder, "settings.json");
+        if (string.IsNullOrWhiteSpace(settingsFilePath))
+        {
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string folder = Path.Combine(localAppData, "ClipFlyout");
+            _settingsFilePath = Path.Combine(folder, "settings.json");
+        }
+        else
+        {
+            _settingsFilePath = Path.GetFullPath(settingsFilePath);
+        }
+
+        string? settingsDirectory = Path.GetDirectoryName(_settingsFilePath);
+        if (string.IsNullOrEmpty(settingsDirectory))
+        {
+            throw new ArgumentException("The settings file must have a directory.", nameof(settingsFilePath));
+        }
+
+        Directory.CreateDirectory(settingsDirectory);
+        _syncStartupRegistry = syncStartupRegistry;
 
         _currentSettings = LoadSettings();
-        SyncStartupRegistry(_currentSettings.LaunchOnStartup);
+        if (_syncStartupRegistry)
+        {
+            SyncStartupRegistry(_currentSettings.LaunchOnStartup);
+        }
     }
 
     public AppSettings LoadSettings()
@@ -39,7 +58,7 @@ public class SettingsService
                 var loaded = JsonSerializer.Deserialize<AppSettings>(json);
                 if (loaded != null)
                 {
-                    return loaded;
+                    return loaded.Normalize();
                 }
             }
         }
@@ -48,20 +67,25 @@ public class SettingsService
             System.Diagnostics.Debug.WriteLine($"Failed to load settings: {ex.Message}");
         }
 
-        return new AppSettings();
+        return new AppSettings().Normalize();
     }
 
     public void SaveSettings(AppSettings settings)
     {
         try
         {
-            _currentSettings = settings.Clone();
+            _currentSettings = settings.Normalize();
             string json = JsonSerializer.Serialize(_currentSettings, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(_settingsFilePath, json);
+            string temporaryFilePath = _settingsFilePath + ".tmp";
+            File.WriteAllText(temporaryFilePath, json);
+            File.Move(temporaryFilePath, _settingsFilePath, true);
 
-            SyncStartupRegistry(_currentSettings.LaunchOnStartup);
+            if (_syncStartupRegistry)
+            {
+                SyncStartupRegistry(_currentSettings.LaunchOnStartup);
+            }
 
-            SettingsChanged?.Invoke(_currentSettings);
+            SettingsChanged?.Invoke(_currentSettings.Clone());
         }
         catch (Exception ex)
         {

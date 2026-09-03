@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using ClipFlyout.Models;
 using ClipFlyout.Services;
@@ -23,20 +24,25 @@ public class MockClipboardMonitor : IClipboardMonitor
     }
 }
 
-public class DataTypeDetectorTests
+public class DataTypeDetectorTests : IDisposable
 {
     private readonly DataTypeDetector _detector;
     private readonly ActionExecutor _executor;
     private readonly MockClipboardMonitor _monitor;
+    private readonly SettingsService _settings;
+    private readonly string _settingsDirectory;
+    private string? _copiedText;
 
     public DataTypeDetectorTests()
     {
+        _settingsDirectory = Path.Combine(Path.GetTempPath(), "ClipFlyout.Tests", Guid.NewGuid().ToString("N"));
+        _settings = new SettingsService(Path.Combine(_settingsDirectory, "settings.json"), syncStartupRegistry: false);
         _monitor = new MockClipboardMonitor();
-        _executor = new ActionExecutor(_monitor);
-        _detector = new DataTypeDetector(_executor);
+        _executor = new ActionExecutor(_monitor, text => _copiedText = text);
+        _detector = new DataTypeDetector(_executor, _settings);
 
-        // Reset settings to all enabled for testing
-        SettingsService.Instance.SaveSettings(new AppSettings());
+        // Keep tests isolated from the user's LocalAppData and startup registry.
+        _settings.SaveSettings(new AppSettings());
     }
 
     [Theory]
@@ -84,6 +90,21 @@ public class DataTypeDetectorTests
         Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_FormatJson");
     }
 
+    [Fact]
+    public void Detect_JsonActions_WorkAfterTheDocumentHasBeenDisposed()
+    {
+        var result = _detector.Detect("{\"name\":\"ClipFlyout\",\"active\":true}");
+
+        Assert.NotNull(result);
+        var formatAction = Assert.Single(result.AvailableActions, action => action.LabelKey == "Action_FormatJson");
+
+        formatAction.ExecuteAction();
+
+        Assert.NotNull(_copiedText);
+        Assert.Contains('\n', _copiedText!);
+        Assert.Contains("\"name\"", _copiedText!);
+    }
+
     [Theory]
     [InlineData("https://github.com/featlis/ClipFlyout")]
     [InlineData("http://localhost:3000/dashboard?query=test")]
@@ -108,6 +129,20 @@ public class DataTypeDetectorTests
         Assert.Equal(ClipDataType.Code, result.Type);
         Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_AdjustIndent");
         Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_EscapeHtml");
+    }
+
+    [Fact]
+    public void Detect_CodeIndentAction_NormalizesTheCommonIndentToTwoSpaces()
+    {
+        const string code = "    public void Run()\n        {\n            return;\n        }";
+        var result = _detector.Detect(code);
+
+        Assert.NotNull(result);
+        var indentAction = Assert.Single(result.AvailableActions, action => action.LabelKey == "Action_AdjustIndent");
+
+        indentAction.ExecuteAction();
+
+        Assert.Equal($"public void Run(){Environment.NewLine}  {{{Environment.NewLine}    return;{Environment.NewLine}  }}", _copiedText);
     }
 
     [Fact]
@@ -190,7 +225,7 @@ public class DataTypeDetectorTests
     [Fact]
     public void Detect_DisabledFilters_SkipsDetection()
     {
-        SettingsService.Instance.UpdateSettings(s =>
+        _settings.UpdateSettings(s =>
         {
             s.DetectHexColor = false;
             s.DetectTimestamp = false;
@@ -206,13 +241,13 @@ public class DataTypeDetectorTests
         Assert.Null(tsResult);
 
         // Reset
-        SettingsService.Instance.SaveSettings(new AppSettings());
+        _settings.SaveSettings(new AppSettings());
     }
 
     [Fact]
     public void Settings_Placement_TopLeft_And_Opacity_Works()
     {
-        var settings = SettingsService.Instance;
+        var settings = _settings;
         settings.UpdateSettings(s =>
         {
             s.Placement = FlyoutPlacement.TopLeft;
@@ -224,5 +259,49 @@ public class DataTypeDetectorTests
 
         // Reset
         settings.SaveSettings(new AppSettings());
+    }
+
+    [Fact]
+    public void Detect_CsvWithQuotedCommaAndDuplicateHeaders_ReturnsTableType()
+    {
+        const string csv = "Name,Name,Note\nAlice,Smith,\"Hello, world\"\nBob,Jones,\"Line one\nLine two\"";
+
+        var result = _detector.Detect(csv);
+
+        Assert.NotNull(result);
+        Assert.Equal(ClipDataType.TableData, result.Type);
+        var jsonAction = Assert.Single(result.AvailableActions, action => action.LabelKey == "Action_ToJsonArray");
+
+        jsonAction.ExecuteAction();
+
+        Assert.Contains("\"Name_2\"", _copiedText!);
+        Assert.Contains("Line one\\nLine two", _copiedText!);
+    }
+
+    [Fact]
+    public void Settings_Normalize_ClampsUntrustedValues()
+    {
+        var settings = new AppSettings
+        {
+            OpacityPercent = 150,
+            DisplayDurationSeconds = -10,
+            HoverLeaveDurationSeconds = 99,
+            Placement = (FlyoutPlacement)999
+        };
+
+        _settings.SaveSettings(settings);
+
+        Assert.Equal(100, _settings.Current.OpacityPercent);
+        Assert.Equal(1.5, _settings.Current.DisplayDurationSeconds);
+        Assert.Equal(5, _settings.Current.HoverLeaveDurationSeconds);
+        Assert.Equal(FlyoutPlacement.BottomRight, _settings.Current.Placement);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_settingsDirectory))
+        {
+            Directory.Delete(_settingsDirectory, recursive: true);
+        }
     }
 }

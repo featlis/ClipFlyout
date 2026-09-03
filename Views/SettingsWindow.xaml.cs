@@ -237,9 +237,9 @@ public partial class SettingsWindow : Window
 
             SetSeparatorColors(isDark);
 
-            PrivacyCallout.Background = new SolidColorBrush(Color.FromArgb(30, 16, 185, 129));
-            PrivacyTitle.Foreground = new SolidColorBrush(Color.FromRgb(52, 211, 153));
-            PrivacyDesc.Foreground = new SolidColorBrush(Color.FromRgb(209, 250, 229));
+            PrivacyCallout.Background = new SolidColorBrush(Color.FromArgb(24, 255, 255, 255));
+            PrivacyTitle.Foreground = new SolidColorBrush(Color.FromRgb(229, 231, 235));
+            PrivacyDesc.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
 
             GithubButton.Background = new SolidColorBrush(Color.FromRgb(42, 47, 61));
             GithubButton.BorderBrush = new SolidColorBrush(Color.FromRgb(62, 70, 90));
@@ -273,9 +273,9 @@ public partial class SettingsWindow : Window
 
             SetSeparatorColors(isDark);
 
-            PrivacyCallout.Background = new SolidColorBrush(Color.FromRgb(236, 253, 245));
-            PrivacyTitle.Foreground = new SolidColorBrush(Color.FromRgb(4, 120, 87));
-            PrivacyDesc.Foreground = new SolidColorBrush(Color.FromRgb(6, 95, 70));
+            PrivacyCallout.Background = new SolidColorBrush(Color.FromRgb(248, 250, 252));
+            PrivacyTitle.Foreground = new SolidColorBrush(Color.FromRgb(51, 65, 85));
+            PrivacyDesc.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
 
             GithubButton.Background = new SolidColorBrush(Color.FromRgb(255, 255, 255));
             GithubButton.BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225));

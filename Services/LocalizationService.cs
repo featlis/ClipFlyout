@@ -245,10 +245,10 @@ public class LocalizationService
         { "Detector_Table", new("表データ (CSV / TSV)", "Table Data (CSV / TSV)") },
         { "Detector_Table_Desc", new("ExcelやTSV/CSVのコピーからMarkdown表やJSON配列への自動変換を提供", "Detects spreadsheets / CSV rows, converts to Markdown table or JSON array") },
 
-        { "Section_About", new("バージョン情報 & プライバシー", "About & Privacy") },
-        { "About_Privacy_Title", new("完全オフライン・プライバシー保護", "100% Offline & Private") },
-        { "About_Privacy_Desc", new("ClipFlyout はすべての処理をお使いのPC内部で完結します。外部サーバーへの通信やテレメトリ送信は一切行いません。", "ClipFlyout processes everything locally in memory. Zero network communication or telemetry.") },
-        { "About_Version", new("バージョン: v0.2.3", "Version: v0.2.3") },
+        { "Section_About", new("アプリについて", "About") },
+        { "About_Privacy_Title", new("ローカル処理について", "Local processing") },
+        { "About_Privacy_Desc", new("クリップボードの解析はこのPC上で行われます。", "Clipboard analysis is performed on this PC.") },
+        { "About_Version", new("バージョン: v0.3.0", "Version: v0.3.0") },
         { "About_Github", new("GitHub リポジトリ", "GitHub Repository") },
         { "About_Reset", new("設定を初期値に戻す", "Reset to Defaults") },
         { "About_Reset_Confirm", new("すべての設定を初期値に戻しますか？", "Reset all settings to defaults?") }

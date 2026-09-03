@@ -23,18 +23,12 @@
         <Border Grid.Row="0" x:Name="HeaderBorder" Padding="32,24,32,20" BorderThickness="0,0,0,1">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- App Icon Plate -->
-                <Border Grid.Column="0" Width="40" Height="40" CornerRadius="8" Margin="0,0,14,0" Background="#0078D4">
-                    <TextBlock Text="📋" FontSize="19" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                </Border>
-
                 <!-- Titles -->
-                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
                     <TextBlock x:Name="AppHeaderTitle"
                                Text="ClipFlyout"
                                FontSize="22"
@@ -46,7 +40,7 @@
                 </StackPanel>
 
                 <!-- Reset Button (Windows 11 Standard Secondary Button) -->
-                <Button Grid.Column="2"
+                <Button Grid.Column="1"
                         x:Name="ResetDefaultsButton"
                         Content="初期値に戻す"
                         Height="32"
@@ -78,7 +72,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#203B82F6" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#203B82F6" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                                     <TextBlock Text="📋" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -99,7 +93,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#208B5CF6" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#208B5CF6" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                                     <TextBlock Text="🚀" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -120,7 +114,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#2064748B" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#2064748B" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                                     <TextBlock Text="🌓" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -142,7 +136,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#200EA5E9" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#200EA5E9" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                                     <TextBlock Text="🌐" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -168,7 +162,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#20F97316" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#20F97316" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                                     <TextBlock Text="📐" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -190,7 +184,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="210"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#2006B6D4" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#2006B6D4" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                                     <TextBlock Text="🪟" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -216,7 +210,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="210"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#20EAB308" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#20EAB308" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                                     <TextBlock Text="⏳" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -242,7 +236,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="210"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#2010B981" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#2010B981" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                                     <TextBlock Text="⏱️" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -273,7 +267,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#208B5CF6" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#208B5CF6" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                                     <TextBlock Text="🎨" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -294,7 +288,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#2006B6D4" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#2006B6D4" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                                     <TextBlock Text="⏱️" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -315,7 +309,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#203B82F6" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#203B82F6" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                                     <TextBlock Text="📦" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -336,7 +330,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#2010B981" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#2010B981" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                                     <TextBlock Text="🌐" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -357,7 +351,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#206366F1" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#206366F1" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                                     <TextBlock Text="🔒" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -378,7 +372,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#20059669" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#20059669" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                                     <TextBlock Text="📊" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -399,7 +393,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#20D97706" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#20D97706" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                                     <TextBlock Text="💻" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -420,7 +414,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#20DB2777" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#20DB2777" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                                     <TextBlock Text="🖼️" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -441,7 +435,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#206B7280" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="#206B7280" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                                     <TextBlock Text="📝" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -454,15 +448,15 @@
                     </StackPanel>
                 </Border>
 
-                <!-- 4. ABOUT & PRIVACY SECTION -->
-                <TextBlock x:Name="SecAboutTitle" Text="バージョン情報 &amp; プライバシー" FontSize="13.5" FontWeight="SemiBold" Margin="4,0,0,8"/>
+                <!-- 4. ABOUT SECTION -->
+                <TextBlock x:Name="SecAboutTitle" Text="アプリについて" FontSize="13.5" FontWeight="SemiBold" Margin="4,0,0,8"/>
                 <Border x:Name="CardAbout" CornerRadius="8" BorderThickness="1" Margin="0,0,0,16">
                     <StackPanel>
-                        <!-- Privacy Guarantee Callout -->
+                        <!-- Local processing information -->
                         <Border x:Name="PrivacyCallout" CornerRadius="6" Padding="14,10" Margin="16,16,16,12">
                             <StackPanel>
-                                <TextBlock x:Name="PrivacyTitle" Text="完全オフライン・プライバシー保護" FontWeight="SemiBold" FontSize="12.5"/>
-                                <TextBlock x:Name="PrivacyDesc" Text="ClipFlyout はすべての処理をお使いのPC内部で完結します。外部サーバーへの通信やテレメトリ送信は一切行いません。"
+                                <TextBlock x:Name="PrivacyTitle" Text="ローカル処理について" FontWeight="SemiBold" FontSize="12.5"/>
+                                <TextBlock x:Name="PrivacyDesc" Text="クリップボードの解析はこのPC上で行われます。"
                                            FontSize="11.5" TextWrapping="Wrap" Margin="0,3,0,0"/>
                             </StackPanel>
                         </Border>
@@ -474,7 +468,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                    <TextBlock x:Name="AboutVersion" Text="バージョン: v0.2.3" FontSize="12.5" FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="AboutVersion" Text="バージョン: v0.3.0" FontSize="12.5" FontWeight="SemiBold"/>
                                     <TextBlock Text="Windows 11 Fluent Design Clipboard Utility" FontSize="11.5" Margin="0,1,0,0"/>
                                 </StackPanel>
                                 <Button Grid.Column="1" x:Name="GithubButton" Content="GitHub" Height="32" Padding="16,0" Cursor="Hand" Click="GithubButton_Click">

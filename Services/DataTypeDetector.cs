@@ -15,9 +15,15 @@ namespace ClipFlyout.Services;
 
 public partial class DataTypeDetector : IDataTypeDetector
 {
+    private const int MaxStructuredTextLength = 1_000_000;
+    private const int MaxJsonLength = 512_000;
+    private const int MaxBase64Length = 1_000_000;
+    private const int MaxTableRows = 5_000;
+    private const int MaxTableColumns = 100;
+
     private readonly ActionExecutor _executor;
     private readonly LocalizationService _loc = LocalizationService.Instance;
-    private readonly SettingsService _settings = SettingsService.Instance;
+    private readonly SettingsService _settings;
 
     [GeneratedRegex(@"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")]
     private static partial Regex HexColorRegex();
@@ -28,9 +34,10 @@ public partial class DataTypeDetector : IDataTypeDetector
     [GeneratedRegex(@"^\d{10}$|^\d{13}$")]
     private static partial Regex TimestampRegex();
 
-    public DataTypeDetector(ActionExecutor executor)
+    public DataTypeDetector(ActionExecutor executor, SettingsService? settings = null)
     {
         _executor = executor;
+        _settings = settings ?? SettingsService.Instance;
     }
 
     public DetectionResult? Detect(object clipboardData)
@@ -50,6 +57,14 @@ public partial class DataTypeDetector : IDataTypeDetector
             string trimmed = text.Trim();
             if (string.IsNullOrEmpty(trimmed)) return null;
 
+            // Structured parsers can allocate heavily. Long text is still
+            // useful as plain text, but should not freeze the application by
+            // being parsed as JSON, Base64, or a table.
+            if (trimmed.Length > MaxStructuredTextLength)
+            {
+                return cfg.DetectPlainText ? DetectPlainText(text) : null;
+            }
+
             // 2a. HEX Color
             if (cfg.DetectHexColor && HexColorRegex().IsMatch(trimmed))
             {
@@ -65,7 +80,8 @@ public partial class DataTypeDetector : IDataTypeDetector
             }
 
             // 2c. JSON
-            if (cfg.DetectJson && ((trimmed.StartsWith('{') && trimmed.EndsWith('}')) || (trimmed.StartsWith('[') && trimmed.EndsWith(']'))))
+            if (cfg.DetectJson && trimmed.Length <= MaxJsonLength &&
+                ((trimmed.StartsWith('{') && trimmed.EndsWith('}')) || (trimmed.StartsWith('[') && trimmed.EndsWith(']'))))
             {
                 var jsonResult = TryDetectJson(trimmed, text);
                 if (jsonResult != null) return jsonResult;
@@ -79,7 +95,8 @@ public partial class DataTypeDetector : IDataTypeDetector
             }
 
             // 2e. Base64
-            if (cfg.DetectBase64 && (trimmed.StartsWith("data:", StringComparison.OrdinalIgnoreCase) || IsBase64String(trimmed)))
+            if (cfg.DetectBase64 && trimmed.Length <= MaxBase64Length &&
+                (trimmed.StartsWith("data:", StringComparison.OrdinalIgnoreCase) || IsBase64String(trimmed)))
             {
                 var b64Result = TryDetectBase64(trimmed);
                 if (b64Result != null) return b64Result;
@@ -311,6 +328,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                 int commaIdx = text.IndexOf(',');
                 if (commaIdx == -1) return null;
                 string header = text[..commaIdx];
+                if (!header.Contains(";base64", StringComparison.OrdinalIgnoreCase)) return null;
                 payload = text[(commaIdx + 1)..];
 
                 int semiIdx = header.IndexOf(';');
@@ -319,6 +337,8 @@ public partial class DataTypeDetector : IDataTypeDetector
                     mimeType = header[5..semiIdx];
                 }
             }
+
+            if (payload.Length > MaxBase64Length) return null;
 
             byte[] bytes = Convert.FromBase64String(payload.Trim());
             if (bytes.Length < 4) return null;
@@ -339,10 +359,11 @@ public partial class DataTypeDetector : IDataTypeDetector
             }
 
             // Also check if valid text
-            string decodedText = Encoding.UTF8.GetString(bytes);
-            bool isPrintableText = decodedText.All(c => !char.IsControl(c) || c == '\n' || c == '\r' || c == '\t');
+            string? decodedText = TryDecodeUtf8Text(bytes);
+            bool isPrintableText = decodedText is { Length: > 0 } &&
+                decodedText.All(c => !char.IsControl(c) || c == '\n' || c == '\r' || c == '\t');
 
-            if (isPrintableText && decodedText.Length > 0)
+            if (isPrintableText && decodedText != null)
             {
                 actions.Add(new(
                     "Action_DecodeBase64",
@@ -357,7 +378,7 @@ public partial class DataTypeDetector : IDataTypeDetector
 
             string title = isImage ? "Base64 Image" : "Base64 Text";
             string subtitle = $"{bytes.Length} bytes decoded";
-            string snippet = isPrintableText && decodedText.Length > 0
+            string snippet = isPrintableText && decodedText != null
                 ? (decodedText.Length > 120 ? decodedText[..120] + "..." : decodedText)
                 : $"Decoded binary data ({bytes.Length} bytes)";
 
@@ -395,6 +416,18 @@ public partial class DataTypeDetector : IDataTypeDetector
         return true;
     }
 
+    private static string? TryDecodeUtf8Text(byte[] bytes)
+    {
+        try
+        {
+            return new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true).GetString(bytes);
+        }
+        catch (DecoderFallbackException)
+        {
+            return null;
+        }
+    }
+
     private static bool IsImageBytes(byte[] bytes)
     {
         if (bytes.Length < 8) return false;
@@ -417,45 +450,35 @@ public partial class DataTypeDetector : IDataTypeDetector
     {
         try
         {
-            var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
-                            .Select(l => l.Trim())
-                            .Where(l => !string.IsNullOrEmpty(l))
-                            .ToList();
+            if (text.Length > MaxStructuredTextLength) return null;
 
-            if (lines.Count < 2) return null;
+            bool isTsv = LooksLikeTsv(text);
+            List<string[]>? rows = isTsv
+                ? ParseDelimitedRows(text, '\t')
+                : ParseDelimitedRows(text, ',');
 
-            // Check if TSV (Tab separated)
-            bool isTsv = lines.All(l => l.Contains('\t'));
-            char separator = isTsv ? '\t' : ',';
-
-            if (!isTsv)
-            {
-                // Check if CSV: at least 1 comma per line and equal or close column count
-                if (!lines.All(l => l.Contains(','))) return null;
-            }
-
-            var rows = lines.Select(l => l.Split(separator).Select(cell => cell.Trim()).ToArray()).ToList();
+            if (rows == null || rows.Count < 2) return null;
             int colCount = rows[0].Length;
-            if (colCount < 2) return null;
+            if (colCount < 2 || colCount > MaxTableColumns || rows.Count > MaxTableRows) return null;
 
-            // Check if roughly uniform column counts
-            if (rows.Any(r => Math.Abs(r.Length - colCount) > 1)) return null;
+            // A table with irregular rows is more likely prose or malformed
+            // source data than a conversion candidate.
+            if (rows.Any(r => r.Length != colCount)) return null;
 
             // Generate Markdown table
             var mdSb = new StringBuilder();
-            mdSb.AppendLine("| " + string.Join(" | ", rows[0]) + " |");
+            mdSb.AppendLine("| " + string.Join(" | ", rows[0].Select(EscapeMarkdownCell)) + " |");
             mdSb.AppendLine("| " + string.Join(" | ", Enumerable.Repeat("---", colCount)) + " |");
             for (int i = 1; i < rows.Count; i++)
             {
                 var r = rows[i];
-                var padded = r.Length == colCount ? r : r.Concat(Enumerable.Repeat("", Math.Max(0, colCount - r.Length))).Take(colCount);
-                mdSb.AppendLine("| " + string.Join(" | ", padded) + " |");
+                mdSb.AppendLine("| " + string.Join(" | ", r.Select(EscapeMarkdownCell)) + " |");
             }
             string markdownTable = mdSb.ToString().TrimEnd();
 
             // Generate JSON Array
             var jsonList = new List<Dictionary<string, string>>();
-            var headers = rows[0];
+            var headers = MakeUniqueHeaders(rows[0]);
             for (int i = 1; i < rows.Count; i++)
             {
                 var dict = new Dictionary<string, string>();
@@ -487,7 +510,8 @@ public partial class DataTypeDetector : IDataTypeDetector
             };
 
             string subtitle = $"{rows.Count} rows × {colCount} columns ({(isTsv ? "TSV" : "CSV")})";
-            string snippet = lines[0] + "\n" + (lines.Count > 1 ? lines[1] : "");
+            string snippet = string.Join("\n", rows.Take(2).Select(row => string.Join(isTsv ? "\t" : ",", row)));
+            if (snippet.Length > 180) snippet = snippet[..180] + "...";
 
             return new DetectionResult(
                 Type: ClipDataType.TableData,
@@ -505,12 +529,104 @@ public partial class DataTypeDetector : IDataTypeDetector
         }
     }
 
+    private static bool LooksLikeTsv(string text)
+    {
+        var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .Take(3)
+            .ToList();
+
+        return lines.Count >= 2 && lines.All(line => line.Contains('\t'));
+    }
+
+    private static List<string[]>? ParseDelimitedRows(string text, char separator)
+    {
+        var rows = new List<string[]>();
+        var row = new List<string>();
+        var cell = new StringBuilder();
+        bool insideQuotes = false;
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            char current = text[i];
+            if (current == '"')
+            {
+                if (insideQuotes && i + 1 < text.Length && text[i + 1] == '"')
+                {
+                    cell.Append('"');
+                    i++;
+                }
+                else
+                {
+                    insideQuotes = !insideQuotes;
+                }
+            }
+            else if (!insideQuotes && current == separator)
+            {
+                row.Add(cell.ToString().Trim());
+                cell.Clear();
+            }
+            else if (!insideQuotes && (current == '\r' || current == '\n'))
+            {
+                if (current == '\r' && i + 1 < text.Length && text[i + 1] == '\n') i++;
+                row.Add(cell.ToString().Trim());
+                cell.Clear();
+
+                if (row.Any(value => value.Length > 0))
+                {
+                    rows.Add(row.ToArray());
+                    if (rows.Count > MaxTableRows) return null;
+                }
+                row.Clear();
+            }
+            else
+            {
+                cell.Append(current);
+            }
+        }
+
+        if (insideQuotes) return null;
+
+        row.Add(cell.ToString().Trim());
+        if (row.Any(value => value.Length > 0))
+        {
+            rows.Add(row.ToArray());
+        }
+
+        return rows;
+    }
+
+    private static string EscapeMarkdownCell(string value) =>
+        value.Replace("\\", "\\\\").Replace("|", "\\|").Replace("\r\n", "<br>").Replace("\n", "<br>").Replace("\r", "<br>");
+
+    private static string[] MakeUniqueHeaders(string[] headers)
+    {
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var uniqueHeaders = new string[headers.Length];
+
+        for (int i = 0; i < headers.Length; i++)
+        {
+            string baseName = string.IsNullOrWhiteSpace(headers[i]) ? $"column_{i + 1}" : headers[i];
+            string name = baseName;
+            int suffix = 2;
+            while (!used.Add(name))
+            {
+                name = $"{baseName}_{suffix++}";
+            }
+            uniqueHeaders[i] = name;
+        }
+
+        return uniqueHeaders;
+    }
+
     private DetectionResult? TryDetectJson(string trimmedJson, string originalText)
     {
         try
         {
             using var doc = JsonDocument.Parse(trimmedJson);
-            var root = doc.RootElement;
+            // Action delegates run after this using scope exits, so clone the
+            // element into independent storage before keeping it in a closure.
+            var root = doc.RootElement.Clone();
             string subtitle;
             if (root.ValueKind == JsonValueKind.Object)
             {
@@ -699,14 +815,14 @@ public partial class DataTypeDetector : IDataTypeDetector
                 _loc.Get("Action_UpperCase"),
                 "TextCaseUppercase24",
                 _loc.Get("Action_UpperCase_Desc"),
-                () => _executor.CopyText(text.ToUpper(), "Toast_Copied")
+                () => _executor.CopyText(text.ToUpperInvariant(), "Toast_Copied")
             ),
             new(
                 "Action_LowerCase",
                 _loc.Get("Action_LowerCase"),
                 "TextCaseLowercase24",
                 _loc.Get("Action_LowerCase_Desc"),
-                () => _executor.CopyText(text.ToLower(), "Toast_Copied")
+                () => _executor.CopyText(text.ToLowerInvariant(), "Toast_Copied")
             )
         };
 
@@ -727,24 +843,70 @@ public partial class DataTypeDetector : IDataTypeDetector
     private static string NormalizeIndentation(string code)
     {
         var lines = code.Replace("\r\n", "\n").Split('\n');
-        var resultLines = new List<string>();
+        var indentationWidths = lines
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .Select(GetLeadingWhitespaceWidth)
+            .ToList();
+
+        if (indentationWidths.Count == 0)
+        {
+            return code;
+        }
+
+        int baseIndent = indentationWidths.Min();
+        var relativeIndents = indentationWidths
+            .Select(width => width - baseIndent)
+            .Where(width => width > 0)
+            .ToList();
+        int indentUnit = relativeIndents.Count == 0
+            ? 2
+            : relativeIndents.Aggregate(GCD);
+
+        // Avoid treating alignment whitespace (for example 37 spaces in a
+        // pasted SQL query) as a logical indentation level.
+        indentUnit = Math.Clamp(indentUnit, 1, 8);
+
+        var resultLines = new List<string>(lines.Length);
         foreach (var line in lines)
         {
-            int leadingTabs = 0;
-            while (leadingTabs < line.Length && line[leadingTabs] == '\t')
+            if (string.IsNullOrWhiteSpace(line))
             {
-                leadingTabs++;
+                resultLines.Add(string.Empty);
+                continue;
             }
-            if (leadingTabs > 0)
+
+            int leadingWhitespaceLength = 0;
+            while (leadingWhitespaceLength < line.Length && (line[leadingWhitespaceLength] == ' ' || line[leadingWhitespaceLength] == '\t'))
             {
-                resultLines.Add(new string(' ', leadingTabs * 2) + line[leadingTabs..]);
+                leadingWhitespaceLength++;
+            }
+
+            int relativeIndent = Math.Max(0, GetLeadingWhitespaceWidth(line) - baseIndent);
+            int indentationLevel = (int)Math.Round(relativeIndent / (double)indentUnit, MidpointRounding.AwayFromZero);
+            resultLines.Add(new string(' ', indentationLevel * 2) + line[leadingWhitespaceLength..]);
+        }
+        return string.Join(Environment.NewLine, resultLines);
+    }
+
+    private static int GetLeadingWhitespaceWidth(string line)
+    {
+        int width = 0;
+        foreach (char character in line)
+        {
+            if (character == ' ')
+            {
+                width++;
+            }
+            else if (character == '\t')
+            {
+                width += 2;
             }
             else
             {
-                resultLines.Add(line);
+                break;
             }
         }
-        return string.Join(Environment.NewLine, resultLines);
+        return width;
     }
 
     private static (double h, double s, double l) RgbToHsl(byte r, byte g, byte b)

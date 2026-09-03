@@ -1,4 +1,6 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using ClipFlyout.Services;
 using WpfApplication = System.Windows.Application;
@@ -14,6 +16,7 @@ public partial class App : WpfApplication
     private TrayIconService? _trayIconService;
     private SettingsService? _settingsService;
     private ThemeService? _themeService;
+    private long _detectionGeneration;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -61,18 +64,32 @@ public partial class App : WpfApplication
         if (_detector == null || _windowManager == null || _settingsService == null) return;
         if (!_settingsService.Current.IsMonitoringEnabled) return;
 
-        try
+        // Detection may parse JSON, Base64, or large table data. Keep that work
+        // off the dispatcher and only present the newest clipboard result.
+        long generation = Interlocked.Increment(ref _detectionGeneration);
+        var detector = _detector;
+        var windowManager = _windowManager;
+
+        _ = Task.Run(() =>
         {
-            var result = _detector.Detect(rawData);
-            if (result != null)
+            try
             {
-                _windowManager.ShowFlyout(result);
+                return detector.Detect(rawData);
             }
-        }
-        catch (Exception ex)
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error processing clipboard data: {ex}");
+                return null;
+            }
+        }).ContinueWith(task =>
         {
-            System.Diagnostics.Debug.WriteLine($"Error processing clipboard data: {ex}");
-        }
+            if (task.Status == TaskStatus.RanToCompletion && task.Result != null &&
+                generation == Volatile.Read(ref _detectionGeneration) &&
+                _settingsService?.Current.IsMonitoringEnabled == true)
+            {
+                windowManager.ShowFlyout(task.Result);
+            }
+        }, TaskScheduler.FromCurrentSynchronizationContext());
     }
 
     protected override void OnExit(ExitEventArgs e)

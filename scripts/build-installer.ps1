@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.2.3"
+    [string]$Version = "0.3.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,7 +20,16 @@ if (-not (Test-Path $DistDir)) { New-Item -ItemType Directory -Path $DistDir -Fo
 
 # 2. Publish self-contained single-file win-x64 binary
 Write-Host "`n[1/3] Publishing self-contained win-x64 binary..." -ForegroundColor Yellow
-$dotnet = if (Get-Command dotnet -ErrorAction SilentlyContinue) { "dotnet" } else { "$env:LOCALAPPDATA\Microsoft\dotnet\dotnet.exe" }
+$localDotnet = Join-Path $env:LOCALAPPDATA "Microsoft\dotnet\dotnet.exe"
+$dotnet = if (Test-Path $localDotnet) {
+    # Prefer the per-user SDK because a PATH entry can point to the Windows
+    # app-host stub, which reports "No .NET SDKs were found".
+    $localDotnet
+} elseif (Get-Command dotnet -ErrorAction SilentlyContinue) {
+    (Get-Command dotnet).Source
+} else {
+    throw "dotnet SDK was not found. Install the .NET 9 SDK first."
+}
 & $dotnet publish (Join-Path $ProjectRoot "ClipFlyout.csproj") -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o $PublishDir
 
 if ($LASTEXITCODE -ne 0) {

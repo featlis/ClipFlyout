@@ -51,4 +51,35 @@ public class AppSettings
     {
         return (AppSettings)MemberwiseClone();
     }
+
+    /// <summary>
+    /// Returns a safe copy of settings loaded from disk or supplied by a caller.
+    /// Settings files are user-editable, so values must not be trusted just because
+    /// they deserialized successfully.
+    /// </summary>
+    public AppSettings Normalize()
+    {
+        var normalized = Clone();
+
+        if (!Enum.IsDefined(normalized.Theme))
+        {
+            normalized.Theme = AppThemeMode.System;
+        }
+
+        if (!Enum.IsDefined(normalized.Language))
+        {
+            normalized.Language = AppLanguage.Auto;
+        }
+
+        if (!Enum.IsDefined(normalized.Placement))
+        {
+            normalized.Placement = FlyoutPlacement.BottomRight;
+        }
+
+        normalized.OpacityPercent = Math.Clamp(normalized.OpacityPercent, 20.0, 100.0);
+        normalized.DisplayDurationSeconds = Math.Clamp(normalized.DisplayDurationSeconds, 1.5, 10.0);
+        normalized.HoverLeaveDurationSeconds = Math.Clamp(normalized.HoverLeaveDurationSeconds, 0.5, 5.0);
+
+        return normalized;
+    }
 }
