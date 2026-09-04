@@ -65,6 +65,7 @@ public partial class FlyoutWindow : Window
     {
         bool isDark = ThemeService.Instance.IsDarkTheme;
         double opacity = SettingsService.Instance.Current.OpacityPercent;
+        this.Opacity = opacity / 100.0;
         var accent = ThemeService.Instance.AccentColor;
 
         ApplyHardwareAcrylic();
