@@ -39,6 +39,7 @@ public partial class ToggleSwitch : UserControl
         InitializeComponent();
         Loaded += (_, _) => UpdateVisualState(false);
         ThemeService.Instance.ThemeChanged += () => Dispatcher.Invoke(() => UpdateVisualState(false));
+        SettingsService.Instance.SettingsChanged += _ => Dispatcher.Invoke(() => UpdateVisualState(false));
     }
 
     private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -79,7 +80,7 @@ public partial class ToggleSwitch : UserControl
         if (IsOn)
         {
             // Accent ON state
-            var accentColor = isDark ? Color.FromRgb(96, 205, 255) : Color.FromRgb(0, 95, 184);
+            var accentColor = ThemeService.Instance.AccentColor;
             TrackBorder.Background = new SolidColorBrush(accentColor);
             TrackBorder.BorderBrush = new SolidColorBrush(accentColor);
             ThumbEllipse.Fill = isDark ? Brushes.Black : Brushes.White;
