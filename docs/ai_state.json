@@ -1,6 +1,6 @@
 {
   "project": "ClipFlyout",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "target_framework": "net9.0-windows",
   "architecture": {
     "ui": "WPF + PowerToys-inspired settings cards (Windows 11 transient DWM acrylic with Accent Policy fallback, 20%-100% opacity, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings; no emoji-based settings icon plates)",
