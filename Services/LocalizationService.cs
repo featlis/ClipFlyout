@@ -268,7 +268,7 @@ public class LocalizationService
         { "Section_About", new("アプリについて", "About") },
         { "About_Privacy_Title", new("ローカル処理について", "Local processing") },
         { "About_Privacy_Desc", new("クリップボードの解析はこのPC上で行われます。", "Clipboard analysis is performed on this PC.") },
-        { "About_Version", new("バージョン: v0.5.1", "Version: v0.5.1") },
+        { "About_Version", new("バージョン: v0.5.2", "Version: v0.5.2") },
         { "About_Github", new("GitHub リポジトリ", "GitHub Repository") },
         { "About_Reset", new("設定を初期値に戻す", "Reset to Defaults") },
         { "About_Reset_Confirm", new("すべての設定を初期値に戻しますか？", "Reset all settings to defaults?") },

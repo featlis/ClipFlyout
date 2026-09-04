@@ -55,7 +55,7 @@ public class TrayIconService : IDisposable
         _taskbarIcon.ForceCreate();
 
         _loc.LanguageChanged += BuildMenu;
-        _theme.ThemeChanged += () => WpfApplication.Current.Dispatcher.Invoke(UpdateMenuTheme);
+        _theme.ThemeChanged += () => WpfApplication.Current.Dispatcher.Invoke(RebuildContextMenu);
 
         BuildMenu();
     }
@@ -101,30 +101,19 @@ public class TrayIconService : IDisposable
 
     private void UpdateMenuTheme()
     {
-        bool isDark = _theme.IsDarkTheme;
-        var itemForeground = new WpfBrush(isDark ? WpfColor.FromRgb(245, 247, 250) : WpfColor.FromRgb(24, 32, 45));
-        var hoverBackground = new WpfBrush(isDark ? WpfColor.FromRgb(67, 76, 96) : WpfColor.FromRgb(220, 232, 248));
-        var pressedBackground = new WpfBrush(isDark ? WpfColor.FromRgb(79, 91, 116) : WpfColor.FromRgb(198, 220, 245));
-        var menuBackground = new WpfBrush(isDark ? WpfColor.FromRgb(28, 31, 40) : WpfColor.FromRgb(255, 255, 255));
+        // User requested: Always use the light mode color palette for the tray icon context menu,
+        // even when the application / OS is in dark mode.
+        var itemForeground = new WpfBrush(WpfColor.FromRgb(24, 32, 45));
+        var hoverBackground = new WpfBrush(WpfColor.FromRgb(220, 232, 248));
+        var pressedBackground = new WpfBrush(WpfColor.FromRgb(198, 220, 245));
+        var menuBackground = new WpfBrush(WpfColor.FromRgb(255, 255, 255));
 
-        if (isDark)
-        {
-            _contextMenu.Background = menuBackground;
-            _contextMenu.Foreground = new WpfBrush(WpfColor.FromRgb(243, 244, 246));
-            _contextMenu.BorderBrush = new WpfBrush(WpfColor.FromArgb(60, 255, 255, 255));
-            _contextMenu.BorderThickness = new Thickness(1);
-        }
-        else
-        {
-            _contextMenu.Background = menuBackground;
-            _contextMenu.Foreground = new WpfBrush(WpfColor.FromRgb(15, 23, 42));
-            _contextMenu.BorderBrush = new WpfBrush(WpfColor.FromRgb(226, 232, 240));
-            _contextMenu.BorderThickness = new Thickness(1);
-        }
+        _contextMenu.Background = menuBackground;
+        _contextMenu.Foreground = itemForeground;
+        _contextMenu.BorderBrush = new WpfBrush(WpfColor.FromRgb(226, 232, 240));
+        _contextMenu.BorderThickness = new Thickness(1);
 
-        // H.NotifyIcon uses a WPF ContextMenu. Without an explicit item style,
-        // nested menus can inherit the light system hover brush in dark mode.
-        // IsHighlighted covers both mouse hover and keyboard navigation.
+        // Explicit MenuItem style for high contrast, clean hover/press behavior
         var style = new Style(typeof(MenuItem));
         style.Setters.Add(new Setter(Control.ForegroundProperty, itemForeground));
         style.Setters.Add(new Setter(Control.BackgroundProperty, new WpfBrush(WpfColor.FromArgb(0, 0, 0, 0))));
@@ -144,9 +133,7 @@ public class TrayIconService : IDisposable
         });
         _contextMenu.Resources[typeof(MenuItem)] = style;
 
-        // MenuItem popups are separate visual trees. Supplying the system
-        // menu keys here is what keeps child menus dark as well; setting only
-        // ContextMenu.Background leaves the submenu on the light OS palette.
+        // Ensure nested submenus also use the light system keys
         _contextMenu.Resources[System.Windows.SystemColors.MenuBrushKey] = menuBackground;
         _contextMenu.Resources[System.Windows.SystemColors.MenuTextBrushKey] = itemForeground;
         _contextMenu.Resources[System.Windows.SystemColors.HighlightBrushKey] = hoverBackground;
@@ -175,10 +162,10 @@ public class TrayIconService : IDisposable
         // 1. Title Header
         var titleItem = new MenuItem
         {
-            Header = "ClipFlyout v0.5.1",
+            Header = "ClipFlyout v0.5.2",
             IsEnabled = false,
             FontWeight = FontWeights.Bold,
-            Foreground = new WpfBrush(_theme.IsDarkTheme ? WpfColor.FromRgb(156, 163, 175) : WpfColor.FromRgb(100, 116, 139))
+            Foreground = new WpfBrush(WpfColor.FromRgb(100, 116, 139))
         };
         _contextMenu.Items.Add(titleItem);
 

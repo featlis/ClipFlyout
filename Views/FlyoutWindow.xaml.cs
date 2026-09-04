@@ -73,9 +73,10 @@ public partial class FlyoutWindow : Window
         if (isDark)
         {
             // Windows 11 Deep Smoky Frosted Acrylic with user opacity
-            RootCard.Background = Brushes.Transparent;
-            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(105, 255, 255, 255));
-            InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(75, 255, 255, 255));
+            byte bgAlpha = (byte)Math.Clamp(Math.Round(opacity * 1.8), 60, 220);
+            RootCard.Background = new SolidColorBrush(Color.FromArgb(bgAlpha, 24, 27, 36));
+            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(90, 255, 255, 255));
+            InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255));
 
             HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
             HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
@@ -99,27 +100,29 @@ public partial class FlyoutWindow : Window
         else
         {
             // Windows 11 Light Frosted Acrylic with user opacity
-            RootCard.Background = Brushes.Transparent;
-            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(80, 15, 23, 42));
-            InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(155, 255, 255, 255));
+            // Soft translucent card background with a clean subtle border
+            byte bgAlpha = (byte)Math.Clamp(Math.Round(opacity * 2.0), 100, 240);
+            RootCard.Background = new SolidColorBrush(Color.FromArgb(bgAlpha, 249, 250, 252));
+            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(90, 100, 116, 139));
+            InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255));
 
             HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-            HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
+            HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
             CloseButton.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
 
-            // Translucent preview panel in light mode
-            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255));
-            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(25, 0, 0, 0));
+            // Translucent preview panel with clean light slate styling
+            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(170, 255, 255, 255));
+            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(45, 148, 163, 184));
             BodyPreviewText.Foreground = new SolidColorBrush(Color.FromRgb(30, 41, 59));
 
-            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255));
-            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(25, 0, 0, 0));
+            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(170, 255, 255, 255));
+            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(45, 148, 163, 184));
 
             ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
             ColorValuesText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
 
-            InlineFeedbackBar.Background = new SolidColorBrush(Color.FromArgb(145, 226, 232, 240));
-            InlineFeedbackBar.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
+            InlineFeedbackBar.Background = new SolidColorBrush(Color.FromArgb(200, 241, 245, 249));
+            InlineFeedbackBar.BorderBrush = new SolidColorBrush(Color.FromArgb(70, 148, 163, 184));
             InlineFeedbackText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
         }
 
@@ -211,9 +214,9 @@ public partial class FlyoutWindow : Window
                 }
                 else
                 {
-                    btn.Background = new SolidColorBrush(Color.FromArgb(225, 255, 255, 255));
-                    btn.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 0, 0, 0));
-                    btn.Foreground = new SolidColorBrush(Color.FromRgb(31, 41, 55));
+                    btn.Background = new SolidColorBrush(Color.FromArgb(240, 255, 255, 255));
+                    btn.BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225));
+                    btn.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
                 }
             }
             ApplyButtonStylesRecursive(child, isDark, ref primaryAssigned);
