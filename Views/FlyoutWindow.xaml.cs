@@ -71,8 +71,8 @@ public partial class FlyoutWindow : Window
 
         if (isDark)
         {
-            // Windows 11 Deep Smoky Frosted Acrylic with user opacity
-            byte bgAlpha = (byte)Math.Clamp(Math.Round(opacity * 1.8), 60, 220);
+            // Compute background alpha directly from user opacity (0-100%)
+            byte bgAlpha = (byte)Math.Clamp((int)Math.Round(opacity * 255 / 100.0), 30, 240);
             RootCard.Background = new SolidColorBrush(Color.FromArgb(bgAlpha, 24, 27, 36));
             RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(90, 255, 255, 255));
             InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255));
@@ -98,9 +98,8 @@ public partial class FlyoutWindow : Window
         }
         else
         {
-            // Windows 11 Light Frosted Acrylic with user opacity
-            // Soft translucent card background with a clean subtle border
-            byte bgAlpha = (byte)Math.Clamp(Math.Round(opacity * 2.0), 100, 240);
+            // Compute background alpha directly from user opacity (0-100%)
+            byte bgAlpha = (byte)Math.Clamp((int)Math.Round(opacity * 255 / 100.0), 100, 240);
             RootCard.Background = new SolidColorBrush(Color.FromArgb(bgAlpha, 249, 250, 252));
             RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(90, 100, 116, 139));
             InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255));
