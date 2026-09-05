@@ -198,17 +198,16 @@ public static class Win32
             int backdropVal = DWMSBT_TRANSIENTWINDOW;
             DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropVal, sizeof(int));
 
-            // The tint belongs to the compositor, not WPF. This makes the
-            // slider visibly control the actual acrylic rather than an opaque
-            // WPF layer painted above it.
-            // opacityPercent 20→100: alpha 20→120 so the blur is always visible.
-            // At 20% opacity the window is very translucent (alpha=20);
-            // at 100% it is a solid tint (alpha=120) — DWM acrylic stays visible.
-            byte r = isDark ? (byte)18 : (byte)255;
-            byte g = isDark ? (byte)18 : (byte)255;
-            byte b = isDark ? (byte)24 : (byte)255;
-            // Map 20..100 → alpha 20..120 (linear), so blur is always perceptible
-            byte alpha = (byte)Math.Clamp((int)Math.Round((opacityPercent - 20.0) * (120.0 / 80.0) + 20.0), 20, 120);
+            // The AccentPolicy tint is the compositor-side colour overlay.
+            // Now that CompositionTarget.BackgroundColor is transparent,
+            // this tint and the WPF RootCard.Background both contribute to
+            // the final appearance.  Keep the compositor tint moderate so
+            // that the blur noise remains visible.
+            // opacityPercent 20→100: alpha 30→180.
+            byte r = isDark ? (byte)20 : (byte)255;
+            byte g = isDark ? (byte)20 : (byte)255;
+            byte b = isDark ? (byte)28 : (byte)255;
+            byte alpha = (byte)Math.Clamp((int)Math.Round((opacityPercent - 20.0) * (150.0 / 80.0) + 30.0), 30, 180);
             uint abgrColor = ((uint)alpha << 24) | ((uint)b << 16) | ((uint)g << 8) | (uint)r;
 
             var policy = new AccentPolicy

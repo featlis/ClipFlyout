@@ -46,6 +46,16 @@ public partial class FlyoutWindow : Window
         var helper = new WindowInteropHelper(this);
         _hwnd = helper.Handle;
 
+        // Make the WPF back-buffer transparent so the DWM acrylic backdrop
+        // painted behind this window is actually visible.  Without this the
+        // HwndSource renders an opaque background that completely hides the
+        // compositor blur — this was the root cause of acrylic never working.
+        var hwndSource = HwndSource.FromHwnd(_hwnd);
+        if (hwndSource?.CompositionTarget != null)
+        {
+            hwndSource.CompositionTarget.BackgroundColor = Colors.Transparent;
+        }
+
         var exStyle = (int)Win32.GetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE);
         exStyle |= Win32.WS_EX_NOACTIVATE | Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_TOPMOST;
         Win32.SetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE, (IntPtr)exStyle);
@@ -69,10 +79,11 @@ public partial class FlyoutWindow : Window
 
         ApplyHardwareAcrylic();
 
-        // bgAlpha: how much of the WPF tint covers the DWM acrylic.
-        // Keep this LOW so the OS blur is always perceptible.
-        // 20% opacity → alpha≈5, 100% opacity → alpha≈60.
-        byte bgAlpha = (byte)Math.Clamp((int)Math.Round((opacity - 20.0) * (60.0 / 80.0) + 5.0), 5, 60);
+        // bgAlpha: tint layer over the DWM acrylic blur.
+        // Now that CompositionTarget.BackgroundColor is transparent the blur
+        // is actually visible, so this tint controls readability vs blur.
+        // 20% opacity → alpha=20 (very translucent), 100% → alpha=160.
+        byte bgAlpha = (byte)Math.Clamp((int)Math.Round((opacity - 20.0) * (140.0 / 80.0) + 20.0), 20, 160);
 
         if (isDark)
         {

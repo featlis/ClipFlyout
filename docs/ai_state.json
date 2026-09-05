@@ -1,6 +1,6 @@
 {
   "project": "ClipFlyout",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "target_framework": "net9.0-windows",
   "architecture": {
     "ui": "WPF + PowerToys-inspired settings cards (Windows 11 transient DWM acrylic with Accent Policy fallback, 20%-100% opacity, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings; no emoji-based settings icon plates)",
@@ -97,6 +97,7 @@
     "v0.4.1: rate-limited automatic update checks, atomically staged downloads, restored post-update launch for silent installs, locked dependencies, and updated QRCoder to 1.8.0",
     "v0.5.0: acrylic opacity is now applied by the Windows compositor, submenu palettes are explicit in dark mode, light flyouts use a light compositor tint, accent presets were added, and email addresses are detected",
     "v0.5.2: refined light mode color palette and secondary button styling, pinned tray icon context menu to light palette even in dark mode, and extended DWM frame with DwmExtendFrameIntoClientArea (-1) to guarantee real Windows Acrylic backdrop rendering",
-    "v0.5.4: fixed acrylic transparency — WPF RootCard background alpha reduced to 5-60 range (was 30-240/100-240) so DWM compositor blur is always visible; AccentPolicy tint alpha remapped to 20-120 (was 64-230 which caused near-opaque look); light mode tint changed from blue-grey RGB(249,250,252) to pure white RGB(255,255,255) eliminating the grey cast"
+    "v0.5.4: fixed acrylic transparency — WPF RootCard background alpha reduced to 5-60 range (was 30-240/100-240) so DWM compositor blur is always visible; AccentPolicy tint alpha remapped to 20-120 (was 64-230 which caused near-opaque look); light mode tint changed from blue-grey RGB(249,250,252) to pure white RGB(255,255,255) eliminating the grey cast",
+    "v0.5.5: ROOT CAUSE FIX — added HwndSource.CompositionTarget.BackgroundColor = Colors.Transparent in OnSourceInitialized; without this the WPF back-buffer was opaque and completely occluded the DWM acrylic blur regardless of any other setting; AccentPolicy alpha remapped to 30-180; RootCard bgAlpha remapped to 20-160 for proper tint-over-blur; ref MS Learn Fluent Design acrylic material docs"
   ]
 }
