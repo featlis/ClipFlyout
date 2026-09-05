@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release Version (e.g. 0.3.0)'
+        description: 'Pre-1.0 release version (e.g. 0.5.0)'
         required: true
-        default: '0.3.0'
+        default: '0.5.0'
 
 permissions:
   contents: write

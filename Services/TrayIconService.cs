@@ -37,6 +37,7 @@ public class TrayIconService : IDisposable
     private MenuItem? _langJaItem;
     private MenuItem? _langEnItem;
     private MenuItem? _exitItem;
+    private MenuItem? _checkUpdatesItem;
 
     public TrayIconService(IClipboardMonitor clipboardMonitor)
     {
@@ -54,7 +55,7 @@ public class TrayIconService : IDisposable
         _taskbarIcon.ForceCreate();
 
         _loc.LanguageChanged += BuildMenu;
-        _theme.ThemeChanged += () => WpfApplication.Current.Dispatcher.Invoke(UpdateMenuTheme);
+        _theme.ThemeChanged += () => WpfApplication.Current.Dispatcher.Invoke(RebuildContextMenu);
 
         BuildMenu();
     }
@@ -100,21 +101,45 @@ public class TrayIconService : IDisposable
 
     private void UpdateMenuTheme()
     {
-        bool isDark = _theme.IsDarkTheme;
-        if (isDark)
+        // User requested: Always use the light mode color palette for the tray icon context menu,
+        // even when the application / OS is in dark mode.
+        var itemForeground = new WpfBrush(WpfColor.FromRgb(24, 32, 45));
+        var hoverBackground = new WpfBrush(WpfColor.FromRgb(220, 232, 248));
+        var pressedBackground = new WpfBrush(WpfColor.FromRgb(198, 220, 245));
+        var menuBackground = new WpfBrush(WpfColor.FromRgb(255, 255, 255));
+
+        _contextMenu.Background = menuBackground;
+        _contextMenu.Foreground = itemForeground;
+        _contextMenu.BorderBrush = new WpfBrush(WpfColor.FromRgb(226, 232, 240));
+        _contextMenu.BorderThickness = new Thickness(1);
+
+        // Explicit MenuItem style for high contrast, clean hover/press behavior
+        var style = new Style(typeof(MenuItem));
+        style.Setters.Add(new Setter(Control.ForegroundProperty, itemForeground));
+        style.Setters.Add(new Setter(Control.BackgroundProperty, new WpfBrush(WpfColor.FromArgb(0, 0, 0, 0))));
+        style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(12, 7, 12, 7)));
+        style.Setters.Add(new Setter(Control.MinHeightProperty, 30.0));
+        style.Triggers.Add(new Trigger
         {
-            _contextMenu.Background = new WpfBrush(WpfColor.FromRgb(28, 31, 40));
-            _contextMenu.Foreground = new WpfBrush(WpfColor.FromRgb(243, 244, 246));
-            _contextMenu.BorderBrush = new WpfBrush(WpfColor.FromArgb(60, 255, 255, 255));
-            _contextMenu.BorderThickness = new Thickness(1);
-        }
-        else
+            Property = MenuItem.IsHighlightedProperty,
+            Value = true,
+            Setters = { new Setter(Control.BackgroundProperty, hoverBackground), new Setter(Control.ForegroundProperty, itemForeground) }
+        });
+        style.Triggers.Add(new Trigger
         {
-            _contextMenu.Background = new WpfBrush(WpfColor.FromRgb(255, 255, 255));
-            _contextMenu.Foreground = new WpfBrush(WpfColor.FromRgb(15, 23, 42));
-            _contextMenu.BorderBrush = new WpfBrush(WpfColor.FromRgb(226, 232, 240));
-            _contextMenu.BorderThickness = new Thickness(1);
-        }
+            Property = MenuItem.IsPressedProperty,
+            Value = true,
+            Setters = { new Setter(Control.BackgroundProperty, pressedBackground) }
+        });
+        _contextMenu.Resources[typeof(MenuItem)] = style;
+
+        // Ensure nested submenus also use the light system keys
+        _contextMenu.Resources[System.Windows.SystemColors.MenuBrushKey] = menuBackground;
+        _contextMenu.Resources[System.Windows.SystemColors.MenuTextBrushKey] = itemForeground;
+        _contextMenu.Resources[System.Windows.SystemColors.HighlightBrushKey] = hoverBackground;
+        _contextMenu.Resources[System.Windows.SystemColors.HighlightTextBrushKey] = itemForeground;
+        _contextMenu.Resources[System.Windows.SystemColors.ControlBrushKey] = menuBackground;
+        _contextMenu.Resources[System.Windows.SystemColors.ControlTextBrushKey] = itemForeground;
     }
 
     private void BuildMenu()
@@ -137,10 +162,10 @@ public class TrayIconService : IDisposable
         // 1. Title Header
         var titleItem = new MenuItem
         {
-            Header = "ClipFlyout v0.3.0",
+            Header = "ClipFlyout v0.5.2",
             IsEnabled = false,
             FontWeight = FontWeights.Bold,
-            Foreground = new WpfBrush(_theme.IsDarkTheme ? WpfColor.FromRgb(156, 163, 175) : WpfColor.FromRgb(100, 116, 139))
+            Foreground = new WpfBrush(WpfColor.FromRgb(100, 116, 139))
         };
         _contextMenu.Items.Add(titleItem);
 
@@ -270,6 +295,10 @@ public class TrayIconService : IDisposable
 
         _contextMenu.Items.Add(new Separator());
 
+        _checkUpdatesItem = new MenuItem { Header = _loc.Get("Tray_CheckUpdates") };
+        _checkUpdatesItem.Click += async (_, _) => await CheckForUpdatesAsync();
+        _contextMenu.Items.Add(_checkUpdatesItem);
+
         // 6. Exit
         _exitItem = new MenuItem
         {
@@ -279,6 +308,39 @@ public class TrayIconService : IDisposable
         _contextMenu.Items.Add(_exitItem);
 
         UpdateStatus();
+    }
+
+    private async System.Threading.Tasks.Task CheckForUpdatesAsync()
+    {
+        if (_checkUpdatesItem != null) _checkUpdatesItem.IsEnabled = false;
+        try
+        {
+            var result = await UpdateService.Instance.CheckForUpdateAsync();
+            if (result is null)
+            {
+                MessageBox.Show(_loc.Get("Update_UpToDate"), "ClipFlyout", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var choice = MessageBox.Show(
+                _loc.Get("Update_Available", result.Version),
+                "ClipFlyout",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Information);
+            if (choice == MessageBoxResult.Yes)
+            {
+                await UpdateService.Instance.DownloadAndStartInstallerAsync(result);
+                WpfApplication.Current.Shutdown();
+            }
+        }
+        catch
+        {
+            MessageBox.Show(_loc.Get("Update_Failed"), "ClipFlyout", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            if (_checkUpdatesItem != null) _checkUpdatesItem.IsEnabled = true;
+        }
     }
 
     private void UpdateStatus()

@@ -102,6 +102,18 @@ public static class Win32
     [DllImport("dwmapi.dll")]
     public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MARGINS
+    {
+        public int cxLeftWidth;
+        public int cxRightWidth;
+        public int cyTopHeight;
+        public int cyBottomHeight;
+    }
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmExtendFrameIntoClientArea(IntPtr hwnd, ref MARGINS pMarInset);
+
     // Accent Policy for Windows Acrylic Blur
     public enum AccentState
     {
@@ -162,21 +174,42 @@ public static class Win32
     }
 
     /// <summary>
-    /// Enables hardware-accelerated Acrylic frosted glass blur behind transparent WPF windows.
-    /// Activates blur with minimal OS-level tint so that WPF handles the dynamic opacity cleanly.
+    /// Enables Windows 11's transient acrylic backdrop and falls back to the
+    /// Accent Policy path on older builds. This must be used on a non-layered
+    /// window: WPF's AllowsTransparency turns a window into a layered window
+    /// and prevents DWM from composing real acrylic behind it.
     /// </summary>
-    public static void EnableAcrylicBlur(IntPtr hwnd, bool isDark)
+    public static void EnableAcrylicBlur(IntPtr hwnd, bool isDark, double opacityPercent)
     {
         try
         {
             int darkModeVal = isDark ? 1 : 0;
             DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref darkModeVal, sizeof(int));
 
-            // Use 0x01 alpha so blur filter is active without doubling up tint over WPF
-            byte r = isDark ? (byte)20 : (byte)245;
-            byte g = isDark ? (byte)22 : (byte)248;
-            byte b = isDark ? (byte)30 : (byte)252;
-            uint abgrColor = (0x01u << 24) | ((uint)b << 16) | ((uint)g << 8) | (uint)r;
+            int cornerVal = DWMWCP_ROUND;
+            DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref cornerVal, sizeof(int));
+
+            // Extend frame into client area so DWM backdrop covers the window surface
+            var margins = new MARGINS { cxLeftWidth = -1, cxRightWidth = -1, cyTopHeight = -1, cyBottomHeight = -1 };
+            DwmExtendFrameIntoClientArea(hwnd, ref margins);
+
+            // Windows 11 22H2+ uses the system backdrop; the Accent Policy
+            // below remains as a compatible fallback and adds the blur noise.
+            int backdropVal = DWMSBT_TRANSIENTWINDOW;
+            DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropVal, sizeof(int));
+
+            // The tint belongs to the compositor, not WPF. This makes the
+            // slider visibly control the actual acrylic rather than an opaque
+            // WPF layer painted above it.
+            // opacityPercent 20→100: alpha 20→120 so the blur is always visible.
+            // At 20% opacity the window is very translucent (alpha=20);
+            // at 100% it is a solid tint (alpha=120) — DWM acrylic stays visible.
+            byte r = isDark ? (byte)18 : (byte)255;
+            byte g = isDark ? (byte)18 : (byte)255;
+            byte b = isDark ? (byte)24 : (byte)255;
+            // Map 20..100 → alpha 20..120 (linear), so blur is always perceptible
+            byte alpha = (byte)Math.Clamp((int)Math.Round((opacityPercent - 20.0) * (120.0 / 80.0) + 20.0), 20, 120);
+            uint abgrColor = ((uint)alpha << 24) | ((uint)b << 16) | ((uint)g << 8) | (uint)r;
 
             var policy = new AccentPolicy
             {

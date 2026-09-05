@@ -31,6 +31,21 @@ public class ThemeService : IDisposable
 
     public bool IsDarkTheme => _isDarkTheme;
 
+    public Color AccentColor
+    {
+        get
+        {
+            try
+            {
+                return (Color)ColorConverter.ConvertFromString(SettingsService.Instance.Current.AccentColor);
+            }
+            catch
+            {
+                return Color.FromRgb(0, 120, 212);
+            }
+        }
+    }
+
     public ThemeService()
     {
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;

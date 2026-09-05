@@ -78,6 +78,13 @@ public partial class SettingsWindow : Window
         ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_TopLeft"), Tag = FlyoutPlacement.TopLeft });
         ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_BottomLeft"), Tag = FlyoutPlacement.BottomLeft });
         ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_NearCursor"), Tag = FlyoutPlacement.NearCursor });
+
+        ComboAccentColor.Items.Clear();
+        ComboAccentColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Accent_Blue"), Tag = "#0078D4" });
+        ComboAccentColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Accent_Purple"), Tag = "#7C3AED" });
+        ComboAccentColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Accent_Pink"), Tag = "#DB2777" });
+        ComboAccentColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Accent_Green"), Tag = "#059669" });
+        ComboAccentColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Accent_Orange"), Tag = "#D97706" });
     }
 
     private void LoadSettingsValues()
@@ -86,10 +93,12 @@ public partial class SettingsWindow : Window
 
         ToggleMonitoring.IsOn = cfg.IsMonitoringEnabled;
         ToggleStartup.IsOn = cfg.LaunchOnStartup;
+        ToggleAutoUpdate.IsOn = cfg.AutomaticallyInstallUpdates;
 
         SelectComboByTag(ComboTheme, cfg.Theme);
         SelectComboByTag(ComboLanguage, cfg.Language);
         SelectComboByTag(ComboPlacement, cfg.Placement);
+        SelectComboByTag(ComboAccentColor, cfg.AccentColor);
 
         SliderOpacity.Value = cfg.OpacityPercent;
         TextOpacityVal.Text = $"{cfg.OpacityPercent:0}%";
@@ -104,6 +113,7 @@ public partial class SettingsWindow : Window
         ToggleDetTimestamp.IsOn = cfg.DetectTimestamp;
         ToggleDetJson.IsOn = cfg.DetectJson;
         ToggleDetUrl.IsOn = cfg.DetectUrl;
+        ToggleDetEmail.IsOn = cfg.DetectEmail;
         ToggleDetBase64.IsOn = cfg.DetectBase64;
         ToggleDetTable.IsOn = cfg.DetectTable;
         ToggleDetCode.IsOn = cfg.DetectCode;
@@ -115,11 +125,13 @@ public partial class SettingsWindow : Window
     {
         ToggleMonitoring.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.IsMonitoringEnabled = val); };
         ToggleStartup.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.LaunchOnStartup = val); };
+        ToggleAutoUpdate.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.AutomaticallyInstallUpdates = val); };
 
         ToggleDetHex.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectHexColor = val); };
         ToggleDetTimestamp.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectTimestamp = val); };
         ToggleDetJson.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectJson = val); };
         ToggleDetUrl.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectUrl = val); };
+        ToggleDetEmail.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectEmail = val); };
         ToggleDetBase64.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectBase64 = val); };
         ToggleDetTable.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectTable = val); };
         ToggleDetCode.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectCode = val); };
@@ -165,6 +177,14 @@ public partial class SettingsWindow : Window
         if (ComboPlacement.SelectedItem is ComboBoxItem { Tag: FlyoutPlacement placement })
         {
             _settings.UpdateSettings(s => s.Placement = placement);
+        }
+    }
+
+    private void ComboAccentColor_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isInitializing && ComboAccentColor.SelectedItem is ComboBoxItem { Tag: string accent })
+        {
+            _settings.UpdateSettings(s => s.AccentColor = accent);
         }
     }
 
@@ -234,6 +254,7 @@ public partial class SettingsWindow : Window
             SetComboStyle(ComboTheme, darkComboBg, darkComboBorder, darkComboFg);
             SetComboStyle(ComboLanguage, darkComboBg, darkComboBorder, darkComboFg);
             SetComboStyle(ComboPlacement, darkComboBg, darkComboBorder, darkComboFg);
+            SetComboStyle(ComboAccentColor, darkComboBg, darkComboBorder, darkComboFg);
 
             SetSeparatorColors(isDark);
 
@@ -244,6 +265,9 @@ public partial class SettingsWindow : Window
             GithubButton.Background = new SolidColorBrush(Color.FromRgb(42, 47, 61));
             GithubButton.BorderBrush = new SolidColorBrush(Color.FromRgb(62, 70, 90));
             GithubButton.Foreground = new SolidColorBrush(Color.FromRgb(243, 244, 246));
+            CheckUpdatesButton.Background = new SolidColorBrush(Color.FromRgb(38, 42, 53));
+            CheckUpdatesButton.BorderBrush = new SolidColorBrush(Color.FromRgb(62, 70, 90));
+            CheckUpdatesButton.Foreground = new SolidColorBrush(Color.FromRgb(243, 244, 246));
         }
         else
         {
@@ -270,6 +294,7 @@ public partial class SettingsWindow : Window
             SetComboStyle(ComboTheme, lightComboBg, lightComboBorder, lightComboFg);
             SetComboStyle(ComboLanguage, lightComboBg, lightComboBorder, lightComboFg);
             SetComboStyle(ComboPlacement, lightComboBg, lightComboBorder, lightComboFg);
+            SetComboStyle(ComboAccentColor, lightComboBg, lightComboBorder, lightComboFg);
 
             SetSeparatorColors(isDark);
 
@@ -280,6 +305,9 @@ public partial class SettingsWindow : Window
             GithubButton.Background = new SolidColorBrush(Color.FromRgb(255, 255, 255));
             GithubButton.BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225));
             GithubButton.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
+            CheckUpdatesButton.Background = new SolidColorBrush(Color.FromRgb(255, 255, 255));
+            CheckUpdatesButton.BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225));
+            CheckUpdatesButton.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
         }
     }
 
@@ -321,6 +349,7 @@ public partial class SettingsWindow : Window
         Sep11.Background = sepBrush;
         Sep12.Background = sepBrush;
         Sep13.Background = sepBrush;
+        Sep14.Background = sepBrush;
     }
 
     public void ApplyLocalization()
@@ -345,6 +374,8 @@ public partial class SettingsWindow : Window
         DescPlacement.Text = _loc.Get("Setting_Placement_Desc");
         LblOpacity.Text = _loc.Get("Setting_Opacity");
         DescOpacity.Text = _loc.Get("Setting_Opacity_Desc");
+        LblAccentColor.Text = _loc.Get("Setting_AccentColor");
+        DescAccentColor.Text = _loc.Get("Setting_AccentColor_Desc");
         LblDuration.Text = _loc.Get("Setting_Duration");
         DescDuration.Text = _loc.Get("Setting_Duration_Desc");
         LblHoverDuration.Text = _loc.Get("Setting_HoverDuration");
@@ -360,6 +391,8 @@ public partial class SettingsWindow : Window
         DescDetJson.Text = _loc.Get("Detector_Json_Desc");
         LblDetUrl.Text = _loc.Get("Detector_Url");
         DescDetUrl.Text = _loc.Get("Detector_Url_Desc");
+        LblDetEmail.Text = _loc.Get("Detector_Email");
+        DescDetEmail.Text = _loc.Get("Detector_Email_Desc");
         LblDetBase64.Text = _loc.Get("Detector_Base64");
         DescDetBase64.Text = _loc.Get("Detector_Base64_Desc");
         LblDetTable.Text = _loc.Get("Detector_Table");
@@ -375,17 +408,22 @@ public partial class SettingsWindow : Window
         PrivacyTitle.Text = _loc.Get("About_Privacy_Title");
         PrivacyDesc.Text = _loc.Get("About_Privacy_Desc");
         AboutVersion.Text = _loc.Get("About_Version");
+        LblAutoUpdate.Text = _loc.Get("Setting_AutoUpdate");
+        DescAutoUpdate.Text = _loc.Get("Setting_AutoUpdate_Desc");
+        CheckUpdatesButton.Content = _loc.Get("Update_CheckNow");
 
         // Refresh dropdown display texts
         int themeIdx = ComboTheme.SelectedIndex;
         int langIdx = ComboLanguage.SelectedIndex;
         int placementIdx = ComboPlacement.SelectedIndex;
+        int accentIdx = ComboAccentColor.SelectedIndex;
 
         PopulateDropdowns();
 
         ComboTheme.SelectedIndex = themeIdx;
         ComboLanguage.SelectedIndex = langIdx;
         ComboPlacement.SelectedIndex = placementIdx;
+        ComboAccentColor.SelectedIndex = accentIdx;
     }
 
     private void ResetDefaultsButton_Click(object sender, RoutedEventArgs e)
@@ -421,5 +459,33 @@ public partial class SettingsWindow : Window
             });
         }
         catch { }
+    }
+
+    private async void CheckUpdatesButton_Click(object sender, RoutedEventArgs e)
+    {
+        CheckUpdatesButton.IsEnabled = false;
+        try
+        {
+            var update = await UpdateService.Instance.CheckForUpdateAsync();
+            if (update is null)
+            {
+                MessageBox.Show(_loc.Get("Update_UpToDate"), "ClipFlyout", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (MessageBox.Show(_loc.Get("Update_Available", update.Version), "ClipFlyout", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+            {
+                await UpdateService.Instance.DownloadAndStartInstallerAsync(update);
+                Application.Current.Shutdown();
+            }
+        }
+        catch
+        {
+            MessageBox.Show(_loc.Get("Update_Failed"), "ClipFlyout", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            CheckUpdatesButton.IsEnabled = true;
+        }
     }
 }

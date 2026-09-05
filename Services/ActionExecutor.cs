@@ -91,6 +91,19 @@ public class ActionExecutor
         }
     }
 
+    public void OpenEmail(string emailAddress)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = $"mailto:{emailAddress}", UseShellExecute = true });
+            ActionExecuted?.Invoke(_loc.Get("Toast_EmailOpened"));
+        }
+        catch (Exception ex)
+        {
+            ActionExecuted?.Invoke($"Error: {ex.Message}");
+        }
+    }
+
     public void GenerateAndCopyQrCode(string text)
     {
         try

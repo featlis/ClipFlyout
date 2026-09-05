@@ -1,5 +1,5 @@
 #define MyAppName "ClipFlyout"
-#define MyAppVersion "0.3.0"
+#define MyAppVersion "0.5.4"
 #define MyAppPublisher "ClipFlyout Team"
 #define MyAppURL "https://github.com/featlis/ClipFlyout"
 #define MyAppExeName "ClipFlyout.exe"
@@ -44,4 +44,4 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Name: "{userstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: startupicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall

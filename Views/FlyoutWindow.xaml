@@ -9,7 +9,7 @@
         MaxWidth="352"
         SizeToContent="Height"
         WindowStyle="None"
-        AllowsTransparency="True"
+        AllowsTransparency="False"
         Background="Transparent"
         Topmost="True"
         ShowInTaskbar="False"
@@ -66,7 +66,7 @@
             Padding="0"
             Margin="0"
             MaxWidth="352"
-            ClipToBounds="True"
+            ClipToBounds="False"
             RenderTransformOrigin="0.5,0.5">
         <Border.RenderTransform>
             <TranslateTransform x:Name="RootTransform" Y="0"/>

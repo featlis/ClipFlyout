@@ -93,6 +93,7 @@ public class LocalizationService
         { "Type_HexColor", new("HEX カラー", "HEX Color") },
         { "Type_Json", new("JSON データ", "JSON Data") },
         { "Type_Url", new("Web URL", "Web URL") },
+        { "Type_Email", new("メールアドレス", "Email address") },
         { "Type_Code", new("コードスニペット", "Code Snippet") },
         { "Type_Image", new("画像", "Image") },
         { "Type_PlainText", new("プレーンテキスト", "Plain Text") },
@@ -121,6 +122,12 @@ public class LocalizationService
         { "Action_CopyQrCode_Desc", new("QRコード画像をクリップボードにコピー", "Generate QR code and copy image") },
         { "Action_CopyDomain", new("ドメインコピー", "Copy Domain") },
         { "Action_CopyDomain_Desc", new("ドメイン/ホスト名部分のみをコピー", "Copy host domain name only") },
+        { "Action_OpenEmail", new("メールを作成", "Compose Email") },
+        { "Action_OpenEmail_Desc", new("既定のメールアプリで新規メッセージを作成", "Open a new message in the default email app") },
+        { "Action_CopyEmailDomain", new("ドメインをコピー", "Copy Domain") },
+        { "Action_CopyEmailDomain_Desc", new("メールアドレスのドメイン部分をコピー", "Copy the email domain") },
+        { "Action_CopyEmailUser", new("ユーザー名をコピー", "Copy User") },
+        { "Action_CopyEmailUser_Desc", new("@ より前の部分をコピー", "Copy the part before @") },
 
         // Actions: Code
         { "Action_AdjustIndent", new("インデント調整", "Adjust Indent") },
@@ -171,6 +178,7 @@ public class LocalizationService
         { "Toast_QrCopied", new("QRコード画像をコピーしました", "QR Code image copied") },
         { "Toast_ImageSaved", new("画像を保存しました: {0}", "Image saved: {0}") },
         { "Toast_BrowserOpened", new("ブラウザを開きました", "Opened in browser") },
+        { "Toast_EmailOpened", new("メールアプリを開きました", "Opened email app") },
         { "Toast_Base64Decoded", new("Base64をデコードしてコピーしました", "Base64 decoded & copied") },
         { "Toast_MarkdownTableCopied", new("Markdownテーブルをコピーしました", "Markdown table copied") },
         { "Toast_JsonArrayCopied", new("JSON配列をコピーしました", "JSON array copied") },
@@ -189,6 +197,7 @@ public class LocalizationService
         { "Tray_LangEnglish", new("English", "English") },
         { "Tray_LangAuto", new("自動検出 (Auto)", "Auto Detect") },
         { "Tray_Exit", new("終了", "Exit") },
+        { "Tray_CheckUpdates", new("更新プログラムを確認", "Check for updates") },
 
         // Settings Window
         { "Settings_Title", new("ClipFlyout 設定", "ClipFlyout Settings") },
@@ -205,6 +214,8 @@ public class LocalizationService
         { "Theme_Dark", new("ダーク (Dark)", "Dark") },
         { "Setting_Language", new("表示言語", "Display Language") },
         { "Setting_Language_Desc", new("インターフェースの表示言語を設定します", "Interface language for the application") },
+        { "Setting_AutoUpdate", new("自動アップデート", "Automatic updates") },
+        { "Setting_AutoUpdate_Desc", new("GitHub Releases から更新を確認し、安全にインストールします", "Check GitHub Releases and securely install updates") },
         { "Lang_Auto", new("自動検出 (OS設定)", "Auto Detect (System)") },
         { "Lang_Ja", new("日本語 (Japanese)", "Japanese") },
         { "Lang_En", new("English (英語)", "English") },
@@ -223,6 +234,13 @@ public class LocalizationService
         { "Setting_HoverDuration_Desc", new("ホバー解除から消えるまでのカウントダウン時間", "Countdown after cursor leaves flyout") },
         { "Setting_Opacity", new("背景の透明度 (アクリル効果)", "Background Opacity (Acrylic)") },
         { "Setting_Opacity_Desc", new("フライアウトのすりガラス・半透明度を調整します", "Adjust translucency of the flyout frosted card") },
+        { "Setting_AccentColor", new("アクセントカラー", "Accent color") },
+        { "Setting_AccentColor_Desc", new("主要な操作ボタンと強調表示の色を選びます", "Choose the color for primary actions and highlights") },
+        { "Accent_Blue", new("ブルー", "Blue") },
+        { "Accent_Purple", new("パープル", "Purple") },
+        { "Accent_Pink", new("ピンク", "Pink") },
+        { "Accent_Green", new("グリーン", "Green") },
+        { "Accent_Orange", new("オレンジ", "Orange") },
 
         { "Section_Detectors", new("データ型検出フィルター", "Data Type Detection Filters") },
         { "Section_Detectors_Desc", new("検知してフライアウトを表示するデータ型を選択できます", "Select which clipboard data types to detect and act upon") },
@@ -232,6 +250,8 @@ public class LocalizationService
         { "Detector_Json_Desc", new("JSON オブジェクト・配列を検証し、整形または1行化コピーを提供", "Validates JSON structure, provides format and minify actions") },
         { "Detector_Url", new("Web URL", "Web URL") },
         { "Detector_Url_Desc", new("Webリンクを検知し、ブラウザ起動やQRコード画像生成を提供", "Detects web URLs, provides browser open and QR code generator") },
+        { "Detector_Email", new("メールアドレス", "Email Address") },
+        { "Detector_Email_Desc", new("メール作成、ドメイン・ユーザー名のコピーを提案します", "Suggests composing email and copying its domain or user name") },
         { "Detector_Code", new("コードスニペット", "Code Snippet") },
         { "Detector_Code_Desc", new("プログラミング構文を検知し、インデント調整やHTML特殊文字エスケープを提供", "Detects programming syntax, provides indent fix and HTML escape") },
         { "Detector_Image", new("画像", "Image") },
@@ -248,9 +268,13 @@ public class LocalizationService
         { "Section_About", new("アプリについて", "About") },
         { "About_Privacy_Title", new("ローカル処理について", "Local processing") },
         { "About_Privacy_Desc", new("クリップボードの解析はこのPC上で行われます。", "Clipboard analysis is performed on this PC.") },
-        { "About_Version", new("バージョン: v0.3.0", "Version: v0.3.0") },
+        { "About_Version", new("バージョン: v0.5.2", "Version: v0.5.2") },
         { "About_Github", new("GitHub リポジトリ", "GitHub Repository") },
         { "About_Reset", new("設定を初期値に戻す", "Reset to Defaults") },
-        { "About_Reset_Confirm", new("すべての設定を初期値に戻しますか？", "Reset all settings to defaults?") }
+        { "About_Reset_Confirm", new("すべての設定を初期値に戻しますか？", "Reset all settings to defaults?") },
+        { "Update_CheckNow", new("更新プログラムを確認", "Check for updates") },
+        { "Update_UpToDate", new("最新バージョンです。", "You're up to date.") },
+        { "Update_Available", new("v{0} を利用できます。今すぐ更新しますか？", "Version {0} is available. Update now?") },
+        { "Update_Failed", new("更新プログラムを確認またはダウンロードできませんでした。", "Couldn't check for or download an update.") }
     };
 }

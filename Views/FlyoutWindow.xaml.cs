@@ -58,23 +58,27 @@ public partial class FlyoutWindow : Window
         if (_hwnd == IntPtr.Zero) return;
 
         bool isDark = ThemeService.Instance.IsDarkTheme;
-        Win32.EnableAcrylicBlur(_hwnd, isDark);
+        Win32.EnableAcrylicBlur(_hwnd, isDark, SettingsService.Instance.Current.OpacityPercent);
     }
 
     public void ApplyTheme()
     {
         bool isDark = ThemeService.Instance.IsDarkTheme;
         double opacity = SettingsService.Instance.Current.OpacityPercent;
-        byte cardAlpha = (byte)Math.Clamp(Math.Round(opacity * 2.55), 25, 255);
+        var accent = ThemeService.Instance.AccentColor;
 
         ApplyHardwareAcrylic();
 
+        // bgAlpha: how much of the WPF tint covers the DWM acrylic.
+        // Keep this LOW so the OS blur is always perceptible.
+        // 20% opacity → alpha≈5, 100% opacity → alpha≈60.
+        byte bgAlpha = (byte)Math.Clamp((int)Math.Round((opacity - 20.0) * (60.0 / 80.0) + 5.0), 5, 60);
+
         if (isDark)
         {
-            // Windows 11 Deep Smoky Frosted Acrylic with user opacity
-            RootCard.Background = new SolidColorBrush(Color.FromArgb(cardAlpha, 22, 25, 34));
-            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb((byte)Math.Min((int)cardAlpha, 50), 255, 255, 255));
-            InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb((byte)Math.Min((int)cardAlpha, 35), 255, 255, 255));
+            RootCard.Background = new SolidColorBrush(Color.FromArgb(bgAlpha, 18, 18, 24));
+            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(90, 255, 255, 255));
+            InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255));
 
             HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
             HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
@@ -91,34 +95,34 @@ public partial class FlyoutWindow : Window
             ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
             ColorValuesText.Foreground = new SolidColorBrush(Color.FromRgb(209, 213, 219));
 
-            InlineFeedbackBar.Background = new SolidColorBrush(Color.FromArgb(cardAlpha, 30, 41, 59));
+            InlineFeedbackBar.Background = new SolidColorBrush(Color.FromArgb(110, 30, 41, 59));
             InlineFeedbackBar.BorderBrush = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
             InlineFeedbackText.Foreground = new SolidColorBrush(Color.FromRgb(241, 245, 249));
         }
         else
         {
-            // Windows 11 Light Frosted Acrylic with user opacity
-            RootCard.Background = new SolidColorBrush(Color.FromArgb(cardAlpha, 252, 253, 255));
-            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb((byte)Math.Min((int)cardAlpha, 40), 0, 0, 0));
-            InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb((byte)Math.Min((int)cardAlpha, 120), 255, 255, 255));
+            // Light mode: pure white tint over OS acrylic, NOT blue-grey
+            RootCard.Background = new SolidColorBrush(Color.FromArgb(bgAlpha, 255, 255, 255));
+            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(120, 180, 190, 200));
+            InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255));
 
             HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-            HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
+            HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
             CloseButton.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
 
-            // Translucent preview panel in light mode
-            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255));
-            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(25, 0, 0, 0));
+            // Translucent preview panel — white with subtle border
+            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255));
+            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 148, 163, 184));
             BodyPreviewText.Foreground = new SolidColorBrush(Color.FromRgb(30, 41, 59));
 
-            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255));
-            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(25, 0, 0, 0));
+            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255));
+            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 148, 163, 184));
 
             ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
             ColorValuesText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
 
-            InlineFeedbackBar.Background = new SolidColorBrush(Color.FromArgb(cardAlpha, 226, 232, 240));
-            InlineFeedbackBar.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
+            InlineFeedbackBar.Background = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255));
+            InlineFeedbackBar.BorderBrush = new SolidColorBrush(Color.FromArgb(80, 148, 163, 184));
             InlineFeedbackText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
         }
 
@@ -138,6 +142,7 @@ public partial class FlyoutWindow : Window
                 ClipDataType.HexColor => (Color.FromArgb(40, 139, 92, 246), Color.FromRgb(196, 181, 253)),
                 ClipDataType.Json => (Color.FromArgb(40, 59, 130, 246), Color.FromRgb(147, 197, 253)),
                 ClipDataType.Url => (Color.FromArgb(40, 16, 185, 129), Color.FromRgb(110, 231, 183)),
+                ClipDataType.Email => (Color.FromArgb(40, 14, 165, 233), Color.FromRgb(125, 211, 252)),
                 ClipDataType.Code => (Color.FromArgb(40, 245, 158, 11), Color.FromRgb(252, 211, 77)),
                 ClipDataType.Image => (Color.FromArgb(40, 236, 72, 153), Color.FromRgb(244, 114, 182)),
                 ClipDataType.UnixTimestamp => (Color.FromArgb(40, 6, 182, 212), Color.FromRgb(103, 232, 249)),
@@ -155,6 +160,7 @@ public partial class FlyoutWindow : Window
                 ClipDataType.HexColor => (Color.FromRgb(243, 232, 255), Color.FromRgb(126, 34, 206)),
                 ClipDataType.Json => (Color.FromRgb(239, 246, 255), Color.FromRgb(37, 99, 235)),
                 ClipDataType.Url => (Color.FromRgb(236, 253, 245), Color.FromRgb(5, 150, 105)),
+                ClipDataType.Email => (Color.FromRgb(240, 249, 255), Color.FromRgb(3, 105, 161)),
                 ClipDataType.Code => (Color.FromRgb(255, 251, 235), Color.FromRgb(217, 119, 6)),
                 ClipDataType.Image => (Color.FromRgb(253, 242, 248), Color.FromRgb(219, 39, 119)),
                 ClipDataType.UnixTimestamp => (Color.FromRgb(236, 254, 255), Color.FromRgb(8, 145, 178)),
@@ -192,12 +198,12 @@ public partial class FlyoutWindow : Window
                 {
                     btn.Height = 30;
                     btn.Padding = new Thickness(12, 0, 12, 0);
-                    btn.Background = new SolidColorBrush(isDark
-                        ? Color.FromRgb(59, 130, 246)
-                        : Color.FromRgb(0, 95, 184));
-                    btn.BorderBrush = new SolidColorBrush(isDark
-                        ? Color.FromRgb(96, 165, 250)
-                        : Color.FromRgb(0, 82, 160));
+                    var accent = ThemeService.Instance.AccentColor;
+                    btn.Background = new SolidColorBrush(accent);
+                    btn.BorderBrush = new SolidColorBrush(Color.FromRgb(
+                        (byte)Math.Min(255, accent.R + 28),
+                        (byte)Math.Min(255, accent.G + 28),
+                        (byte)Math.Min(255, accent.B + 28)));
                     btn.Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 255));
                 }
                 else if (isDark)
@@ -208,9 +214,9 @@ public partial class FlyoutWindow : Window
                 }
                 else
                 {
-                    btn.Background = new SolidColorBrush(Color.FromArgb(225, 255, 255, 255));
-                    btn.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 0, 0, 0));
-                    btn.Foreground = new SolidColorBrush(Color.FromRgb(31, 41, 55));
+                    btn.Background = new SolidColorBrush(Color.FromArgb(240, 255, 255, 255));
+                    btn.BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225));
+                    btn.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
                 }
             }
             ApplyButtonStylesRecursive(child, isDark, ref primaryAssigned);

@@ -41,6 +41,11 @@ public partial class App : WpfApplication
             _windowManager = new FlyoutWindowManager(_actionExecutor);
             _trayIconService = new TrayIconService(_clipboardMonitor);
 
+            if (ShouldCheckForUpdates(_settingsService.Current))
+            {
+                _ = CheckForAutomaticUpdateAsync();
+            }
+
             _settingsService.SettingsChanged += cfg =>
             {
                 if (_clipboardMonitor != null)
@@ -57,6 +62,34 @@ public partial class App : WpfApplication
             MessageBox.Show($"Initialization error: {ex.Message}", "ClipFlyout Error", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown();
         }
+    }
+
+    private async Task CheckForAutomaticUpdateAsync()
+    {
+        try
+        {
+            // Let startup and clipboard monitoring become responsive first.
+            await Task.Delay(TimeSpan.FromSeconds(8));
+            if (_settingsService?.Current.AutomaticallyInstallUpdates != true) return;
+            _settingsService?.UpdateSettings(s => s.LastUpdateCheckUtc = DateTimeOffset.UtcNow);
+            var update = await UpdateService.Instance.CheckForUpdateAsync();
+            if (update is not null && _settingsService?.Current.AutomaticallyInstallUpdates == true)
+            {
+                await UpdateService.Instance.DownloadAndStartInstallerAsync(update);
+                Shutdown();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Automatic update check failed: {ex.Message}");
+        }
+    }
+
+    private static bool ShouldCheckForUpdates(Models.AppSettings settings)
+    {
+        return settings.AutomaticallyInstallUpdates &&
+               (!settings.LastUpdateCheckUtc.HasValue ||
+                DateTimeOffset.UtcNow - settings.LastUpdateCheckUtc.Value >= TimeSpan.FromHours(12));
     }
 
     private void OnClipboardChanged(object? sender, object rawData)

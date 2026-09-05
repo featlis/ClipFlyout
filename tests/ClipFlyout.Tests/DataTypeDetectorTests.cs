@@ -120,6 +120,17 @@ public class DataTypeDetectorTests : IDisposable
     }
 
     [Fact]
+    public void Detect_Email_ReturnsEmailActions()
+    {
+        var result = _detector.Detect("hello+news@example.co.jp");
+
+        Assert.NotNull(result);
+        Assert.Equal(ClipDataType.Email, result.Type);
+        Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_OpenEmail");
+        Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_CopyEmailDomain");
+    }
+
+    [Fact]
     public void Detect_CodeSnippet_ReturnsCodeType()
     {
         string code = "public class MyService {\n    public async Task<int> GetDataAsync() {\n        return await Task.FromResult(42);\n    }\n}";
@@ -295,6 +306,25 @@ public class DataTypeDetectorTests : IDisposable
         Assert.Equal(1.5, _settings.Current.DisplayDurationSeconds);
         Assert.Equal(5, _settings.Current.HoverLeaveDurationSeconds);
         Assert.Equal(FlyoutPlacement.BottomRight, _settings.Current.Placement);
+    }
+
+    [Fact]
+    public void Settings_Normalize_RejectsFarFutureUpdateCheck()
+    {
+        _settings.SaveSettings(new AppSettings { LastUpdateCheckUtc = DateTimeOffset.UtcNow.AddDays(3) });
+
+        Assert.Null(_settings.Current.LastUpdateCheckUtc);
+    }
+
+    [Fact]
+    public void UpdateService_FindsMatchingChecksumOnly()
+    {
+        const string expected = "AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899";
+        string manifest = $"{expected}  ClipFlyout-Setup-v0.4.1.exe\n" +
+                          "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF  other.exe";
+
+        Assert.Equal(expected, UpdateService.FindSha256(manifest, "ClipFlyout-Setup-v0.4.1.exe"));
+        Assert.Null(UpdateService.FindSha256(manifest, "missing.exe"));
     }
 
     public void Dispose()
