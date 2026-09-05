@@ -522,7 +522,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                    <TextBlock x:Name="AboutVersion" Text="バージョン: v0.5.2" FontSize="12.5" FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="AboutVersion" Text="バージョン: v0.5.4" FontSize="12.5" FontWeight="SemiBold"/>
                                     <TextBlock Text="Windows 11 Fluent Design Clipboard Utility" FontSize="11.5" Margin="0,1,0,0"/>
                                 </StackPanel>
                                 <Button Grid.Column="1" x:Name="GithubButton" Content="GitHub" Height="32" Padding="16,0" Cursor="Hand" Click="GithubButton_Click">

@@ -201,10 +201,14 @@ public static class Win32
             // The tint belongs to the compositor, not WPF. This makes the
             // slider visibly control the actual acrylic rather than an opaque
             // WPF layer painted above it.
-            byte r = isDark ? (byte)20 : (byte)245;
-            byte g = isDark ? (byte)22 : (byte)248;
-            byte b = isDark ? (byte)30 : (byte)252;
-            byte alpha = (byte)Math.Clamp(Math.Round(opacityPercent * 2.10), 64, 230);
+            // opacityPercent 20→100: alpha 20→120 so the blur is always visible.
+            // At 20% opacity the window is very translucent (alpha=20);
+            // at 100% it is a solid tint (alpha=120) — DWM acrylic stays visible.
+            byte r = isDark ? (byte)18 : (byte)255;
+            byte g = isDark ? (byte)18 : (byte)255;
+            byte b = isDark ? (byte)24 : (byte)255;
+            // Map 20..100 → alpha 20..120 (linear), so blur is always perceptible
+            byte alpha = (byte)Math.Clamp((int)Math.Round((opacityPercent - 20.0) * (120.0 / 80.0) + 20.0), 20, 120);
             uint abgrColor = ((uint)alpha << 24) | ((uint)b << 16) | ((uint)g << 8) | (uint)r;
 
             var policy = new AccentPolicy

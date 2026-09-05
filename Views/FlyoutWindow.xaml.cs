@@ -69,11 +69,14 @@ public partial class FlyoutWindow : Window
 
         ApplyHardwareAcrylic();
 
+        // bgAlpha: how much of the WPF tint covers the DWM acrylic.
+        // Keep this LOW so the OS blur is always perceptible.
+        // 20% opacity → alpha≈5, 100% opacity → alpha≈60.
+        byte bgAlpha = (byte)Math.Clamp((int)Math.Round((opacity - 20.0) * (60.0 / 80.0) + 5.0), 5, 60);
+
         if (isDark)
         {
-            // Compute background alpha directly from user opacity (0-100%)
-            byte bgAlpha = (byte)Math.Clamp((int)Math.Round(opacity * 255 / 100.0), 30, 240);
-            RootCard.Background = new SolidColorBrush(Color.FromArgb(bgAlpha, 24, 27, 36));
+            RootCard.Background = new SolidColorBrush(Color.FromArgb(bgAlpha, 18, 18, 24));
             RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(90, 255, 255, 255));
             InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255));
 
@@ -98,29 +101,28 @@ public partial class FlyoutWindow : Window
         }
         else
         {
-            // Compute background alpha directly from user opacity (0-100%)
-            byte bgAlpha = (byte)Math.Clamp((int)Math.Round(opacity * 255 / 100.0), 100, 240);
-            RootCard.Background = new SolidColorBrush(Color.FromArgb(bgAlpha, 249, 250, 252));
-            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(90, 100, 116, 139));
+            // Light mode: pure white tint over OS acrylic, NOT blue-grey
+            RootCard.Background = new SolidColorBrush(Color.FromArgb(bgAlpha, 255, 255, 255));
+            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(120, 180, 190, 200));
             InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255));
 
             HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
             HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
             CloseButton.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
 
-            // Translucent preview panel with clean light slate styling
-            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(170, 255, 255, 255));
-            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(45, 148, 163, 184));
+            // Translucent preview panel — white with subtle border
+            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255));
+            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 148, 163, 184));
             BodyPreviewText.Foreground = new SolidColorBrush(Color.FromRgb(30, 41, 59));
 
-            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(170, 255, 255, 255));
-            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(45, 148, 163, 184));
+            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255));
+            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 148, 163, 184));
 
             ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
             ColorValuesText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
 
-            InlineFeedbackBar.Background = new SolidColorBrush(Color.FromArgb(200, 241, 245, 249));
-            InlineFeedbackBar.BorderBrush = new SolidColorBrush(Color.FromArgb(70, 148, 163, 184));
+            InlineFeedbackBar.Background = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255));
+            InlineFeedbackBar.BorderBrush = new SolidColorBrush(Color.FromArgb(80, 148, 163, 184));
             InlineFeedbackText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
         }
 
