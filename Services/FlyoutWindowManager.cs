@@ -60,9 +60,12 @@ public class FlyoutWindowManager : IDisposable
         // 2. Position window based on actual measured size & active monitor
         UpdateWindowPosition();
 
+        // 3. Display and animate now that position is correctly set
+        _window.ShowFlyout();
+
         _isShowing = true;
 
-        // 3. Start auto-hide timer using user preference
+        // 4. Start auto-hide timer using user preference
         double durationSec = Math.Max(1.0, _settings.Current.DisplayDurationSeconds);
         _autoHideTimer.Interval = TimeSpan.FromSeconds(durationSec);
         _autoHideTimer.Start();

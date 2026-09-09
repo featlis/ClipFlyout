@@ -20,6 +20,8 @@ public partial class WelcomeWindow : Window
     private System.Drawing.Icon? _iconBig;
     private System.Drawing.Icon? _iconSmall;
     private bool _isInitializingLanguage;
+    private readonly Action _themeChangedHandler;
+    private readonly Action _languageChangedHandler;
 
     public WelcomeWindow()
     {
@@ -54,10 +56,27 @@ public partial class WelcomeWindow : Window
             }
         };
 
-        _theme.ThemeChanged += () => Dispatcher.Invoke(ApplyTheme);
-        _loc.LanguageChanged += () => Dispatcher.Invoke(ApplyLocalization);
+        _themeChangedHandler = () =>
+        {
+            if (!Dispatcher.HasShutdownStarted)
+            {
+                Dispatcher.Invoke(ApplyTheme);
+            }
+        };
+        _languageChangedHandler = () =>
+        {
+            if (!Dispatcher.HasShutdownStarted)
+            {
+                Dispatcher.Invoke(ApplyLocalization);
+            }
+        };
+
+        _theme.ThemeChanged += _themeChangedHandler;
+        _loc.LanguageChanged += _languageChangedHandler;
         Closed += (_, _) =>
         {
+            _theme.ThemeChanged -= _themeChangedHandler;
+            _loc.LanguageChanged -= _languageChangedHandler;
             _settings.UpdateSettings(s => s.IsFirstRun = false);
             _iconBig?.Dispose();
             _iconSmall?.Dispose();

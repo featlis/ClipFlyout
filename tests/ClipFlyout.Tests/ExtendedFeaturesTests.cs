@@ -324,4 +324,67 @@ public class ExtendedFeaturesTests : IDisposable
         Assert.Contains("GNU General Public License version 3", enLicense);
         Assert.Contains("GPL-3.0-or-later", enLicense);
     }
+
+    [Fact]
+    public void CleanUrl_PreservesLegitimateRefAndSource()
+    {
+        string legitimate = "https://example.com/repo?source=feed&ref=main";
+        bool result = CleanUrlHelper.TryCleanUrl(legitimate, out string output);
+        Assert.False(result);
+        Assert.Equal(legitimate, output);
+
+        string mixed = "https://example.com/repo?ref=main&utm_source=twitter&ref_src=twsrc";
+        bool mixedResult = CleanUrlHelper.TryCleanUrl(mixed, out string mixedClean);
+        Assert.True(mixedResult);
+        Assert.Contains("ref=main", mixedClean);
+        Assert.DoesNotContain("utm_source", mixedClean);
+        Assert.DoesNotContain("ref_src", mixedClean);
+    }
+
+    [Fact]
+    public void AppSettings_Normalize_ValidatesWidgetTextColor()
+    {
+        var settings = new AppSettings { WidgetTextColor = (WidgetTextColorMode)999 };
+        var normalized = settings.Normalize();
+        Assert.Equal(WidgetTextColorMode.Auto, normalized.WidgetTextColor);
+    }
+
+    [Fact]
+    public void HistoryService_DeduplicatesIdenticalImages()
+    {
+        var history = HistoryService.Instance;
+        history.Clear();
+
+        byte[] pixels1 = [255, 0, 0, 255];
+        var bmp1 = System.Windows.Media.Imaging.BitmapSource.Create(1, 1, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, pixels1, 4);
+        var res1 = new DetectionResult(
+            ClipDataType.Image,
+            bmp1,
+            "Image 1",
+            "1x1",
+            "",
+            [],
+            ImagePreview: bmp1
+        );
+
+        byte[] pixels2 = [255, 0, 0, 255];
+        var bmp2 = System.Windows.Media.Imaging.BitmapSource.Create(1, 1, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, pixels2, 4);
+        var res2 = new DetectionResult(
+            ClipDataType.Image,
+            bmp2,
+            "Image 2",
+            "1x1",
+            "",
+            [],
+            ImagePreview: bmp2
+        );
+
+        history.Add(res1);
+        Assert.Single(history.GetItems());
+
+        history.Add(res2);
+        Assert.Single(history.GetItems());
+
+        history.Clear();
+    }
 }

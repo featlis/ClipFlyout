@@ -118,9 +118,9 @@ public class AppSettings
         normalized.OpacityPercent = Math.Clamp(normalized.OpacityPercent, 20.0, 100.0);
         normalized.DisplayDurationSeconds = Math.Clamp(normalized.DisplayDurationSeconds, 1.5, 10.0);
         normalized.HoverLeaveDurationSeconds = Math.Clamp(normalized.HoverLeaveDurationSeconds, 0.5, 5.0);
-        if (!Enum.IsDefined(normalized.Theme))
+        if (!Enum.IsDefined(normalized.WidgetTextColor))
         {
-            normalized.Theme = AppThemeMode.System;
+            normalized.WidgetTextColor = WidgetTextColorMode.Auto;
         }
 
         if (string.IsNullOrWhiteSpace(normalized.AccentColor) ||
@@ -130,7 +130,7 @@ public class AppSettings
         }
 
         // A clock change must not suppress checks indefinitely.
-        if (normalized.LastUpdateCheckUtc > DateTimeOffset.UtcNow.AddDays(2))
+        if (normalized.LastUpdateCheckUtc > DateTimeOffset.UtcNow.AddHours(1))
         {
             normalized.LastUpdateCheckUtc = null;
         }

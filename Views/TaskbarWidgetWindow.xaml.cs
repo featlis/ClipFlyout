@@ -25,6 +25,8 @@ public partial class TaskbarWidgetWindow : Window
 
     private readonly DispatcherTimer _topmostTimer;
     private readonly EventHandler _displaySettingsHandler;
+    private readonly Action _themeChangedHandler;
+    private readonly Action _languageChangedHandler;
 
     public event Action<DetectionResult>? FlyoutRequested;
     public event Action? SettingsRequested;
@@ -42,6 +44,20 @@ public partial class TaskbarWidgetWindow : Window
         _topmostTimer.Tick += (_, _) => EnsureTopmost();
 
         _displaySettingsHandler = (_, _) => Dispatcher.Invoke(UpdatePosition);
+        _themeChangedHandler = () =>
+        {
+            if (!Dispatcher.HasShutdownStarted)
+            {
+                Dispatcher.Invoke(ApplyTheme);
+            }
+        };
+        _languageChangedHandler = () =>
+        {
+            if (!Dispatcher.HasShutdownStarted)
+            {
+                Dispatcher.Invoke(ApplyLocalization);
+            }
+        };
 
         SourceInitialized += OnSourceInitialized;
         Loaded += (_, _) =>
@@ -55,13 +71,16 @@ public partial class TaskbarWidgetWindow : Window
         {
             _topmostTimer.Stop();
             SystemEvents.DisplaySettingsChanged -= _displaySettingsHandler;
+            _settings.SettingsChanged -= OnSettingsChanged;
+            _theme.ThemeChanged -= _themeChangedHandler;
+            _loc.LanguageChanged -= _languageChangedHandler;
         };
         Deactivated += (_, _) => EnsureTopmost();
         LocationChanged += (_, _) => EnsureTopmost();
 
         _settings.SettingsChanged += OnSettingsChanged;
-        _theme.ThemeChanged += () => Dispatcher.Invoke(ApplyTheme);
-        _loc.LanguageChanged += () => Dispatcher.Invoke(ApplyLocalization);
+        _theme.ThemeChanged += _themeChangedHandler;
+        _loc.LanguageChanged += _languageChangedHandler;
         SystemEvents.DisplaySettingsChanged += _displaySettingsHandler;
 
         ApplyTheme();
@@ -190,9 +209,10 @@ public partial class TaskbarWidgetWindow : Window
         if (result.Type == ClipDataType.Image || result.RawData is BitmapSource)
         {
             var bmp = (result.RawData as BitmapSource) ?? result.ImagePreview;
+            string imgLabel = _loc.Get("Type_Image");
             displayContent = bmp != null
-                ? $"[画像: {bmp.PixelWidth}×{bmp.PixelHeight}px]"
-                : "[画像]";
+                ? $"[{imgLabel}: {bmp.PixelWidth}×{bmp.PixelHeight}px]"
+                : $"[{imgLabel}]";
         }
         else if (result.Type == ClipDataType.HexColor)
         {

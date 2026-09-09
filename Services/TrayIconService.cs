@@ -38,6 +38,8 @@ public class TrayIconService : IDisposable
     private MenuItem? _langEnItem;
     private MenuItem? _exitItem;
     private MenuItem? _checkUpdatesItem;
+    private readonly Action _themeChangedHandler;
+    private readonly Action _historyChangedHandler;
 
     public TrayIconService(IClipboardMonitor clipboardMonitor)
     {
@@ -64,9 +66,26 @@ public class TrayIconService : IDisposable
         _taskbarIcon.TrayMouseDoubleClick += (s, e) => OpenSettings();
         _taskbarIcon.ForceCreate();
 
+        _themeChangedHandler = () =>
+        {
+            var app = WpfApplication.Current;
+            if (app != null && !app.Dispatcher.HasShutdownStarted)
+            {
+                app.Dispatcher.Invoke(RebuildContextMenu);
+            }
+        };
+        _historyChangedHandler = () =>
+        {
+            var app = WpfApplication.Current;
+            if (app != null && !app.Dispatcher.HasShutdownStarted)
+            {
+                app.Dispatcher.Invoke(RebuildContextMenu);
+            }
+        };
+
         _loc.LanguageChanged += BuildMenu;
-        _theme.ThemeChanged += () => WpfApplication.Current.Dispatcher.Invoke(RebuildContextMenu);
-        HistoryService.Instance.HistoryChanged += () => WpfApplication.Current.Dispatcher.Invoke(RebuildContextMenu);
+        _theme.ThemeChanged += _themeChangedHandler;
+        HistoryService.Instance.HistoryChanged += _historyChangedHandler;
 
         BuildMenu();
     }
@@ -435,6 +454,8 @@ public class TrayIconService : IDisposable
     public void Dispose()
     {
         _loc.LanguageChanged -= BuildMenu;
+        _theme.ThemeChanged -= _themeChangedHandler;
+        HistoryService.Instance.HistoryChanged -= _historyChangedHandler;
         _taskbarIcon.Dispose();
         _appIcon.Dispose();
     }

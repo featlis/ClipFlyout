@@ -11,7 +11,7 @@ public static class CleanUrlHelper
     {
         "fbclid", "gclid", "msclkid", "yclid", "mc_cid", "mc_eid",
         "igshid", "twclid", "ttclid", "wbraid", "gbraid",
-        "_ga", "_gl", "ref", "ref_src", "source", "spm",
+        "_ga", "_gl", "ref_src", "spm",
         "si", "feature", "scm", "share_id", "tracking_id"
     };
 

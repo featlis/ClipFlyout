@@ -339,10 +339,14 @@ public partial class FlyoutWindow : Window
         }
 
         ActionsItemsControl.ItemsSource = result.AvailableActions;
+    }
 
+    public void ShowFlyout()
+    {
         Show();
         _showStoryboard?.Begin(this);
 
+        bool isDark = ThemeService.Instance.IsDarkTheme;
         Dispatcher.BeginInvoke(() => StyleActionButtons(isDark));
     }
 

@@ -7,7 +7,7 @@
 **Windows 11 Fluent Design に最適化された、クリップボード連携・即時アクションユーティリティ**  
 *A modern, privacy-first clipboard utility with native acrylic flyouts and seamless taskbar integration.*
 
-[![Version](https://img.shields.io/badge/version-0.7.5-blue.svg)](https://github.com/featlis/ClipFlyout/releases)
+[![Version](https://img.shields.io/badge/version-0.7.6-blue.svg)](https://github.com/featlis/ClipFlyout/releases)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2011%20%7C%2010%20(x64)-0078D4.svg)](https://github.com/featlis/ClipFlyout)
 [![.NET](https://img.shields.io/badge/.NET-9.0%20WPF-512BD4.svg)](https://dotnet.microsoft.com/)

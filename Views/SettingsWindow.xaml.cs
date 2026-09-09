@@ -22,6 +22,8 @@ public partial class SettingsWindow : Window
     private UpdateRelease? _pendingUpdate;
     private System.Drawing.Icon? _iconBig;
     private System.Drawing.Icon? _iconSmall;
+    private readonly Action _languageChangedHandler;
+    private readonly Action _themeChangedHandler;
 
     public SettingsWindow()
     {
@@ -34,12 +36,30 @@ public partial class SettingsWindow : Window
         catch { }
 
         SourceInitialized += SettingsWindow_SourceInitialized;
-        _loc.LanguageChanged += () => Dispatcher.Invoke(ApplyLocalization);
-        _theme.ThemeChanged += () => Dispatcher.Invoke(ApplyTheme);
+
+        _languageChangedHandler = () =>
+        {
+            if (!Dispatcher.HasShutdownStarted)
+            {
+                Dispatcher.Invoke(ApplyLocalization);
+            }
+        };
+        _themeChangedHandler = () =>
+        {
+            if (!Dispatcher.HasShutdownStarted)
+            {
+                Dispatcher.Invoke(ApplyTheme);
+            }
+        };
+
+        _loc.LanguageChanged += _languageChangedHandler;
+        _theme.ThemeChanged += _themeChangedHandler;
 
         Loaded += SettingsWindow_Loaded;
         Closed += (_, _) =>
         {
+            _loc.LanguageChanged -= _languageChangedHandler;
+            _theme.ThemeChanged -= _themeChangedHandler;
             _iconBig?.Dispose();
             _iconSmall?.Dispose();
         };

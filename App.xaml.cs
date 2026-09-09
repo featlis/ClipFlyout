@@ -80,6 +80,8 @@ public partial class App : WpfApplication
                 }
             }
 
+            // Setup wizard is shown strictly on new install from the installer via --welcome.
+            // When started directly without the flag on first launch, silently mark first run completed.
             if (isWelcomeArg)
             {
                 var welcome = new WelcomeWindow();
