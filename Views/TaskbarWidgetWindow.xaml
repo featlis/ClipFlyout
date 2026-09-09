@@ -52,16 +52,16 @@
 
             <!-- App Icon Image -->
             <Image x:Name="IconImage"
-                   Width="18" Height="18"
-                   Margin="0,0,6,0"
+                   Width="22" Height="22"
+                   Margin="0,0,7,0"
                    VerticalAlignment="Center"
                    RenderOptions.BitmapScalingMode="HighQuality"/>
 
             <!-- Fallback Emoji/Glyph Badge for special content types -->
             <TextBlock x:Name="IconBadgeText"
-                       FontSize="13"
+                       FontSize="14.5"
                        VerticalAlignment="Center"
-                       Margin="0,0,6,0"
+                       Margin="0,0,7,0"
                        Visibility="Collapsed">
                 <TextBlock.Effect>
                     <DropShadowEffect x:Name="IconBadgeShadow"
@@ -75,18 +75,18 @@
 
             <!-- Color Swatch Badge when content is HexColor -->
             <Border x:Name="ColorBox"
-                    Width="16" Height="16"
-                    CornerRadius="3"
+                    Width="18" Height="18"
+                    CornerRadius="3.5"
                     BorderThickness="1"
                     BorderBrush="#50808080"
-                    Margin="0,0,6,0"
+                    Margin="0,0,7,0"
                     VerticalAlignment="Center"
                     Visibility="Collapsed"/>
 
             <TextBlock x:Name="ClipPreviewText"
                        Grid.Column="1"
-                       Text="(クリップボード空)"
-                       FontSize="12"
+                       Text="（クリップボード空）"
+                       FontSize="13.5"
                        FontWeight="SemiBold"
                        Foreground="#F1F5F9"
                        HorizontalAlignment="Left"

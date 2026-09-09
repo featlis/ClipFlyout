@@ -312,7 +312,7 @@ public class LocalizationService
         { "Setting_EnableRecallHotkey", new("リコールショートカット (Alt+Shift+C)", "Recall hotkey (Alt+Shift+C)") },
         { "Setting_EnableRecallHotkey_Desc", new("非表示になった直前のフライアウトをショートカットで再表示します", "Press Alt+Shift+C to re-open the last flyout") },
 
-        { "Widget_Empty", new("(クリップボード空)", "(Clipboard empty)") },
+        { "Widget_Empty", new("（クリップボード空）", "(Clipboard empty)") },
         { "Widget_Hide", new("タスクバーウィジェットを非表示", "Hide taskbar widget") },
         { "Widget_Position_Header", new("表示位置", "Position") },
         { "Widget_Pos_TrayLeft", new("タスクバー右 (トレイ左隣) [既定]", "Taskbar Right (Near Tray) [Default]") },

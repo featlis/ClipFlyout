@@ -387,4 +387,15 @@ public class ExtendedFeaturesTests : IDisposable
 
         history.Clear();
     }
+
+    [Fact]
+    public void LocalizationService_WidgetEmpty_UsesFullWidthForJapanese()
+    {
+        var loc = LocalizationService.Instance;
+        loc.CurrentLanguage = AppLanguage.Japanese;
+        Assert.Equal("（クリップボード空）", loc.Get("Widget_Empty"));
+
+        loc.CurrentLanguage = AppLanguage.English;
+        Assert.Equal("(Clipboard empty)", loc.Get("Widget_Empty"));
+    }
 }
