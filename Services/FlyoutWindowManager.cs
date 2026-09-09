@@ -209,7 +209,8 @@ public class FlyoutWindowManager : IDisposable
                 {
                     HideFlyout();
                     _executor.PasteToActiveWindow();
-                }
+                },
+                IsPrimary: true
             ),
             new(
                 "Action_CopyTransformed",

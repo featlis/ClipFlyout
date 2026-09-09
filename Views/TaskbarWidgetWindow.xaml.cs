@@ -1,8 +1,11 @@
 using System;
+using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using ClipFlyout.Models;
 using ClipFlyout.Native;
 using ClipFlyout.Services;
@@ -17,6 +20,7 @@ public partial class TaskbarWidgetWindow : Window
     private readonly SettingsService _settings = SettingsService.Instance;
     private readonly ThemeService _theme = ThemeService.Instance;
     private readonly LocalizationService _loc = LocalizationService.Instance;
+    private bool _isHovered;
 
     public event Action<DetectionResult>? FlyoutRequested;
     public event Action? SettingsRequested;
@@ -26,7 +30,11 @@ public partial class TaskbarWidgetWindow : Window
         InitializeComponent();
 
         SourceInitialized += OnSourceInitialized;
-        Loaded += (_, _) => UpdatePosition();
+        Loaded += (_, _) =>
+        {
+            IconImage.Source = AppIconHelper.CreateAppBitmapSource(32);
+            UpdatePosition();
+        };
 
         _settings.SettingsChanged += OnSettingsChanged;
         _theme.ThemeChanged += () => Dispatcher.Invoke(ApplyTheme);
@@ -52,7 +60,27 @@ public partial class TaskbarWidgetWindow : Window
         exStyle |= Win32.WS_EX_NOACTIVATE | Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_TOPMOST;
         Win32.SetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE, (IntPtr)exStyle);
 
+        // Make taskbar the owner window so widget stays in front of taskbar even when clicked
+        IntPtr taskbarHwnd = Win32.FindWindow("Shell_TrayWnd", null);
+        if (taskbarHwnd != IntPtr.Zero)
+        {
+            Win32.SetWindowLongPtr(_hwnd, Win32.GWL_HWNDPARENT, taskbarHwnd);
+        }
+
+        hwndSource?.AddHook(WndProc);
+
         ApplyTheme();
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == Win32.WM_WINDOWPOSCHANGING && lParam != IntPtr.Zero)
+        {
+            var pos = Marshal.PtrToStructure<Win32.WINDOWPOS>(lParam);
+            pos.hwndInsertAfter = Win32.HWND_TOPMOST;
+            Marshal.StructureToPtr(pos, lParam, false);
+        }
+        return IntPtr.Zero;
     }
 
     public void UpdatePosition()
@@ -66,20 +94,56 @@ public partial class TaskbarWidgetWindow : Window
         var workArea = SystemParameters.WorkArea;
         double screenHeight = SystemParameters.PrimaryScreenHeight;
         double screenWidth = SystemParameters.PrimaryScreenWidth;
+        var cfg = _settings.Current;
 
-        // Determine taskbar position (usually bottom on Windows 11)
-        double left = workArea.Right - Width - 16;
-        double top = workArea.Bottom - Height - 6;
+        double offset = cfg.WidgetOffsetX;
+        double left;
+        double top;
 
-        // If taskbar is on bottom and height difference exists:
-        if (screenHeight > workArea.Bottom)
+        // Base vertical taskbar alignment (centered in taskbar strip if on bottom)
+        double taskbarBottomDock = screenHeight > workArea.Bottom
+            ? workArea.Bottom + (screenHeight - workArea.Bottom - Height) / 2.0
+            : workArea.Bottom - Height - 4;
+
+        switch (cfg.WidgetPosition)
         {
-            // Dock centered on taskbar height or just at the bottom edge of work area
-            top = workArea.Bottom + (screenHeight - workArea.Bottom - Height) / 2.0;
+            case WidgetPositionMode.CenterRight:
+                left = (screenWidth / 2.0) + 120 + offset;
+                top = taskbarBottomDock;
+                break;
+
+            case WidgetPositionMode.CenterLeft:
+                left = (screenWidth / 2.0) - Width - 120 + offset;
+                top = taskbarBottomDock;
+                break;
+
+            case WidgetPositionMode.FarLeft:
+                left = workArea.Left + 180 + offset;
+                top = taskbarBottomDock;
+                break;
+
+            case WidgetPositionMode.AboveTaskbar:
+                left = workArea.Right - Width - 16 + offset;
+                top = workArea.Bottom - Height - 8;
+                break;
+
+            case WidgetPositionMode.TrayLeft:
+            default:
+                left = workArea.Right - Width - 16 + offset;
+                top = taskbarBottomDock;
+                break;
         }
 
-        Left = Math.Max(0, left);
-        Top = Math.Max(0, top);
+        Left = Math.Clamp(left, 8, screenWidth - Width - 8);
+        Top = Math.Clamp(top, 8, screenHeight - Height - 4);
+
+        if (_hwnd != IntPtr.Zero)
+        {
+            Win32.SetWindowPos(_hwnd, Win32.HWND_TOPMOST, 0, 0, 0, 0,
+                Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE);
+        }
+
+        UpdateMenuCheckedState();
     }
 
     public void UpdateClipContent(DetectionResult? result)
@@ -94,31 +158,82 @@ public partial class TaskbarWidgetWindow : Window
 
         if (result == null)
         {
-            IconText.Text = "📋";
+            IconImage.Visibility = Visibility.Visible;
+            IconBadgeText.Visibility = Visibility.Collapsed;
+            ColorBox.Visibility = Visibility.Collapsed;
             ClipPreviewText.Text = _loc.Get("Widget_Empty");
             return;
         }
 
-        IconText.Text = result.Type switch
+        // 1. Icon / Visual indicator
+        if (result.Type == ClipDataType.HexColor && result.ColorValue.HasValue)
         {
-            ClipDataType.HexColor => "🎨",
-            ClipDataType.UnixTimestamp => "🕒",
-            ClipDataType.Json => "{ }",
-            ClipDataType.Url => "🌐",
-            ClipDataType.Email => "✉️",
-            ClipDataType.Base64 => "🔤",
-            ClipDataType.TableData => "📊",
-            ClipDataType.Code => "💻",
-            ClipDataType.Image => "🖼️",
-            _ => "📋"
-        };
-
-        string text = result.PreviewTitle;
-        if (string.IsNullOrWhiteSpace(text) || text.Length < 3)
-        {
-            text = result.PreviewBody;
+            IconImage.Visibility = Visibility.Collapsed;
+            IconBadgeText.Visibility = Visibility.Collapsed;
+            ColorBox.Visibility = Visibility.Visible;
+            ColorBox.Background = new SolidColorBrush(result.ColorValue.Value);
         }
-        ClipPreviewText.Text = text.Trim().Replace("\r", " ").Replace("\n", " ");
+        else
+        {
+            ColorBox.Visibility = Visibility.Collapsed;
+            string glyph = result.Type switch
+            {
+                ClipDataType.UnixTimestamp => "🕒",
+                ClipDataType.Json => "{ }",
+                ClipDataType.Url => "🌐",
+                ClipDataType.Email => "✉️",
+                ClipDataType.Base64 => "🔤",
+                ClipDataType.TableData => "📊",
+                ClipDataType.Code => "💻",
+                ClipDataType.Image => "🖼️",
+                _ => string.Empty
+            };
+
+            if (string.IsNullOrEmpty(glyph))
+            {
+                IconImage.Visibility = Visibility.Visible;
+                IconBadgeText.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                IconImage.Visibility = Visibility.Collapsed;
+                IconBadgeText.Visibility = Visibility.Visible;
+                IconBadgeText.Text = glyph;
+            }
+        }
+
+        // 2. Display actual content (not type names like "プレーンテキスト(XX文字)")
+        string displayContent = "";
+        if (result.Type == ClipDataType.Image || result.RawData is BitmapSource)
+        {
+            var bmp = (result.RawData as BitmapSource) ?? result.ImagePreview;
+            displayContent = bmp != null
+                ? $"[画像: {bmp.PixelWidth}×{bmp.PixelHeight}px]"
+                : "[画像]";
+        }
+        else if (result.Type == ClipDataType.HexColor)
+        {
+            displayContent = result.HexColorCode ?? result.RawData?.ToString() ?? "";
+        }
+        else if (result.RawData is string rawStr && !string.IsNullOrWhiteSpace(rawStr))
+        {
+            displayContent = rawStr.Trim().Replace("\r", " ").Replace("\n", " ");
+        }
+        else if (!string.IsNullOrWhiteSpace(result.PreviewBody))
+        {
+            displayContent = result.PreviewBody.Trim().Replace("\r", " ").Replace("\n", " ");
+        }
+        else
+        {
+            displayContent = result.PreviewTitle;
+        }
+
+        if (displayContent.Length > 45)
+        {
+            displayContent = displayContent.Substring(0, 42) + "...";
+        }
+
+        ClipPreviewText.Text = displayContent;
     }
 
     public void ApplyTheme()
@@ -126,22 +241,37 @@ public partial class TaskbarWidgetWindow : Window
         if (_hwnd == IntPtr.Zero) return;
 
         bool isDark = _theme.IsDarkTheme;
-        bool isTrans = _theme.IsTransparencyEnabled;
 
-        Win32.EnableAcrylicBlur(_hwnd, isDark, 80.0, isTrans);
-
-        if (isDark)
+        // No acrylic or blur effect on taskbar widget: seamless overlay
+        if (_isHovered)
         {
-            RootPill.Background = new SolidColorBrush(isTrans ? Color.FromArgb(140, 24, 24, 32) : Color.FromRgb(24, 24, 32));
-            RootPill.BorderBrush = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
-            ClipPreviewText.Foreground = new SolidColorBrush(Color.FromRgb(241, 245, 249));
+            RootPill.Background = isDark
+                ? new SolidColorBrush(Color.FromArgb(45, 255, 255, 255))
+                : new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
         }
         else
         {
-            RootPill.Background = new SolidColorBrush(isTrans ? Color.FromArgb(140, 255, 255, 255) : Color.FromRgb(255, 255, 255));
-            RootPill.BorderBrush = new SolidColorBrush(Color.FromArgb(40, 0, 0, 0));
-            ClipPreviewText.Foreground = new SolidColorBrush(Color.FromRgb(30, 41, 59));
+            RootPill.Background = Brushes.Transparent;
         }
+
+        var fg = isDark
+            ? new SolidColorBrush(Color.FromRgb(241, 245, 249))
+            : new SolidColorBrush(Color.FromRgb(30, 41, 59));
+
+        ClipPreviewText.Foreground = fg;
+        IconBadgeText.Foreground = fg;
+    }
+
+    private void RootPill_MouseEnter(object sender, MouseEventArgs e)
+    {
+        _isHovered = true;
+        ApplyTheme();
+    }
+
+    private void RootPill_MouseLeave(object sender, MouseEventArgs e)
+    {
+        _isHovered = false;
+        ApplyTheme();
     }
 
     public void ApplyLocalization()
@@ -149,9 +279,41 @@ public partial class TaskbarWidgetWindow : Window
         MenuOpenFlyout.Header = _loc.Get("Tray_Settings_Flyout") != "Tray_Settings_Flyout" ? _loc.Get("Tray_Settings_Flyout") : "フライアウトを開く";
         MenuOpenSettings.Header = _loc.Get("Tray_Settings");
         MenuHideWidget.Header = _loc.Get("Widget_Hide");
+        MenuPosition.Header = _loc.Get("Widget_Position_Header");
+
+        MenuPosTrayLeft.Header = _loc.Get("Widget_Pos_TrayLeft");
+        MenuPosCenterRight.Header = _loc.Get("Widget_Pos_CenterRight");
+        MenuPosCenterLeft.Header = _loc.Get("Widget_Pos_CenterLeft");
+        MenuPosFarLeft.Header = _loc.Get("Widget_Pos_FarLeft");
+        MenuPosAboveTaskbar.Header = _loc.Get("Widget_Pos_AboveTaskbar");
+
         if (_currentResult == null)
         {
             ClipPreviewText.Text = _loc.Get("Widget_Empty");
+        }
+
+        UpdateMenuCheckedState();
+    }
+
+    private void UpdateMenuCheckedState()
+    {
+        var pos = _settings.Current.WidgetPosition;
+        MenuPosTrayLeft.IsChecked = pos == WidgetPositionMode.TrayLeft;
+        MenuPosCenterRight.IsChecked = pos == WidgetPositionMode.CenterRight;
+        MenuPosCenterLeft.IsChecked = pos == WidgetPositionMode.CenterLeft;
+        MenuPosFarLeft.IsChecked = pos == WidgetPositionMode.FarLeft;
+        MenuPosAboveTaskbar.IsChecked = pos == WidgetPositionMode.AboveTaskbar;
+    }
+
+    private void MenuPos_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem item && item.Tag is string tagStr)
+        {
+            if (Enum.TryParse<WidgetPositionMode>(tagStr, out var mode))
+            {
+                _settings.UpdateSettings(s => s.WidgetPosition = mode);
+                UpdatePosition();
+            }
         }
     }
 
@@ -164,8 +326,8 @@ public partial class TaskbarWidgetWindow : Window
                 if (!IsVisible)
                 {
                     Show();
-                    UpdatePosition();
                 }
+                UpdatePosition();
             }
             else
             {

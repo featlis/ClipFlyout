@@ -30,6 +30,7 @@ public partial class FlyoutWindow : Window
     public FlyoutWindow()
     {
         InitializeComponent();
+        try { Icon = AppIconHelper.GetAppIconBitmapSource(32); } catch { }
 
         _showStoryboard = TryFindResource("ShowStoryboard") as Storyboard;
         _hideStoryboard = TryFindResource("HideStoryboard") as Storyboard;
@@ -216,53 +217,69 @@ public partial class FlyoutWindow : Window
         }
     }
 
-    private void StyleActionButtons(bool isDark)
+    private void ActionButton_Loaded(object sender, RoutedEventArgs e)
     {
-        bool primaryAssigned = false;
-        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(ActionsItemsControl); i++)
+        if (sender is Button btn && btn.DataContext is ActionItem action)
         {
-            var child = VisualTreeHelper.GetChild(ActionsItemsControl, i);
-            ApplyButtonStylesRecursive(child, isDark, ref primaryAssigned);
+            ApplySingleButtonStyle(btn, action);
         }
     }
 
-    private void ApplyButtonStylesRecursive(DependencyObject parent, bool isDark, ref bool primaryAssigned)
+    private void ApplySingleButtonStyle(Button btn, ActionItem action)
+    {
+        bool isDark = ThemeService.Instance.IsDarkTheme;
+        bool isPrimary = action.IsPrimary || (_currentResult?.AvailableActions.Count > 0 && _currentResult.AvailableActions[0] == action);
+
+        if (isPrimary)
+        {
+            btn.Height = 30;
+            btn.Padding = new Thickness(12, 0, 12, 0);
+            var accent = ThemeService.Instance.AccentColor;
+            btn.Background = new SolidColorBrush(accent);
+            btn.BorderBrush = new SolidColorBrush(Color.FromRgb(
+                (byte)Math.Min(255, accent.R + 28),
+                (byte)Math.Min(255, accent.G + 28),
+                (byte)Math.Min(255, accent.B + 28)));
+            btn.Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 255));
+        }
+        else if (isDark)
+        {
+            btn.Height = 28;
+            btn.Padding = new Thickness(10, 0, 10, 0);
+            btn.Background = new SolidColorBrush(Color.FromArgb(200, 42, 47, 61));
+            btn.BorderBrush = new SolidColorBrush(Color.FromArgb(100, 75, 85, 110));
+            btn.Foreground = new SolidColorBrush(Color.FromRgb(243, 244, 246));
+        }
+        else
+        {
+            btn.Height = 28;
+            btn.Padding = new Thickness(10, 0, 10, 0);
+            btn.Background = new SolidColorBrush(Color.FromArgb(240, 255, 255, 255));
+            btn.BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225));
+            btn.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
+        }
+    }
+
+    private void StyleActionButtons(bool isDark)
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(ActionsItemsControl); i++)
+        {
+            var child = VisualTreeHelper.GetChild(ActionsItemsControl, i);
+            ApplyButtonStylesRecursive(child);
+        }
+    }
+
+    private void ApplyButtonStylesRecursive(DependencyObject parent)
     {
         int count = VisualTreeHelper.GetChildrenCount(parent);
         for (int i = 0; i < count; i++)
         {
             var child = VisualTreeHelper.GetChild(parent, i);
-            if (child is Button btn)
+            if (child is Button btn && btn.DataContext is ActionItem action)
             {
-                bool isPrimary = !primaryAssigned;
-                primaryAssigned = true;
-
-                if (isPrimary)
-                {
-                    btn.Height = 30;
-                    btn.Padding = new Thickness(12, 0, 12, 0);
-                    var accent = ThemeService.Instance.AccentColor;
-                    btn.Background = new SolidColorBrush(accent);
-                    btn.BorderBrush = new SolidColorBrush(Color.FromRgb(
-                        (byte)Math.Min(255, accent.R + 28),
-                        (byte)Math.Min(255, accent.G + 28),
-                        (byte)Math.Min(255, accent.B + 28)));
-                    btn.Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 255));
-                }
-                else if (isDark)
-                {
-                    btn.Background = new SolidColorBrush(Color.FromArgb(200, 42, 47, 61));
-                    btn.BorderBrush = new SolidColorBrush(Color.FromArgb(100, 75, 85, 110));
-                    btn.Foreground = new SolidColorBrush(Color.FromRgb(243, 244, 246));
-                }
-                else
-                {
-                    btn.Background = new SolidColorBrush(Color.FromArgb(240, 255, 255, 255));
-                    btn.BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225));
-                    btn.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-                }
+                ApplySingleButtonStyle(btn, action);
             }
-            ApplyButtonStylesRecursive(child, isDark, ref primaryAssigned);
+            ApplyButtonStylesRecursive(child);
         }
     }
 

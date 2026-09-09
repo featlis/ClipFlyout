@@ -213,4 +213,100 @@ public class ExtendedFeaturesTests : IDisposable
         Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_ToPascalCase");
         Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_ToKebabCase");
     }
+
+    [Fact]
+    public void AppIconHelper_GeneratesValidIcon()
+    {
+        string tempIco = Path.Combine(Path.GetTempPath(), $"test_icon_{Guid.NewGuid():N}.ico");
+        try
+        {
+            AppIconHelper.SaveMultiResolutionIco(tempIco);
+            Assert.True(File.Exists(tempIco));
+            var fi = new FileInfo(tempIco);
+            Assert.True(fi.Length > 1000);
+
+            // Also ensure assets/app.ico is up-to-date with this high-res multi-icon
+            string projectAsset = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "assets", "app.ico"));
+            if (File.Exists(projectAsset))
+            {
+                AppIconHelper.SaveMultiResolutionIco(projectAsset);
+                string pngAsset = Path.Combine(Path.GetDirectoryName(projectAsset)!, "app-icon.png");
+                using var bmp = AppIconHelper.CreateAppBitmap(256);
+                bmp.Save(pngAsset, System.Drawing.Imaging.ImageFormat.Png);
+            }
+        }
+        finally
+        {
+            if (File.Exists(tempIco)) File.Delete(tempIco);
+        }
+    }
+
+    [Fact]
+    public void AppSettings_DefaultValues_AlignWithV070Requirements()
+    {
+        var settings = new AppSettings();
+        Assert.Equal(AppThemeMode.System, settings.Theme);
+        Assert.True(settings.IsFirstRun);
+        Assert.True(settings.ShowTaskbarWidget);
+        Assert.Equal(WidgetPositionMode.TrayLeft, settings.WidgetPosition);
+        Assert.Equal(0, settings.WidgetOffsetX);
+    }
+
+    [Fact]
+    public void AppSettings_WidgetOffsetX_ClampsProperly()
+    {
+        var settings = new AppSettings { WidgetOffsetX = 999 };
+        var normalized = settings.Normalize();
+        Assert.Equal(800, normalized.WidgetOffsetX);
+
+        settings.WidgetOffsetX = -999;
+        normalized = settings.Normalize();
+        Assert.Equal(-800, normalized.WidgetOffsetX);
+    }
+
+    [Fact]
+    public void ActionItem_IsPrimaryProperty_InitializesCorrectly()
+    {
+        var action = new ActionItem("Action_Test", "Test", "Icon", "Desc", () => { }, IsPrimary: true);
+        Assert.True(action.IsPrimary);
+
+        var secondary = new ActionItem("Action_Test2", "Test2", "Icon", "Desc", () => { });
+        Assert.False(secondary.IsPrimary);
+    }
+
+    [Fact]
+    public void AppSettings_Normalize_AcceptsCustomHexColors()
+    {
+        var settings = new AppSettings { AccentColor = "#10B981" };
+        var normalized = settings.Normalize();
+        Assert.Equal("#10B981", normalized.AccentColor);
+
+        // Invalid hex fallback
+        settings.AccentColor = "invalid";
+        normalized = settings.Normalize();
+        Assert.Equal("#0078D4", normalized.AccentColor);
+    }
+
+    [Fact]
+    public void AppSettings_Normalize_PreservesSystemTheme()
+    {
+        var settings = new AppSettings { Theme = AppThemeMode.System };
+        var normalized = settings.Normalize();
+        Assert.Equal(AppThemeMode.System, normalized.Theme);
+    }
+
+    [Fact]
+    public void LocalizationService_CreditsLicense_UsesOfficialGPLv3Format()
+    {
+        var loc = LocalizationService.Instance;
+        loc.CurrentLanguage = AppLanguage.Japanese;
+        string jaLicense = loc.Get("Credits_License");
+        Assert.Contains("GNU General Public License version 3", jaLicense);
+        Assert.Contains("GPL-3.0-or-later", jaLicense);
+
+        loc.CurrentLanguage = AppLanguage.English;
+        string enLicense = loc.Get("Credits_License");
+        Assert.Contains("GNU General Public License version 3", enLicense);
+        Assert.Contains("GPL-3.0-or-later", enLicense);
+    }
 }

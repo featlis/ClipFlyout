@@ -1,9 +1,9 @@
 {
   "project": "ClipFlyout",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "target_framework": "net9.0-windows",
   "architecture": {
-    "ui": "WPF + PowerToys-inspired settings cards (Windows 11 transient DWM acrylic with Accent Policy fallback, 20%-100% opacity, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings; no emoji-based settings icon plates)",
+    "ui": "WPF + PowerToys-inspired settings cards (Windows 11 transient DWM acrylic with Accent Policy fallback, 20%-100% opacity, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings, Taskbar Widget, Welcome Wizard, rich WinUI 3 stretch toggle switch)",
     "native_interop": {
       "clipboard_listener": "user32.dll AddClipboardFormatListener / RemoveClipboardFormatListener (WM_CLIPBOARDUPDATE 0x031D)",
       "window_styles": "WS_EX_NOACTIVATE (0x08000000) | WS_EX_TOOLWINDOW (0x00000080) | WS_EX_TOPMOST (0x00000008)",
@@ -16,16 +16,19 @@
     },
     "subsystems": {
       "ClipboardMonitor": "Services/ClipboardMonitor.cs (HwndSource message hook, async 5x lock retry, monotonically ordered reads, GetClipboardSequenceNumber-based suppression for internal writes)",
-      "DataTypeDetector": "Services/DataTypeDetector.cs (Configurable filters: HexColor, UnixTimestamp, Json, Url, Base64, quoted CSV/TSV TableData, Code, Image, PlainText; bounds structured parsing to 1 MB)",
-      "ActionExecutor": "Services/ActionExecutor.cs (CopyText, CopyImage, CopyBase64Image, OpenBrowser, GenerateAndCopyQrCode, SaveImageToFile)",
-      "FlyoutWindowManager": "Services/FlyoutWindowManager.cs (Placement: BottomRight, TopRight, TopLeft, BottomLeft, NearCursor; strict screen boundary clamp, accurate DPI)",
+      "DataTypeDetector": "Services/DataTypeDetector.cs (Configurable filters: HexColor, UnixTimestamp, Json, Url, Base64, quoted CSV/TSV TableData, Code, Image, PlainText, CleanUrl, CaseConverter, Jwt; bounds structured parsing to 1 MB)",
+      "ActionExecutor": "Services/ActionExecutor.cs (CopyText, CopyImage, CopyBase64Image, OpenBrowser, GenerateAndCopyQrCode, SaveImageToFile, CleanUrl, CaseConvert, JwtDecode)",
+      "FlyoutWindowManager": "Services/FlyoutWindowManager.cs (Placement: BottomRight, TopRight, TopLeft, BottomLeft, NearCursor; strict screen boundary clamp, accurate DPI, primary/secondary action styling)",
+      "TaskbarWidgetWindow": "Views/TaskbarWidgetWindow.xaml (Borderless docked taskbar widget displaying snippet preview with position modes and horizontal offset)",
+      "WelcomeWindow": "Views/WelcomeWindow.xaml (Initial first-run setup wizard with quick defaults and customize buttons)",
+      "AppIconHelper": "Services/AppIconHelper.cs (High-resolution multi-size vector icon generator and resource provider)",
       "SettingsService": "Services/SettingsService.cs (Persistence in %LocalAppData%\\ClipFlyout\\settings.json, Windows startup sync)",
       "ThemeService": "Services/ThemeService.cs (System, Light, Dark dynamic theme switching)",
       "TrayIconService": "Services/TrayIconService.cs (H.NotifyIcon.Wpf with native Icon, Settings menu, theme & language submenu)",
-      "LocalizationService": "Services/LocalizationService.cs (Auto/Ja/En full i18n dictionary for flyout and settings)",
+      "LocalizationService": "Services/LocalizationService.cs (Auto/Ja/En full i18n dictionary for flyout, settings, widget, and welcome)",
       "FluentControls": "Themes/FluentControls.xaml (Windows 11 Fluent ComboBox with vector chevron, Slide popup, 4px track Slider, 6px minimal ScrollBar)",
-      "ToggleSwitch": "Controls/ToggleSwitch.xaml (Windows 11 pixel-perfect animated toggle switch)",
-      "SettingsWindow": "Views/SettingsWindow.xaml (PowerToys-inspired restrained SettingsCard layout with Mica, text-first setting rows, update controls, neutral local-processing notice, 20%-100% opacity slider)",
+      "ToggleSwitch": "Controls/ToggleSwitch.xaml (Windows 11 pixel-perfect animated toggle switch with fluid thumb stretch animation)",
+      "SettingsWindow": "Views/SettingsWindow.xaml (PowerToys-inspired SettingsCard layout with Mica, visible icon plates, inline updater UI without popups, author credits & GPLv3 license card)",
       "UpdateService": "Services/UpdateService.cs (GitHub Releases latest check, SHA-256 manifest verification, silent Inno Setup handoff; automatic checks can be disabled)"
     }
   },

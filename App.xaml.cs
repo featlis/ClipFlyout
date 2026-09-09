@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using ClipFlyout.Models;
 using ClipFlyout.Services;
 using ClipFlyout.Views;
 using WpfApplication = System.Windows.Application;
@@ -61,6 +63,13 @@ public partial class App : WpfApplication
 
             _trayIconService.HistoryItemSelected += result => _windowManager?.ShowFlyout(result);
 
+            if (_settingsService.Current.IsFirstRun)
+            {
+                var welcome = new WelcomeWindow();
+                welcome.CustomizeRequested += () => _trayIconService?.OpenSettings();
+                welcome.Show();
+            }
+
             if (ShouldCheckForUpdates(_settingsService.Current))
             {
                 _ = CheckForAutomaticUpdateAsync();
@@ -100,14 +109,66 @@ public partial class App : WpfApplication
         try
         {
             // Let startup and clipboard monitoring become responsive first.
-            await Task.Delay(TimeSpan.FromSeconds(8));
+            await Task.Delay(TimeSpan.FromSeconds(5));
             if (_settingsService?.Current.AutomaticallyInstallUpdates != true) return;
             _settingsService?.UpdateSettings(s => s.LastUpdateCheckUtc = DateTimeOffset.UtcNow);
             var update = await UpdateService.Instance.CheckForUpdateAsync();
-            if (update is not null && _settingsService?.Current.AutomaticallyInstallUpdates == true)
+            if (update is not null && _windowManager != null)
             {
-                await UpdateService.Instance.DownloadAndStartInstallerAsync(update);
-                Shutdown();
+                Dispatcher.Invoke(() =>
+                {
+                    var loc = LocalizationService.Instance;
+                    var actions = new List<ActionItem>
+                    {
+                        new(
+                            "Action_UpdateNow",
+                            loc.Get("Update_Now") != "Update_Now" ? loc.Get("Update_Now") : "今すぐ更新",
+                            "ArrowDownload24",
+                            loc.Get("Update_Now_Desc") != "Update_Now_Desc" ? loc.Get("Update_Now_Desc") : "更新を適用して再起動します",
+                            async () =>
+                            {
+                                _windowManager.HideFlyout();
+                                try
+                                {
+                                    await UpdateService.Instance.DownloadAndStartInstallerAsync(update);
+                                    Shutdown();
+                                }
+                                catch (Exception ex)
+                                {
+                                    MessageBox.Show($"更新のインストールに失敗しました: {ex.Message}", "ClipFlyout Update", MessageBoxButton.OK, MessageBoxImage.Warning);
+                                }
+                            },
+                            IsPrimary: true
+                        ),
+                        new(
+                            "Action_UpdateDetails",
+                            loc.Get("Update_Details") != "Update_Details" ? loc.Get("Update_Details") : "詳細",
+                            "Globe24",
+                            loc.Get("Update_Details_Desc") != "Update_Details_Desc" ? loc.Get("Update_Details_Desc") : "リリースノートを開きます",
+                            () =>
+                            {
+                                _windowManager.HideFlyout();
+                                string url = update.ReleaseNotesUrl ?? "https://github.com/featlis/ClipFlyout/releases";
+                                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = url, UseShellExecute = true }); } catch { }
+                            }
+                        )
+                    };
+
+                    string title = loc.Get("Update_Available_Title") != "Update_Available_Title" ? loc.Get("Update_Available_Title") : "アップデートが利用可能です";
+                    string body = $"ClipFlyout v{update.Version} が利用可能です。今すぐ更新できます。";
+
+                    var updateNotification = new DetectionResult(
+                        Type: ClipDataType.PlainText,
+                        RawData: $"ClipFlyout v{update.Version}",
+                        PreviewTitle: title,
+                        PreviewSubtitle: $"v{update.Version}",
+                        PreviewBody: body,
+                        AvailableActions: actions,
+                        BadgeText: "UPDATE"
+                    );
+
+                    _windowManager.ShowFlyout(updateNotification);
+                });
             }
         }
         catch (Exception ex)

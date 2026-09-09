@@ -55,10 +55,15 @@ public class ThemeService : IDisposable
         _mode = SettingsService.Instance.Current.Theme;
         _settingsChangedHandler = cfg =>
         {
+            UpdateAccentResource(AccentColor);
             if (_mode != cfg.Theme)
             {
                 _mode = cfg.Theme;
                 UpdateThemeResolution();
+            }
+            else
+            {
+                ThemeChanged?.Invoke();
             }
         };
         SettingsService.Instance.SettingsChanged += _settingsChangedHandler;
@@ -93,8 +98,38 @@ public class ThemeService : IDisposable
         }
 
         _isTransparencyEnabled = GetWindowsIsTransparencyEnabled();
+        UpdateAccentResource(AccentColor);
 
         ThemeChanged?.Invoke();
+    }
+
+    public void UpdateAccentResource(Color color)
+    {
+        if (Application.Current != null)
+        {
+            try
+            {
+                if (Application.Current.Dispatcher.CheckAccess())
+                {
+                    ApplyBrushes(color);
+                }
+                else
+                {
+                    Application.Current.Dispatcher.BeginInvoke(() => ApplyBrushes(color));
+                }
+            }
+            catch { }
+        }
+    }
+
+    private static void ApplyBrushes(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        Application.Current.Resources["FluentAccentBrush"] = brush;
+        var lightBrush = new SolidColorBrush(Color.FromArgb(40, color.R, color.G, color.B));
+        lightBrush.Freeze();
+        Application.Current.Resources["FluentAccentLightBrush"] = lightBrush;
     }
 
     private static bool GetWindowsIsDarkTheme()
@@ -102,17 +137,23 @@ public class ThemeService : IDisposable
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
-            var value = key?.GetValue("AppsUseLightTheme");
-            if (value is int intVal)
+            var appsValue = key?.GetValue("AppsUseLightTheme");
+            if (appsValue is int appsInt)
             {
-                return intVal == 0;
+                return appsInt == 0;
+            }
+
+            var sysValue = key?.GetValue("SystemUsesLightTheme");
+            if (sysValue is int sysInt)
+            {
+                return sysInt == 0;
             }
         }
         catch
         {
-            // Default to dark if cannot read
+            // Default to light (standard Windows clean default) if cannot read
         }
-        return true;
+        return false;
     }
 
     private static bool GetWindowsIsTransparencyEnabled()

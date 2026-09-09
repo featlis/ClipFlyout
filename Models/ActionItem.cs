@@ -10,5 +10,6 @@ public record ActionItem(
     string Label,
     string IconKey,
     string Description,
-    Action ExecuteAction
+    Action ExecuteAction,
+    bool IsPrimary = false
 );
