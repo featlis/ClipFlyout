@@ -27,8 +27,6 @@ public partial class TaskbarWidgetWindow : Window
     private readonly EventHandler _displaySettingsHandler;
     private readonly Action _themeChangedHandler;
     private readonly Action _languageChangedHandler;
-    private readonly Win32.HookProc _mouseHookProc;
-    private IntPtr _mouseHook = IntPtr.Zero;
 
     public event Action<DetectionResult>? FlyoutRequested;
     public event Action? SettingsRequested;
@@ -39,11 +37,9 @@ public partial class TaskbarWidgetWindow : Window
 
         try { IconImage.Source = AppIconHelper.CreateAppBitmapSource(32); } catch { }
 
-        _mouseHookProc = MouseHookCallback;
-
         _topmostTimer = new DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
         {
-            Interval = TimeSpan.FromMilliseconds(50)
+            Interval = TimeSpan.FromMilliseconds(250)
         };
         _topmostTimer.Tick += (_, _) => EnsureTopmost();
 
@@ -74,11 +70,6 @@ public partial class TaskbarWidgetWindow : Window
         Closed += (_, _) =>
         {
             _topmostTimer.Stop();
-            if (_mouseHook != IntPtr.Zero)
-            {
-                Win32.UnhookWindowsHookEx(_mouseHook);
-                _mouseHook = IntPtr.Zero;
-            }
             SystemEvents.DisplaySettingsChanged -= _displaySettingsHandler;
             _settings.SettingsChanged -= OnSettingsChanged;
             _theme.ThemeChanged -= _themeChangedHandler;
@@ -112,13 +103,6 @@ public partial class TaskbarWidgetWindow : Window
         exStyle |= Win32.WS_EX_NOACTIVATE | Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_TOPMOST;
         Win32.SetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE, (IntPtr)exStyle);
 
-        try
-        {
-            var hMod = Win32.GetModuleHandle(null);
-            _mouseHook = Win32.SetWindowsHookEx(Win32.WH_MOUSE_LL, _mouseHookProc, hMod, 0);
-        }
-        catch { }
-
         ApplyTheme();
     }
 
@@ -139,23 +123,9 @@ public partial class TaskbarWidgetWindow : Window
         double left;
         double top;
 
-        double taskbarHeight = screenHeight - workArea.Bottom;
-        if (taskbarHeight >= 40)
-        {
-            Height = Math.Min(44.0, taskbarHeight - 4.0);
-        }
-        else if (taskbarHeight > 0)
-        {
-            Height = Math.Max(32.0, taskbarHeight - 4.0);
-        }
-        else
-        {
-            Height = 44.0;
-        }
-
         // Base vertical taskbar alignment (centered in taskbar strip if on bottom)
         double taskbarBottomDock = screenHeight > workArea.Bottom
-            ? workArea.Bottom + (taskbarHeight - Height) / 2.0
+            ? workArea.Bottom + (screenHeight - workArea.Bottom - Height) / 2.0
             : workArea.Bottom - Height - 4;
 
         switch (cfg.WidgetPosition)
@@ -489,17 +459,5 @@ public partial class TaskbarWidgetWindow : Window
                 break;
         }
         return IntPtr.Zero;
-    }
-
-    private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
-    {
-        if (nCode >= 0 && (wParam == (IntPtr)Win32.WM_LBUTTONDOWN || wParam == (IntPtr)Win32.WM_RBUTTONDOWN))
-        {
-            if (IsVisible && WidgetContextMenu?.IsOpen != true && !TrayIconService.IsContextMenuActive && !FlyoutWindow.IsFlyoutOpen)
-            {
-                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Send, EnsureTopmost);
-            }
-        }
-        return Win32.CallNextHookEx(_mouseHook, nCode, wParam, lParam);
     }
 }
