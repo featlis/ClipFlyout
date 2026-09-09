@@ -29,6 +29,9 @@ public class AppSettings
     public bool LaunchOnStartup { get; set; } = false;
     public AppThemeMode Theme { get; set; } = AppThemeMode.System;
     public AppLanguage Language { get; set; } = AppLanguage.Auto;
+    public bool ShowTaskbarWidget { get; set; } = true;
+    public bool IgnorePasswordManagers { get; set; } = true;
+    public bool EnableRecallHotkey { get; set; } = true;
 
     // Flyout Visuals & Behavior
     public FlyoutPlacement Placement { get; set; } = FlyoutPlacement.BottomRight;
@@ -53,6 +56,9 @@ public class AppSettings
     public bool DetectBase64 { get; set; } = true;
     public bool DetectTable { get; set; } = true;
     public bool DetectEmail { get; set; } = true;
+    public bool EnableCleanUrl { get; set; } = true;
+    public bool EnableCaseConverter { get; set; } = true;
+    public bool EnableJwtDetector { get; set; } = true;
 
     public AppSettings Clone()
     {

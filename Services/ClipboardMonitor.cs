@@ -142,6 +142,32 @@ public class ClipboardMonitor : IClipboardMonitor
         }
     }
 
+    private static readonly HashSet<string> SensitiveProcessNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "1password", "bitwarden", "keepass", "keepassxc", "lastpass", "dashlane", "enpass", "nordpass"
+    };
+
+    internal static bool IsSensitiveProcessName(string processName)
+    {
+        return !string.IsNullOrWhiteSpace(processName) && SensitiveProcessNames.Contains(processName);
+    }
+
+    private static bool IsSensitiveApp(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero) return false;
+        try
+        {
+            Win32.GetWindowThreadProcessId(hwnd, out uint pid);
+            if (pid == 0) return false;
+            using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+            return SensitiveProcessNames.Contains(proc.ProcessName);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private IntPtr HwndHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         if (msg == Win32.WM_CLIPBOARDUPDATE)
@@ -149,6 +175,16 @@ public class ClipboardMonitor : IClipboardMonitor
             if (!_isEnabled)
             {
                 return IntPtr.Zero;
+            }
+
+            if (SettingsService.Instance.Current.IgnorePasswordManagers)
+            {
+                IntPtr owner = Win32.GetClipboardOwner();
+                if (owner == IntPtr.Zero) owner = Win32.GetForegroundWindow();
+                if (IsSensitiveApp(owner))
+                {
+                    return IntPtr.Zero;
+                }
             }
 
             if (Volatile.Read(ref _suppressCount) > 0)
@@ -192,6 +228,16 @@ public class ClipboardMonitor : IClipboardMonitor
 
                 await WpfApplication.Current.Dispatcher.InvokeAsync(() =>
                 {
+                    if (SettingsService.Instance.Current.IgnorePasswordManagers)
+                    {
+                        if (WpfClipboard.ContainsData("Clipboard Viewer Ignore") ||
+                            WpfClipboard.ContainsData("ExcludeClipboardContentFromMonitorProcessing") ||
+                            WpfClipboard.ContainsData("CanIncludeInClipboardHistory"))
+                        {
+                            return;
+                        }
+                    }
+
                     if (WpfClipboard.ContainsImage())
                     {
                         var img = WpfClipboard.GetImage();

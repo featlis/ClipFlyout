@@ -147,6 +147,60 @@
                                           SelectionChanged="ComboLanguage_SelectionChanged"/>
                             </Grid>
                         </Border>
+
+                        <Separator x:Name="Sep3a" Margin="16,0"/>
+
+                        <!-- Setting: Taskbar Widget -->
+                        <Border Padding="16,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblShowWidget" Text="タスクバーウィジェットを表示" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescShowWidget" Text="タスクバー近傍に最新のコピー内容を小さく表示します" FontSize="11.5" Margin="0,1.5,0,0"/>
+                                </StackPanel>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleShowWidget" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <Separator x:Name="Sep3b" Margin="16,0"/>
+
+                        <!-- Setting: Ignore Password Managers -->
+                        <Border Padding="16,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblIgnorePasswords" Text="パスワード管理ツールのコピーを除外" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescIgnorePasswords" Text="1Password、Bitwarden、KeePass 等からのコピーを検知・保存しません" FontSize="11.5" Margin="0,1.5,0,0"/>
+                                </StackPanel>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleIgnorePasswords" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <Separator x:Name="Sep3c" Margin="16,0"/>
+
+                        <!-- Setting: Recall Hotkey -->
+                        <Border Padding="16,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblRecallHotkey" Text="リコールショートカット (Alt+Shift+C)" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescRecallHotkey" Text="非表示になった直前のフライアウトをショートカットで再表示します" FontSize="11.5" Margin="0,1.5,0,0"/>
+                                </StackPanel>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleRecallHotkey" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
                     </StackPanel>
                 </Border>
 
@@ -475,6 +529,60 @@
                                     <TextBlock x:Name="DescDetText" Text="通常の文字列の前後の余分な空白トリムや文字数・単語数統計を提供" FontSize="11.5" Margin="0,1.5,0,0"/>
                                 </StackPanel>
                                 <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleDetText" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <Separator x:Name="Sep13a" Margin="16,0"/>
+
+                        <!-- Detector: Clean URL -->
+                        <Border Padding="16,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblCleanUrl" Text="クリーンURL (トラッカー除去)" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescCleanUrl" Text="UTMパラメータや広告トラッカーを除去したURLコピーを提案" FontSize="11.5" Margin="0,1.5,0,0"/>
+                                </StackPanel>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleCleanUrl" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <Separator x:Name="Sep13b" Margin="16,0"/>
+
+                        <!-- Detector: Case Converter -->
+                        <Border Padding="16,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblCaseConverter" Text="識別子ケース変換" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescCaseConverter" Text="camelCase, snake_case などの相互変換アクションを提案" FontSize="11.5" Margin="0,1.5,0,0"/>
+                                </StackPanel>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleCaseConverter" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <Separator x:Name="Sep13c" Margin="16,0"/>
+
+                        <!-- Detector: JWT Token -->
+                        <Border Padding="16,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblJwt" Text="JWT トークン" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescJwt" Text="JWTを検知してクレームペイロードJSONを展開" FontSize="11.5" Margin="0,1.5,0,0"/>
+                                </StackPanel>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleJwt" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
                     </StackPanel>

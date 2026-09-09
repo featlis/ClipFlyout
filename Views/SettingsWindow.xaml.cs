@@ -119,6 +119,14 @@ public partial class SettingsWindow : Window
         ToggleDetCode.IsOn = cfg.DetectCode;
         ToggleDetImage.IsOn = cfg.DetectImage;
         ToggleDetText.IsOn = cfg.DetectPlainText;
+
+        ToggleShowWidget.IsOn = cfg.ShowTaskbarWidget;
+        ToggleIgnorePasswords.IsOn = cfg.IgnorePasswordManagers;
+        ToggleRecallHotkey.IsOn = cfg.EnableRecallHotkey;
+
+        ToggleCleanUrl.IsOn = cfg.EnableCleanUrl;
+        ToggleCaseConverter.IsOn = cfg.EnableCaseConverter;
+        ToggleJwt.IsOn = cfg.EnableJwtDetector;
     }
 
     private void HookToggleEvents()
@@ -126,6 +134,10 @@ public partial class SettingsWindow : Window
         ToggleMonitoring.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.IsMonitoringEnabled = val); };
         ToggleStartup.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.LaunchOnStartup = val); };
         ToggleAutoUpdate.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.AutomaticallyInstallUpdates = val); };
+
+        ToggleShowWidget.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.ShowTaskbarWidget = val); };
+        ToggleIgnorePasswords.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.IgnorePasswordManagers = val); };
+        ToggleRecallHotkey.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.EnableRecallHotkey = val); };
 
         ToggleDetHex.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectHexColor = val); };
         ToggleDetTimestamp.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectTimestamp = val); };
@@ -137,6 +149,10 @@ public partial class SettingsWindow : Window
         ToggleDetCode.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectCode = val); };
         ToggleDetImage.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectImage = val); };
         ToggleDetText.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectPlainText = val); };
+
+        ToggleCleanUrl.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.EnableCleanUrl = val); };
+        ToggleCaseConverter.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.EnableCaseConverter = val); };
+        ToggleJwt.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.EnableJwtDetector = val); };
     }
 
     private static void SelectComboByTag(ComboBox combo, object tagValue)
@@ -338,6 +354,8 @@ public partial class SettingsWindow : Window
         Sep1.Background = sepBrush;
         Sep2.Background = sepBrush;
         Sep3.Background = sepBrush;
+        Sep3b.Background = sepBrush;
+        Sep3c.Background = sepBrush;
         Sep4.Background = sepBrush;
         Sep5.Background = sepBrush;
         Sep5b.Background = sepBrush;
@@ -349,6 +367,9 @@ public partial class SettingsWindow : Window
         Sep11.Background = sepBrush;
         Sep12.Background = sepBrush;
         Sep13.Background = sepBrush;
+        Sep13a.Background = sepBrush;
+        Sep13b.Background = sepBrush;
+        Sep13c.Background = sepBrush;
         Sep14.Background = sepBrush;
     }
 
@@ -362,6 +383,12 @@ public partial class SettingsWindow : Window
         SecGeneralTitle.Text = _loc.Get("Section_General");
         LblMonitoring.Text = _loc.Get("Setting_Monitoring");
         DescMonitoring.Text = _loc.Get("Setting_Monitoring_Desc");
+        LblShowWidget.Text = _loc.Get("Setting_ShowTaskbarWidget");
+        DescShowWidget.Text = _loc.Get("Setting_ShowTaskbarWidget_Desc");
+        LblIgnorePasswords.Text = _loc.Get("Setting_IgnorePasswordManagers");
+        DescIgnorePasswords.Text = _loc.Get("Setting_IgnorePasswordManagers_Desc");
+        LblRecallHotkey.Text = _loc.Get("Setting_EnableRecallHotkey");
+        DescRecallHotkey.Text = _loc.Get("Setting_EnableRecallHotkey_Desc");
         LblStartup.Text = _loc.Get("Setting_Startup");
         DescStartup.Text = _loc.Get("Setting_Startup_Desc");
         LblTheme.Text = _loc.Get("Setting_Theme");
@@ -403,6 +430,12 @@ public partial class SettingsWindow : Window
         DescDetImage.Text = _loc.Get("Detector_Image_Desc");
         LblDetText.Text = _loc.Get("Detector_PlainText");
         DescDetText.Text = _loc.Get("Detector_PlainText_Desc");
+        LblCleanUrl.Text = _loc.Get("Detector_CleanUrl");
+        DescCleanUrl.Text = _loc.Get("Detector_CleanUrl_Desc");
+        LblCaseConverter.Text = _loc.Get("Detector_CaseConverter");
+        DescCaseConverter.Text = _loc.Get("Detector_CaseConverter_Desc");
+        LblJwt.Text = _loc.Get("Detector_Jwt");
+        DescJwt.Text = _loc.Get("Detector_Jwt_Desc");
 
         SecAboutTitle.Text = _loc.Get("Section_About");
         PrivacyTitle.Text = _loc.Get("About_Privacy_Title");

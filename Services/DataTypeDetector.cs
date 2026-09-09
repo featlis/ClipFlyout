@@ -103,6 +103,13 @@ public partial class DataTypeDetector : IDataTypeDetector
                 return DetectEmail(trimmed, emailMatch.Groups["local"].Value, emailMatch.Groups["domain"].Value);
             }
 
+            // 2e-2. JWT Token
+            if (cfg.EnableJwtDetector && trimmed.Length <= MaxBase64Length && trimmed.StartsWith("ey", StringComparison.Ordinal) && trimmed.Count(c => c == '.') == 2)
+            {
+                var jwtResult = TryDetectJwt(trimmed);
+                if (jwtResult != null) return jwtResult;
+            }
+
             // 2f. Base64
             if (cfg.DetectBase64 && trimmed.Length <= MaxBase64Length &&
                 (trimmed.StartsWith("data:", StringComparison.OrdinalIgnoreCase) || IsBase64String(trimmed)))
@@ -663,7 +670,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                     {
                         var options = new JsonSerializerOptions { WriteIndented = true };
                         string formatted = JsonSerializer.Serialize(root, options);
-                        _executor.CopyText(formatted, "Toast_FormattedJsonCopied");
+                        _executor.CopyTransformedText(formatted, _loc.Get("Toast_FormattedJsonCopied"));
                     }
                 ),
                 new(
@@ -674,7 +681,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                     () =>
                     {
                         string minified = JsonSerializer.Serialize(root);
-                        _executor.CopyText(minified, "Toast_MinifiedJsonCopied");
+                        _executor.CopyTransformedText(minified, _loc.Get("Toast_MinifiedJsonCopied"));
                     }
                 )
             };
@@ -723,6 +730,33 @@ public partial class DataTypeDetector : IDataTypeDetector
                 () => _executor.CopyText(uri.Host, "Toast_Copied")
             )
         };
+
+        var cfg = _settings.Current;
+        if (cfg.EnableCleanUrl && CleanUrlHelper.TryCleanUrl(fullUrl, out string cleanUrl))
+        {
+            actions.Insert(1, new(
+                "Action_CopyCleanUrl",
+                _loc.Get("Action_CopyCleanUrl"),
+                "Checkmark24",
+                _loc.Get("Action_CopyCleanUrl_Desc"),
+                () => _executor.CopyTransformedText(cleanUrl, _loc.Get("Toast_CleanUrlCopied"))
+            ));
+        }
+
+        if (fullUrl.Contains('%'))
+        {
+            string decoded = Uri.UnescapeDataString(fullUrl);
+            if (!string.Equals(decoded, fullUrl, StringComparison.Ordinal))
+            {
+                actions.Add(new(
+                    "Action_DecodeUrl",
+                    _loc.Get("Action_DecodeUrl"),
+                    "DocumentText24",
+                    _loc.Get("Action_DecodeUrl_Desc"),
+                    () => _executor.CopyTransformedText(decoded, _loc.Get("Toast_UrlDecoded"))
+                ));
+            }
+        }
 
         return new DetectionResult(
             Type: ClipDataType.Url,
@@ -782,7 +816,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                 () =>
                 {
                     string normalized = NormalizeIndentation(codeText);
-                    _executor.CopyText(normalized, "Toast_Copied");
+                    _executor.CopyTransformedText(normalized, _loc.Get("Toast_Copied"));
                 }
             ),
             new(
@@ -793,7 +827,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                 () =>
                 {
                     string escaped = WebUtility.HtmlEncode(codeText);
-                    _executor.CopyText(escaped, "Toast_Copied");
+                    _executor.CopyTransformedText(escaped, _loc.Get("Toast_Copied"));
                 }
             )
         };
@@ -825,7 +859,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                 _loc.Get("Action_TrimWhitespace"),
                 "Cut24",
                 _loc.Get("Action_TrimWhitespace_Desc"),
-                () => _executor.CopyText(trimmed, "Toast_Copied")
+                () => _executor.CopyTransformedText(trimmed, _loc.Get("Toast_Copied"))
             ),
             new(
                 "Action_TextStats",
@@ -843,16 +877,48 @@ public partial class DataTypeDetector : IDataTypeDetector
                 _loc.Get("Action_UpperCase"),
                 "TextCaseUppercase24",
                 _loc.Get("Action_UpperCase_Desc"),
-                () => _executor.CopyText(text.ToUpperInvariant(), "Toast_Copied")
+                () => _executor.CopyTransformedText(text.ToUpperInvariant(), _loc.Get("Toast_Copied"))
             ),
             new(
                 "Action_LowerCase",
                 _loc.Get("Action_LowerCase"),
                 "TextCaseLowercase24",
                 _loc.Get("Action_LowerCase_Desc"),
-                () => _executor.CopyText(text.ToLowerInvariant(), "Toast_Copied")
+                () => _executor.CopyTransformedText(text.ToLowerInvariant(), _loc.Get("Toast_Copied"))
             )
         };
+
+        var cfg = _settings.Current;
+        if (cfg.EnableCaseConverter && CaseConverter.IsConvertible(trimmed))
+        {
+            var words = CaseConverter.SplitWords(trimmed);
+            string camel = CaseConverter.ToCamelCase(words);
+            string snake = CaseConverter.ToSnakeCase(words);
+            string pascal = CaseConverter.ToPascalCase(words);
+            string kebab = CaseConverter.ToKebabCase(words);
+            string constant = CaseConverter.ToConstantCase(words);
+
+            if (!string.Equals(camel, trimmed, StringComparison.Ordinal))
+            {
+                actions.Add(new("Action_ToCamelCase", "camelCase", "Code24", _loc.Get("Action_ToCamelCase_Desc"), () => _executor.CopyTransformedText(camel, _loc.Get("Toast_Copied"))));
+            }
+            if (!string.Equals(snake, trimmed, StringComparison.Ordinal))
+            {
+                actions.Add(new("Action_ToSnakeCase", "snake_case", "Code24", _loc.Get("Action_ToSnakeCase_Desc"), () => _executor.CopyTransformedText(snake, _loc.Get("Toast_Copied"))));
+            }
+            if (!string.Equals(kebab, trimmed, StringComparison.Ordinal))
+            {
+                actions.Add(new("Action_ToKebabCase", "kebab-case", "Code24", _loc.Get("Action_ToKebabCase_Desc"), () => _executor.CopyTransformedText(kebab, _loc.Get("Toast_Copied"))));
+            }
+            if (!string.Equals(pascal, trimmed, StringComparison.Ordinal))
+            {
+                actions.Add(new("Action_ToPascalCase", "PascalCase", "Code24", _loc.Get("Action_ToPascalCase_Desc"), () => _executor.CopyTransformedText(pascal, _loc.Get("Toast_Copied"))));
+            }
+            if (!string.Equals(constant, trimmed, StringComparison.Ordinal))
+            {
+                actions.Add(new("Action_ToConstantCase", "CONSTANT_CASE", "Code24", _loc.Get("Action_ToConstantCase_Desc"), () => _executor.CopyTransformedText(constant, _loc.Get("Toast_Copied"))));
+            }
+        }
 
         string cleanSnippet = Regex.Replace(trimmed, @"[\r\n\t]+", " ");
         string snippet = cleanSnippet.Length > 180 ? cleanSnippet[..180] + "..." : cleanSnippet;
@@ -982,5 +1048,71 @@ public partial class DataTypeDetector : IDataTypeDetector
             a = temp;
         }
         return Math.Max(1, a);
+    }
+
+    private DetectionResult? TryDetectJwt(string text)
+    {
+        try
+        {
+            var parts = text.Split('.');
+            if (parts.Length != 3) return null;
+            if (parts[0].Length < 4 || parts[1].Length < 4) return null;
+
+            string headerJson = DecodeBase64Url(parts[0]);
+            string payloadJson = DecodeBase64Url(parts[1]);
+
+            using var payloadDoc = JsonDocument.Parse(payloadJson);
+            using var headerDoc = JsonDocument.Parse(headerJson);
+
+            var options = new JsonSerializerOptions { WriteIndented = true };
+            string formattedPayload = JsonSerializer.Serialize(payloadDoc.RootElement, options);
+
+            var actions = new List<ActionItem>
+            {
+                new(
+                    "Action_CopyJwtPayload",
+                    _loc.Get("Action_CopyJwtPayload"),
+                    "Code24",
+                    _loc.Get("Action_CopyJwtPayload_Desc"),
+                    () => _executor.CopyTransformedText(formattedPayload, _loc.Get("Toast_Copied"))
+                ),
+                new(
+                    "Action_CopyJwtHeader",
+                    _loc.Get("Action_CopyJwtHeader"),
+                    "DocumentText24",
+                    _loc.Get("Action_CopyJwtHeader_Desc"),
+                    () => _executor.CopyTransformedText(headerJson, _loc.Get("Toast_Copied"))
+                )
+            };
+
+            string subtitle = "Decoded JWT Claims";
+            string snippet = formattedPayload.Length > 180 ? formattedPayload[..180] + "..." : formattedPayload;
+
+            return new DetectionResult(
+                Type: ClipDataType.Json,
+                RawData: text,
+                PreviewTitle: "JWT Token",
+                PreviewSubtitle: subtitle,
+                PreviewBody: snippet,
+                AvailableActions: actions,
+                BadgeText: "JWT"
+            );
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string DecodeBase64Url(string input)
+    {
+        string output = input.Replace('-', '+').Replace('_', '/');
+        switch (output.Length % 4)
+        {
+            case 2: output += "=="; break;
+            case 3: output += "="; break;
+        }
+        byte[] bytes = Convert.FromBase64String(output);
+        return Encoding.UTF8.GetString(bytes);
     }
 }

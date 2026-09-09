@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Windows.Media.Imaging;
+using ClipFlyout.Native;
 using Microsoft.Win32;
 using QRCoder;
 using WpfClipboard = System.Windows.Clipboard;
@@ -15,6 +16,7 @@ public class ActionExecutor
     private readonly Action<string> _setClipboardText;
 
     public event Action<string>? ActionExecuted;
+    public event Action<string, string>? TransformedActionExecuted;
 
     public ActionExecutor(IClipboardMonitor clipboardMonitor, Action<string>? setClipboardText = null)
     {
@@ -31,6 +33,35 @@ public class ActionExecutor
                 _setClipboardText(text);
             }
             ActionExecuted?.Invoke(_loc.Get(successMessageKey));
+        }
+        catch (Exception ex)
+        {
+            ActionExecuted?.Invoke($"Error: {ex.Message}");
+        }
+    }
+
+    public void CopyTransformedText(string text, string label)
+    {
+        try
+        {
+            using (_clipboardMonitor.SuppressNotifications())
+            {
+                _setClipboardText(text);
+            }
+            TransformedActionExecuted?.Invoke(text, label);
+        }
+        catch (Exception ex)
+        {
+            ActionExecuted?.Invoke($"Error: {ex.Message}");
+        }
+    }
+
+    public void PasteToActiveWindow()
+    {
+        try
+        {
+            Win32.PasteToActiveWindow();
+            ActionExecuted?.Invoke(_loc.Get("Toast_Pasted"));
         }
         catch (Exception ex)
         {

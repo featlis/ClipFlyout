@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using ClipFlyout.Services;
+using ClipFlyout.Views;
 using WpfApplication = System.Windows.Application;
 
 namespace ClipFlyout;
@@ -16,6 +17,8 @@ public partial class App : WpfApplication
     private TrayIconService? _trayIconService;
     private SettingsService? _settingsService;
     private ThemeService? _themeService;
+    private TaskbarWidgetWindow? _taskbarWidget;
+    private HotkeyService? _hotkeyService;
     private long _detectionGeneration;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -41,6 +44,23 @@ public partial class App : WpfApplication
             _windowManager = new FlyoutWindowManager(_actionExecutor);
             _trayIconService = new TrayIconService(_clipboardMonitor);
 
+            _taskbarWidget = new TaskbarWidgetWindow();
+            _taskbarWidget.FlyoutRequested += result => _windowManager?.ShowFlyout(result);
+            _taskbarWidget.SettingsRequested += () => _trayIconService?.OpenSettings();
+            if (_settingsService.Current.ShowTaskbarWidget)
+            {
+                _taskbarWidget.Show();
+            }
+
+            _hotkeyService = new HotkeyService();
+            _hotkeyService.HotkeyPressed += () => _windowManager?.RecallLastFlyout();
+            if (_settingsService.Current.EnableRecallHotkey)
+            {
+                _hotkeyService.Start();
+            }
+
+            _trayIconService.HistoryItemSelected += result => _windowManager?.ShowFlyout(result);
+
             if (ShouldCheckForUpdates(_settingsService.Current))
             {
                 _ = CheckForAutomaticUpdateAsync();
@@ -51,6 +71,17 @@ public partial class App : WpfApplication
                 if (_clipboardMonitor != null)
                 {
                     _clipboardMonitor.IsEnabled = cfg.IsMonitoringEnabled;
+                }
+                if (_hotkeyService != null)
+                {
+                    if (cfg.EnableRecallHotkey && !_hotkeyService.IsRegistered)
+                    {
+                        _hotkeyService.Start();
+                    }
+                    else if (!cfg.EnableRecallHotkey && _hotkeyService.IsRegistered)
+                    {
+                        _hotkeyService.Stop();
+                    }
                 }
             };
 
@@ -121,12 +152,15 @@ public partial class App : WpfApplication
                 _settingsService?.Current.IsMonitoringEnabled == true)
             {
                 windowManager.ShowFlyout(task.Result);
+                _taskbarWidget?.UpdateClipContent(task.Result);
             }
         }, TaskScheduler.FromCurrentSynchronizationContext());
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _hotkeyService?.Dispose();
+        _taskbarWidget?.Close();
         _clipboardMonitor?.Dispose();
         _windowManager?.Dispose();
         _trayIconService?.Dispose();

@@ -13,20 +13,25 @@ namespace ClipFlyout.Services;
 public class FlyoutWindowManager : IDisposable
 {
     private readonly FlyoutWindow _window;
+    private readonly ActionExecutor _executor;
     private readonly DispatcherTimer _autoHideTimer;
     private readonly SettingsService _settings = SettingsService.Instance;
     private bool _isShowing;
+    private DetectionResult? _lastResult;
 
     public FlyoutWindow Window => _window;
+    public DetectionResult? LastResult => _lastResult;
 
     public FlyoutWindowManager(ActionExecutor executor)
     {
+        _executor = executor;
         _window = new FlyoutWindow();
         _window.MouseEntered += OnMouseEntered;
         _window.MouseLeft += OnMouseLeft;
         _window.CloseRequested += OnCloseRequested;
 
         executor.ActionExecuted += OnActionExecuted;
+        executor.TransformedActionExecuted += OnTransformedActionExecuted;
 
         _autoHideTimer = new DispatcherTimer
         {
@@ -42,6 +47,9 @@ public class FlyoutWindowManager : IDisposable
             Application.Current.Dispatcher.Invoke(() => ShowFlyout(result));
             return;
         }
+
+        _lastResult = result;
+        HistoryService.Instance.Add(result);
 
         _autoHideTimer.Stop();
 
@@ -172,6 +180,59 @@ public class FlyoutWindowManager : IDisposable
     {
         _autoHideTimer.Stop();
         _window.ShowToastFeedback(message);
+    }
+
+    public void RecallLastFlyout()
+    {
+        if (_lastResult != null)
+        {
+            ShowFlyout(_lastResult);
+        }
+    }
+
+    private void OnTransformedActionExecuted(string transformedText, string label)
+    {
+        if (!Application.Current.Dispatcher.CheckAccess())
+        {
+            Application.Current.Dispatcher.Invoke(() => OnTransformedActionExecuted(transformedText, label));
+            return;
+        }
+
+        var actions = new List<ActionItem>
+        {
+            new(
+                "Action_Paste",
+                LocalizationService.Instance.Get("Action_Paste"),
+                "DocumentPaste24",
+                LocalizationService.Instance.Get("Action_Paste_Desc"),
+                () =>
+                {
+                    HideFlyout();
+                    _executor.PasteToActiveWindow();
+                }
+            ),
+            new(
+                "Action_CopyTransformed",
+                LocalizationService.Instance.Get("Action_Copy"),
+                "Copy24",
+                LocalizationService.Instance.Get("Action_Copy_Desc"),
+                () => _executor.CopyText(transformedText, "Toast_Copied")
+            )
+        };
+
+        string snippet = transformedText.Length > 180 ? transformedText[..180] + "..." : transformedText;
+
+        var result = new DetectionResult(
+            Type: ClipDataType.PlainText,
+            RawData: transformedText,
+            PreviewTitle: LocalizationService.Instance.Get("Transform_Title"),
+            PreviewSubtitle: label,
+            PreviewBody: snippet,
+            AvailableActions: actions,
+            BadgeText: LocalizationService.Instance.Get("Badge_Transformed")
+        );
+
+        ShowFlyout(result);
     }
 
     private void AutoHideTimer_Tick(object? sender, EventArgs e)
