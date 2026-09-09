@@ -113,7 +113,7 @@ public sealed class UpdateService
         var installer = Process.Start(new ProcessStartInfo
         {
             FileName = installerPath,
-            Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NOCANCEL /CLOSEAPPLICATIONS",
+            Arguments = "/CLOSEAPPLICATIONS",
             UseShellExecute = true
         });
         if (installer is null) throw new InvalidOperationException("The update installer could not be started.");

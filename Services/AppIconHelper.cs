@@ -92,6 +92,55 @@ public static class AppIconHelper
 
     public static BitmapSource GetAppIconBitmapSource(int size = 32) => CreateAppBitmapSource(size);
 
+    private static byte[] CreateIcoDibData(Bitmap bmp)
+    {
+        int w = bmp.Width;
+        int h = bmp.Height;
+        int xorSize = w * h * 4;
+        int andRowBytes = ((w + 31) / 32) * 4;
+        int andSize = andRowBytes * h;
+        int totalSize = 40 + xorSize + andSize;
+
+        byte[] dib = new byte[totalSize];
+        using var ms = new MemoryStream(dib);
+        using var bw = new BinaryWriter(ms);
+
+        // BITMAPINFOHEADER
+        bw.Write(40);        // biSize
+        bw.Write(w);         // biWidth
+        bw.Write(h * 2);     // biHeight (XOR + AND mask height)
+        bw.Write((short)1);  // biPlanes
+        bw.Write((short)32); // biBitCount
+        bw.Write(0);         // biCompression (BI_RGB)
+        bw.Write(xorSize);   // biSizeImage
+        bw.Write(0);         // biXPelsPerMeter
+        bw.Write(0);         // biYPelsPerMeter
+        bw.Write(0);         // biClrUsed
+        bw.Write(0);         // biClrImportant
+
+        // XOR mask: 32-bit BGRA bottom-up
+        var data = bmp.LockBits(new DrawingRectangle(0, 0, w, h), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            byte[] row = new byte[w * 4];
+            for (int y = h - 1; y >= 0; y--)
+            {
+                IntPtr srcRow = data.Scan0 + (y * data.Stride);
+                System.Runtime.InteropServices.Marshal.Copy(srcRow, row, 0, w * 4);
+                bw.Write(row);
+            }
+        }
+        finally
+        {
+            bmp.UnlockBits(data);
+        }
+
+        // AND mask: 1-bit per pixel (all 0 for 32-bit ARGB)
+        bw.Write(new byte[andSize]);
+
+        return dib;
+    }
+
     public static void SaveMultiResolutionIco(string filePath, int[]? sizes = null)
     {
         sizes ??= [16, 24, 32, 48, 64, 128, 256];
@@ -100,26 +149,33 @@ public static class AppIconHelper
         using var bw = new BinaryWriter(fs);
 
         // 1. ICONDIR header
-        bw.Write((short)0);      // Reserved
-        bw.Write((short)1);      // Type 1 = ICO
+        bw.Write((short)0);            // Reserved
+        bw.Write((short)1);            // Type 1 = ICO
         bw.Write((short)sizes.Length); // Image count
 
         int offset = 6 + (16 * sizes.Length);
-        var pngDataList = new (int size, byte[] data)[sizes.Length];
+        var imgList = new (int size, byte[] data)[sizes.Length];
 
         for (int i = 0; i < sizes.Length; i++)
         {
             int sz = sizes[i];
             using var bmp = CreateAppBitmap(sz);
-            using var ms = new MemoryStream();
-            bmp.Save(ms, ImageFormat.Png);
-            pngDataList[i] = (sz, ms.ToArray());
+            if (sz >= 256)
+            {
+                using var ms = new MemoryStream();
+                bmp.Save(ms, ImageFormat.Png);
+                imgList[i] = (sz, ms.ToArray());
+            }
+            else
+            {
+                imgList[i] = (sz, CreateIcoDibData(bmp));
+            }
         }
 
         // 2. ICONDIRENTRY entries
-        for (int i = 0; i < pngDataList.Length; i++)
+        for (int i = 0; i < imgList.Length; i++)
         {
-            var (sz, data) = pngDataList[i];
+            var (sz, data) = imgList[i];
             byte w = sz >= 256 ? (byte)0 : (byte)sz;
             byte h = sz >= 256 ? (byte)0 : (byte)sz;
 
@@ -135,10 +191,10 @@ public static class AppIconHelper
             offset += data.Length;
         }
 
-        // 3. Image data (PNG blocks)
-        for (int i = 0; i < pngDataList.Length; i++)
+        // 3. Image data (DIB blocks for <256, PNG block for 256)
+        for (int i = 0; i < imgList.Length; i++)
         {
-            bw.Write(pngDataList[i].data);
+            bw.Write(imgList[i].data);
         }
     }
 

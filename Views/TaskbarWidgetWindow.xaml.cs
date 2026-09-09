@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using ClipFlyout.Models;
 using ClipFlyout.Native;
 using ClipFlyout.Services;
@@ -22,6 +23,8 @@ public partial class TaskbarWidgetWindow : Window
     private readonly LocalizationService _loc = LocalizationService.Instance;
     private bool _isHovered;
 
+    private readonly DispatcherTimer _topmostTimer;
+
     public event Action<DetectionResult>? FlyoutRequested;
     public event Action? SettingsRequested;
 
@@ -29,12 +32,25 @@ public partial class TaskbarWidgetWindow : Window
     {
         InitializeComponent();
 
+        try { IconImage.Source = AppIconHelper.CreateAppBitmapSource(32); } catch { }
+
+        _topmostTimer = new DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(250)
+        };
+        _topmostTimer.Tick += (_, _) => EnsureTopmost();
+
         SourceInitialized += OnSourceInitialized;
         Loaded += (_, _) =>
         {
-            IconImage.Source = AppIconHelper.CreateAppBitmapSource(32);
+            try { IconImage.Source = AppIconHelper.CreateAppBitmapSource(32); } catch { }
             UpdatePosition();
+            _topmostTimer.Start();
+            EnsureTopmost();
         };
+        Closed += (_, _) => _topmostTimer.Stop();
+        Deactivated += (_, _) => EnsureTopmost();
+        LocationChanged += (_, _) => EnsureTopmost();
 
         _settings.SettingsChanged += OnSettingsChanged;
         _theme.ThemeChanged += () => Dispatcher.Invoke(ApplyTheme);
@@ -55,6 +71,7 @@ public partial class TaskbarWidgetWindow : Window
         {
             hwndSource.CompositionTarget.BackgroundColor = Colors.Transparent;
         }
+        hwndSource?.AddHook(WndProc);
 
         var exStyle = (int)Win32.GetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE);
         exStyle |= Win32.WS_EX_NOACTIVATE | Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_TOPMOST;
@@ -146,10 +163,10 @@ public partial class TaskbarWidgetWindow : Window
             return;
         }
 
-        // 1. Icon / Visual indicator
+        // 1. Icon / Visual indicator - always keep the user's preferred tray icon displayed on widget
         if (result.Type == ClipDataType.HexColor && result.ColorValue.HasValue)
         {
-            IconImage.Visibility = Visibility.Collapsed;
+            IconImage.Visibility = Visibility.Visible;
             IconBadgeText.Visibility = Visibility.Collapsed;
             ColorBox.Visibility = Visibility.Visible;
             ColorBox.Background = new SolidColorBrush(result.ColorValue.Value);
@@ -157,30 +174,8 @@ public partial class TaskbarWidgetWindow : Window
         else
         {
             ColorBox.Visibility = Visibility.Collapsed;
-            string glyph = result.Type switch
-            {
-                ClipDataType.UnixTimestamp => "🕒",
-                ClipDataType.Json => "{ }",
-                ClipDataType.Url => "🌐",
-                ClipDataType.Email => "✉️",
-                ClipDataType.Base64 => "🔤",
-                ClipDataType.TableData => "📊",
-                ClipDataType.Code => "💻",
-                ClipDataType.Image => "🖼️",
-                _ => string.Empty
-            };
-
-            if (string.IsNullOrEmpty(glyph))
-            {
-                IconImage.Visibility = Visibility.Visible;
-                IconBadgeText.Visibility = Visibility.Collapsed;
-            }
-            else
-            {
-                IconImage.Visibility = Visibility.Collapsed;
-                IconBadgeText.Visibility = Visibility.Visible;
-                IconBadgeText.Text = glyph;
-            }
+            IconImage.Visibility = Visibility.Visible;
+            IconBadgeText.Visibility = Visibility.Collapsed;
         }
 
         // 2. Display actual content (not type names like "プレーンテキスト(XX文字)")
@@ -398,5 +393,40 @@ public partial class TaskbarWidgetWindow : Window
     private void MenuHideWidget_Click(object sender, RoutedEventArgs e)
     {
         _settings.UpdateSettings(s => s.ShowTaskbarWidget = false);
+    }
+
+    public void EnsureTopmost()
+    {
+        if (_hwnd == IntPtr.Zero || !IsVisible) return;
+        if (WidgetContextMenu?.IsOpen == true || TrayIconService.IsContextMenuActive) return;
+
+        IntPtr prevHwnd = Win32.GetWindow(_hwnd, Win32.GW_HWNDPREV);
+        if (prevHwnd == IntPtr.Zero)
+        {
+            return; // Already topmost in Z-order
+        }
+
+        Win32.SetWindowPos(
+            _hwnd,
+            Win32.HWND_TOPMOST,
+            0, 0, 0, 0,
+            Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE
+        );
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        switch (msg)
+        {
+            case Win32.WM_WINDOWPOSCHANGING:
+                if (WidgetContextMenu?.IsOpen != true && !TrayIconService.IsContextMenuActive)
+                {
+                    var pos = Marshal.PtrToStructure<Win32.WINDOWPOS>(lParam);
+                    pos.hwndInsertAfter = Win32.HWND_TOPMOST;
+                    Marshal.StructureToPtr(pos, lParam, false);
+                }
+                break;
+        }
+        return IntPtr.Zero;
     }
 }

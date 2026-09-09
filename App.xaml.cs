@@ -63,11 +63,25 @@ public partial class App : WpfApplication
 
             _trayIconService.HistoryItemSelected += result => _windowManager?.ShowFlyout(result);
 
-            if (_settingsService.Current.IsFirstRun)
+            bool isWelcomeArg = false;
+            foreach (var arg in e.Args)
+            {
+                if (arg.Equals("--welcome", StringComparison.OrdinalIgnoreCase) ||
+                    arg.Equals("--setup", StringComparison.OrdinalIgnoreCase) ||
+                    arg.Equals("/setup", StringComparison.OrdinalIgnoreCase) ||
+                    arg.Equals("-setup", StringComparison.OrdinalIgnoreCase))
+                {
+                    isWelcomeArg = true;
+                    break;
+                }
+            }
+
+            if (isWelcomeArg || _settingsService.Current.IsFirstRun)
             {
                 var welcome = new WelcomeWindow();
                 welcome.CustomizeRequested += () => _trayIconService?.OpenSettings();
                 welcome.Show();
+                welcome.Activate();
             }
 
             if (ShouldCheckForUpdates(_settingsService.Current))

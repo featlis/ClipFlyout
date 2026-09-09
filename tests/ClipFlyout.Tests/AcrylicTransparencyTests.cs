@@ -49,15 +49,15 @@ public class AcrylicTransparencyTests
     [Fact]
     public void TestVersionConsistency()
     {
-        Assert.Equal("v0.7.3", AppInfo.DisplayVersion);
-        Assert.Equal("0.7.3", AppInfo.VersionString);
+        Assert.Equal("v0.7.4", AppInfo.DisplayVersion);
+        Assert.Equal("0.7.4", AppInfo.VersionString);
 
         var loc = LocalizationService.Instance;
         loc.CurrentLanguage = AppLanguage.Japanese;
-        Assert.Equal("バージョン: v0.7.3", loc.Get("About_Version", AppInfo.DisplayVersion));
+        Assert.Equal("バージョン: v0.7.4", loc.Get("About_Version", AppInfo.DisplayVersion));
 
         loc.CurrentLanguage = AppLanguage.English;
-        Assert.Equal("Version: v0.7.3", loc.Get("About_Version", AppInfo.DisplayVersion));
+        Assert.Equal("Version: v0.7.4", loc.Get("About_Version", AppInfo.DisplayVersion));
     }
 
     [Theory]

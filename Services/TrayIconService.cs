@@ -98,6 +98,8 @@ public class TrayIconService : IDisposable
         }
     }
 
+    public static bool IsContextMenuActive { get; private set; }
+
     private bool _pendingMenuRebuild;
 
     private ContextMenu CreateContextMenu()
@@ -110,6 +112,7 @@ public class TrayIconService : IDisposable
 
         menu.Opened += (_, _) =>
         {
+            IsContextMenuActive = true;
             if (PresentationSource.FromVisual(menu) is System.Windows.Interop.HwndSource source)
             {
                 Native.Win32.SetForegroundWindow(source.Handle);
@@ -118,6 +121,7 @@ public class TrayIconService : IDisposable
 
         menu.Closed += (_, _) =>
         {
+            IsContextMenuActive = false;
             if (_pendingMenuRebuild)
             {
                 _pendingMenuRebuild = false;

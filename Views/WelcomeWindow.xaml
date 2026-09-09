@@ -9,6 +9,7 @@
         ResizeMode="NoResize"
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
+        Topmost="True"
         FontFamily="Segoe UI Variable Text, Segoe UI, sans-serif">
 
     <Grid x:Name="RootGrid" Background="#F8FAFC">

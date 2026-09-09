@@ -26,6 +26,13 @@ public partial class WelcomeWindow : Window
         {
             WelcomeAppIcon.Source = AppIconHelper.CreateAppBitmapSource(64);
             ToggleStartup.IsOn = _settings.Current.LaunchOnStartup;
+            Activate();
+            Focus();
+            var helper = new WindowInteropHelper(this);
+            if (helper.Handle != IntPtr.Zero)
+            {
+                Win32.SetForegroundWindow(helper.Handle);
+            }
         };
 
         _theme.ThemeChanged += () => Dispatcher.Invoke(ApplyTheme);

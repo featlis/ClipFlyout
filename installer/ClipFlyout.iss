@@ -1,6 +1,6 @@
 #define MyAppName "ClipFlyout"
 #ifndef MyAppVersion
-#define MyAppVersion "0.7.3"
+#define MyAppVersion "0.7.4"
 #endif
 #define MyAppPublisher "ClipFlyout Team"
 #define MyAppURL "https://github.com/featlis/ClipFlyout"
@@ -17,6 +17,8 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
+DisableWelcomePage=no
+DisableDirPage=no
 LicenseFile=..\LICENSE
 OutputDir=..\dist
 OutputBaseFilename=ClipFlyout-Setup-v{#MyAppVersion}
@@ -48,9 +50,18 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Name: "{userstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: startupicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--welcome"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent; Check: not IsUpgrade
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent; Check: IsUpgrade
 
 [Code]
+function IsUpgrade(): Boolean;
+var
+  UninstallKey: string;
+begin
+  UninstallKey := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppId")}_is1';
+  Result := RegKeyExists(HKLM, UninstallKey) or RegKeyExists(HKCU, UninstallKey);
+end;
+
 function InitializeUninstall(): Boolean;
 var
   ResultCode: Integer;
