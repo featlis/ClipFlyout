@@ -162,7 +162,7 @@ public class TrayIconService : IDisposable
         // 1. Title Header
         var titleItem = new MenuItem
         {
-            Header = "ClipFlyout v0.5.2",
+            Header = $"ClipFlyout {AppInfo.DisplayVersion}",
             IsEnabled = false,
             FontWeight = FontWeights.Bold,
             Foreground = new WpfBrush(WpfColor.FromRgb(100, 116, 139))

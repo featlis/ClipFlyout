@@ -46,6 +46,20 @@ public class AcrylicTransparencyTests
         Assert.True(theme.IsTransparencyEnabled || !theme.IsTransparencyEnabled); // Doesn't throw
     }
 
+    [Fact]
+    public void TestVersionConsistency()
+    {
+        Assert.Equal("v0.5.6", AppInfo.DisplayVersion);
+        Assert.Equal("0.5.6", AppInfo.VersionString);
+
+        var loc = LocalizationService.Instance;
+        loc.CurrentLanguage = AppLanguage.Japanese;
+        Assert.Equal("バージョン: v0.5.6", loc.Get("About_Version", AppInfo.DisplayVersion));
+
+        loc.CurrentLanguage = AppLanguage.English;
+        Assert.Equal("Version: v0.5.6", loc.Get("About_Version", AppInfo.DisplayVersion));
+    }
+
     [Theory]
     [InlineData(20.0, true, true)]
     [InlineData(50.0, true, true)]

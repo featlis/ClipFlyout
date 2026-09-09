@@ -407,7 +407,7 @@ public partial class SettingsWindow : Window
         SecAboutTitle.Text = _loc.Get("Section_About");
         PrivacyTitle.Text = _loc.Get("About_Privacy_Title");
         PrivacyDesc.Text = _loc.Get("About_Privacy_Desc");
-        AboutVersion.Text = _loc.Get("About_Version");
+        AboutVersion.Text = _loc.Get("About_Version", AppInfo.DisplayVersion);
         LblAutoUpdate.Text = _loc.Get("Setting_AutoUpdate");
         DescAutoUpdate.Text = _loc.Get("Setting_AutoUpdate_Desc");
         CheckUpdatesButton.Content = _loc.Get("Update_CheckNow");

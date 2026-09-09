@@ -91,7 +91,7 @@ public sealed class UpdateService
         if (installer is null) throw new InvalidOperationException("The update installer could not be started.");
     }
 
-    internal static Version CurrentVersion => typeof(UpdateService).Assembly.GetName().Version ?? new Version(0, 0, 0);
+    internal static Version CurrentVersion => AppInfo.Version;
 
     internal static string? FindSha256(string manifest, string fileName)
     {
