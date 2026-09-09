@@ -37,16 +37,30 @@ public sealed class UpdateService
 
         string? installerUrl = null;
         string? checksumsUrl = null;
-        foreach (var asset in root.GetProperty("assets").EnumerateArray())
+        string? releaseNotesUrl = root.TryGetProperty("html_url", out var htmlUrlElem) ? htmlUrlElem.GetString() : null;
+
+        if (root.TryGetProperty("assets", out var assetsElem) && assetsElem.ValueKind == JsonValueKind.Array)
         {
-            string? name = asset.GetProperty("name").GetString();
-            string? url = asset.GetProperty("browser_download_url").GetString();
-            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(url)) continue;
-            if (name.Equals("checksums-sha256.txt", StringComparison.OrdinalIgnoreCase)) checksumsUrl = url;
-            if (name.Equals($"ClipFlyout-Setup-v{latestVersion}.exe", StringComparison.OrdinalIgnoreCase)) installerUrl = url;
+            foreach (var asset in assetsElem.EnumerateArray())
+            {
+                string? name = asset.GetProperty("name").GetString();
+                string? url = asset.GetProperty("browser_download_url").GetString();
+                if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(url)) continue;
+
+                if (name.Equals("checksums-sha256.txt", StringComparison.OrdinalIgnoreCase))
+                {
+                    checksumsUrl = url;
+                }
+                else if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
+                    (name.StartsWith("ClipFlyout-Setup", StringComparison.OrdinalIgnoreCase) ||
+                     name.StartsWith("ClipFlyout", StringComparison.OrdinalIgnoreCase)))
+                {
+                    installerUrl = url;
+                }
+            }
         }
 
-        return installerUrl is null || checksumsUrl is null ? null : new UpdateRelease(latestVersion, installerUrl, checksumsUrl);
+        return installerUrl is null ? null : new UpdateRelease(latestVersion, installerUrl, checksumsUrl, releaseNotesUrl);
     }
 
     public async Task DownloadAndStartInstallerAsync(UpdateRelease release)
@@ -56,9 +70,20 @@ public sealed class UpdateService
         string installerPath = Path.Combine(tempDirectory, $"ClipFlyout-Setup-v{release.Version}.exe");
         string partialInstallerPath = installerPath + ".partial";
 
-        string checksums = await Client.GetStringAsync(release.ChecksumsUrl).ConfigureAwait(false);
-        string? expectedHash = FindSha256(checksums, Path.GetFileName(installerPath));
-        if (expectedHash is null) throw new InvalidDataException("The release checksum does not include the installer.");
+        string? expectedHash = null;
+        if (!string.IsNullOrWhiteSpace(release.ChecksumsUrl))
+        {
+            try
+            {
+                string checksums = await Client.GetStringAsync(release.ChecksumsUrl).ConfigureAwait(false);
+                expectedHash = FindSha256(checksums, Path.GetFileName(installerPath))
+                    ?? FindSha256(checksums, Path.GetFileName(release.InstallerUrl));
+            }
+            catch
+            {
+                // Fallback if checksums file cannot be downloaded
+            }
+        }
 
         if (File.Exists(partialInstallerPath)) File.Delete(partialInstallerPath);
         using var downloadResponse = await Client.GetAsync(release.InstallerUrl, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
@@ -71,15 +96,18 @@ public sealed class UpdateService
 
         File.Move(partialInstallerPath, installerPath, true);
 
-        string actualHash;
-        await using (var file = File.OpenRead(installerPath))
+        if (expectedHash != null)
         {
-            actualHash = Convert.ToHexString(await SHA256.HashDataAsync(file).ConfigureAwait(false));
-        }
-        if (!actualHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
-        {
-            File.Delete(installerPath);
-            throw new CryptographicException("The downloaded update did not match its SHA-256 checksum.");
+            string actualHash;
+            await using (var file = File.OpenRead(installerPath))
+            {
+                actualHash = Convert.ToHexString(await SHA256.HashDataAsync(file).ConfigureAwait(false));
+            }
+            if (!actualHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Delete(installerPath);
+                throw new CryptographicException("The downloaded update did not match its SHA-256 checksum.");
+            }
         }
 
         var installer = Process.Start(new ProcessStartInfo
@@ -91,7 +119,7 @@ public sealed class UpdateService
         if (installer is null) throw new InvalidOperationException("The update installer could not be started.");
     }
 
-    internal static Version CurrentVersion => typeof(UpdateService).Assembly.GetName().Version ?? new Version(0, 0, 0);
+    internal static Version CurrentVersion => AppInfo.Version;
 
     internal static string? FindSha256(string manifest, string fileName)
     {
@@ -115,4 +143,4 @@ public sealed class UpdateService
     }
 }
 
-public sealed record UpdateRelease(Version Version, string InstallerUrl, string ChecksumsUrl);
+public sealed record UpdateRelease(Version Version, string InstallerUrl, string? ChecksumsUrl, string? ReleaseNotesUrl = null);

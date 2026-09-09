@@ -6,10 +6,54 @@ namespace ClipFlyout.Native;
 public static class Win32
 {
     public const int WM_CLIPBOARDUPDATE = 0x031D;
+    public const int WM_HOTKEY = 0x0312;
     public const int GWL_EXSTYLE = -20;
+    public const int GWL_HWNDPARENT = -8;
     public const int WS_EX_NOACTIVATE = 0x08000000;
     public const int WS_EX_TOOLWINDOW = 0x00000080;
     public const int WS_EX_TOPMOST = 0x00000008;
+
+    public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+    public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+    public static readonly IntPtr HWND_TOP = new IntPtr(0);
+    public static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
+
+    public const uint SWP_NOSIZE = 0x0001;
+    public const uint SWP_NOMOVE = 0x0002;
+    public const uint SWP_NOACTIVATE = 0x0010;
+    public const uint SWP_SHOWWINDOW = 0x0040;
+    public const int WM_WINDOWPOSCHANGING = 0x0046;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct WINDOWPOS
+    {
+        public IntPtr hwnd;
+        public IntPtr hwndInsertAfter;
+        public int x;
+        public int y;
+        public int cx;
+        public int cy;
+        public uint flags;
+    }
+
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    public const uint MOD_ALT = 0x0001;
+    public const uint MOD_CONTROL = 0x0002;
+    public const uint MOD_SHIFT = 0x0004;
+    public const uint MOD_WIN = 0x0008;
+    public const uint MOD_NOREPEAT = 0x4000;
+
+    public const ushort VK_CONTROL = 0x11;
+    public const ushort VK_V = 0x56;
+
+    public const uint INPUT_KEYBOARD = 1;
+    public const uint KEYEVENTF_KEYUP = 0x0002;
 
     public const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
     public const int MDT_EFFECTIVE_DPI = 0;
@@ -36,6 +80,94 @@ public static class Win32
 
     [DllImport("user32.dll")]
     public static extern uint GetClipboardSequenceNumber();
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetClipboardOwner();
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct INPUT
+    {
+        public uint type;
+        public InputUnion u;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    public struct InputUnion
+    {
+        [FieldOffset(0)]
+        public MOUSEINPUT mi;
+        [FieldOffset(0)]
+        public KEYBDINPUT ki;
+        [FieldOffset(0)]
+        public HARDWAREINPUT hi;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct KEYBDINPUT
+    {
+        public ushort wVk;
+        public ushort wScan;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MOUSEINPUT
+    {
+        public int dx;
+        public int dy;
+        public uint mouseData;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct HARDWAREINPUT
+    {
+        public uint uMsg;
+        public ushort wParamL;
+        public ushort wParamH;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint SendInput(uint nInputs, [In] INPUT[] pInputs, int cbSize);
+
+    public static void PasteToActiveWindow()
+    {
+        var inputs = new INPUT[4];
+
+        inputs[0].type = INPUT_KEYBOARD;
+        inputs[0].u.ki.wVk = VK_CONTROL;
+
+        inputs[1].type = INPUT_KEYBOARD;
+        inputs[1].u.ki.wVk = VK_V;
+
+        inputs[2].type = INPUT_KEYBOARD;
+        inputs[2].u.ki.wVk = VK_V;
+        inputs[2].u.ki.dwFlags = KEYEVENTF_KEYUP;
+
+        inputs[3].type = INPUT_KEYBOARD;
+        inputs[3].u.ki.wVk = VK_CONTROL;
+        inputs[3].u.ki.dwFlags = KEYEVENTF_KEYUP;
+
+        SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+    }
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLong")]
     private static extern IntPtr GetWindowLong32(IntPtr hWnd, int nIndex);
@@ -179,7 +311,7 @@ public static class Win32
     /// window: WPF's AllowsTransparency turns a window into a layered window
     /// and prevents DWM from composing real acrylic behind it.
     /// </summary>
-    public static void EnableAcrylicBlur(IntPtr hwnd, bool isDark, double opacityPercent)
+    public static void EnableAcrylicBlur(IntPtr hwnd, bool isDark, double opacityPercent = 85.0, bool enableTransparency = true)
     {
         try
         {
@@ -193,53 +325,64 @@ public static class Win32
             var margins = new MARGINS { cxLeftWidth = -1, cxRightWidth = -1, cyTopHeight = -1, cyBottomHeight = -1 };
             DwmExtendFrameIntoClientArea(hwnd, ref margins);
 
-            // Windows 11 22H2+ uses the system backdrop; the Accent Policy
-            // below remains as a compatible fallback and adds the blur noise.
-            int backdropVal = DWMSBT_TRANSIENTWINDOW;
-            DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropVal, sizeof(int));
+            if (!enableTransparency)
+            {
+                int noneBackdrop = DWMSBT_NONE;
+                DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref noneBackdrop, sizeof(int));
 
-            // The tint belongs to the compositor, not WPF. This makes the
-            // slider visibly control the actual acrylic rather than an opaque
-            // WPF layer painted above it.
-            // opacityPercent 20→100: alpha 20→120 so the blur is always visible.
-            // At 20% opacity the window is very translucent (alpha=20);
-            // at 100% it is a solid tint (alpha=120) — DWM acrylic stays visible.
-            byte r = isDark ? (byte)18 : (byte)255;
-            byte g = isDark ? (byte)18 : (byte)255;
-            byte b = isDark ? (byte)24 : (byte)255;
-            // Map 20..100 → alpha 20..120 (linear), so blur is always perceptible
-            byte alpha = (byte)Math.Clamp((int)Math.Round((opacityPercent - 20.0) * (120.0 / 80.0) + 20.0), 20, 120);
+                var disabledPolicy = new AccentPolicy { AccentState = AccentState.ACCENT_DISABLED };
+                SetAccentPolicy(hwnd, disabledPolicy);
+                return;
+            }
+
+            // Windows 11 22H2+ transient system backdrop (Desktop Acrylic)
+            int backdropVal = DWMSBT_TRANSIENTWINDOW;
+            int dwmRes = DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropVal, sizeof(int));
+
+            // Accent Policy:
+            // AccentFlags = 0 (removes the unwanted top-border line from AccentFlags = 2).
+            // When DWM backdrop succeeds, use minimal alpha (0x01) so the compositor activates
+            // the hardware blur filter without imposing a competing second tint layer over WPF.
+            // When DWM backdrop is not supported (Windows 10 fallback), apply the acrylic tint.
+            byte r = isDark ? (byte)20 : (byte)255;
+            byte g = isDark ? (byte)20 : (byte)255;
+            byte b = isDark ? (byte)28 : (byte)255;
+            byte alpha = (dwmRes == 0) ? (byte)1 : (byte)Math.Clamp((int)Math.Round((opacityPercent - 20.0) * (180.0 / 80.0) + 30.0), 30, 220);
             uint abgrColor = ((uint)alpha << 24) | ((uint)b << 16) | ((uint)g << 8) | (uint)r;
 
             var policy = new AccentPolicy
             {
                 AccentState = AccentState.ACCENT_ENABLE_ACRYLICBLURBEHIND,
-                AccentFlags = 2,
+                AccentFlags = 0, // Clean: WPF renders the Fluent border
                 GradientColor = abgrColor,
                 AnimationId = 0
             };
-
-            int size = Marshal.SizeOf(policy);
-            IntPtr buffer = Marshal.AllocHGlobal(size);
-            try
-            {
-                Marshal.StructureToPtr(policy, buffer, false);
-                var data = new WindowCompositionAttributeData
-                {
-                    Attribute = WindowCompositionAttribute.WCA_ACCENT_POLICY,
-                    Data = buffer,
-                    SizeOfData = size
-                };
-                SetWindowCompositionAttribute(hwnd, ref data);
-            }
-            finally
-            {
-                Marshal.FreeHGlobal(buffer);
-            }
+            SetAccentPolicy(hwnd, policy);
         }
         catch
         {
             // Fallback gracefully
+        }
+    }
+
+    private static void SetAccentPolicy(IntPtr hwnd, AccentPolicy policy)
+    {
+        int size = Marshal.SizeOf(policy);
+        IntPtr buffer = Marshal.AllocHGlobal(size);
+        try
+        {
+            Marshal.StructureToPtr(policy, buffer, false);
+            var data = new WindowCompositionAttributeData
+            {
+                Attribute = WindowCompositionAttribute.WCA_ACCENT_POLICY,
+                Data = buffer,
+                SizeOfData = size
+            };
+            SetWindowCompositionAttribute(hwnd, ref data);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
         }
     }
 

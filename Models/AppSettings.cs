@@ -19,6 +19,15 @@ public enum FlyoutPlacement
     NearCursor
 }
 
+public enum WidgetPositionMode
+{
+    TrayLeft,
+    CenterRight,
+    CenterLeft,
+    FarLeft,
+    AboveTaskbar
+}
+
 /// <summary>
 /// User settings model with persistence support.
 /// </summary>
@@ -29,6 +38,12 @@ public class AppSettings
     public bool LaunchOnStartup { get; set; } = false;
     public AppThemeMode Theme { get; set; } = AppThemeMode.System;
     public AppLanguage Language { get; set; } = AppLanguage.Auto;
+    public bool ShowTaskbarWidget { get; set; } = true;
+    public WidgetPositionMode WidgetPosition { get; set; } = WidgetPositionMode.TrayLeft;
+    public double WidgetOffsetX { get; set; } = 0.0;
+    public bool IgnorePasswordManagers { get; set; } = true;
+    public bool EnableRecallHotkey { get; set; } = true;
+    public bool IsFirstRun { get; set; } = true;
 
     // Flyout Visuals & Behavior
     public FlyoutPlacement Placement { get; set; } = FlyoutPlacement.BottomRight;
@@ -53,6 +68,9 @@ public class AppSettings
     public bool DetectBase64 { get; set; } = true;
     public bool DetectTable { get; set; } = true;
     public bool DetectEmail { get; set; } = true;
+    public bool EnableCleanUrl { get; set; } = true;
+    public bool EnableCaseConverter { get; set; } = true;
+    public bool EnableJwtDetector { get; set; } = true;
 
     public AppSettings Clone()
     {
@@ -83,10 +101,22 @@ public class AppSettings
             normalized.Placement = FlyoutPlacement.BottomRight;
         }
 
+        if (!Enum.IsDefined(normalized.WidgetPosition))
+        {
+            normalized.WidgetPosition = WidgetPositionMode.TrayLeft;
+        }
+
+        normalized.WidgetOffsetX = Math.Clamp(normalized.WidgetOffsetX, -800.0, 800.0);
         normalized.OpacityPercent = Math.Clamp(normalized.OpacityPercent, 20.0, 100.0);
         normalized.DisplayDurationSeconds = Math.Clamp(normalized.DisplayDurationSeconds, 1.5, 10.0);
         normalized.HoverLeaveDurationSeconds = Math.Clamp(normalized.HoverLeaveDurationSeconds, 0.5, 5.0);
-        if (normalized.AccentColor is not ("#0078D4" or "#7C3AED" or "#DB2777" or "#059669" or "#D97706"))
+        if (!Enum.IsDefined(normalized.Theme))
+        {
+            normalized.Theme = AppThemeMode.System;
+        }
+
+        if (string.IsNullOrWhiteSpace(normalized.AccentColor) ||
+            !System.Text.RegularExpressions.Regex.IsMatch(normalized.AccentColor, "^#[0-9a-fA-F]{6}$"))
         {
             normalized.AccentColor = "#0078D4";
         }

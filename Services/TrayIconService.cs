@@ -56,9 +56,12 @@ public class TrayIconService : IDisposable
 
         _loc.LanguageChanged += BuildMenu;
         _theme.ThemeChanged += () => WpfApplication.Current.Dispatcher.Invoke(RebuildContextMenu);
+        HistoryService.Instance.HistoryChanged += () => WpfApplication.Current.Dispatcher.Invoke(RebuildContextMenu);
 
         BuildMenu();
     }
+
+    public event Action<DetectionResult>? HistoryItemSelected;
 
     public void OpenSettings()
     {
@@ -162,7 +165,7 @@ public class TrayIconService : IDisposable
         // 1. Title Header
         var titleItem = new MenuItem
         {
-            Header = "ClipFlyout v0.5.2",
+            Header = $"ClipFlyout {AppInfo.DisplayVersion}",
             IsEnabled = false,
             FontWeight = FontWeights.Bold,
             Foreground = new WpfBrush(WpfColor.FromRgb(100, 116, 139))
@@ -177,6 +180,40 @@ public class TrayIconService : IDisposable
         };
         _settingsItem.Click += (s, e) => OpenSettings();
         _contextMenu.Items.Add(_settingsItem);
+
+        // 2b. History Submenu
+        var historySubMenu = new MenuItem
+        {
+            Header = _loc.Get("Tray_History")
+        };
+        var historyItems = HistoryService.Instance.GetItems();
+        if (historyItems.Count == 0)
+        {
+            historySubMenu.Items.Add(new MenuItem
+            {
+                Header = _loc.Get("History_Empty"),
+                IsEnabled = false
+            });
+        }
+        else
+        {
+            foreach (var item in historyItems)
+            {
+                string header = item.DisplaySnippet;
+                if (header.Length > 28) header = header[..28] + "…";
+                var historyMenuItem = new MenuItem
+                {
+                    Header = $"{item.Timestamp:HH:mm}  {header}"
+                };
+                var targetResult = item.Result;
+                historyMenuItem.Click += (_, _) =>
+                {
+                    HistoryItemSelected?.Invoke(targetResult);
+                };
+                historySubMenu.Items.Add(historyMenuItem);
+            }
+        }
+        _contextMenu.Items.Add(historySubMenu);
 
         _contextMenu.Items.Add(new Separator());
 

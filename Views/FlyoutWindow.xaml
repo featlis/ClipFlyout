@@ -220,6 +220,7 @@
                                         BorderThickness="1"
                                         Cursor="Hand"
                                         ToolTip="{Binding Description}"
+                                        Loaded="ActionButton_Loaded"
                                         Click="ActionButton_Click"
                                         Tag="{Binding}">
                                     <Button.Template>
