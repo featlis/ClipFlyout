@@ -179,7 +179,7 @@ public static class Win32
     /// window: WPF's AllowsTransparency turns a window into a layered window
     /// and prevents DWM from composing real acrylic behind it.
     /// </summary>
-    public static void EnableAcrylicBlur(IntPtr hwnd, bool isDark, double opacityPercent)
+    public static void EnableAcrylicBlur(IntPtr hwnd, bool isDark, double opacityPercent = 85.0, bool enableTransparency = true)
     {
         try
         {
@@ -193,52 +193,64 @@ public static class Win32
             var margins = new MARGINS { cxLeftWidth = -1, cxRightWidth = -1, cyTopHeight = -1, cyBottomHeight = -1 };
             DwmExtendFrameIntoClientArea(hwnd, ref margins);
 
-            // Windows 11 22H2+ uses the system backdrop; the Accent Policy
-            // below remains as a compatible fallback and adds the blur noise.
-            int backdropVal = DWMSBT_TRANSIENTWINDOW;
-            DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropVal, sizeof(int));
+            if (!enableTransparency)
+            {
+                int noneBackdrop = DWMSBT_NONE;
+                DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref noneBackdrop, sizeof(int));
 
-            // The AccentPolicy tint is the compositor-side colour overlay.
-            // Now that CompositionTarget.BackgroundColor is transparent,
-            // this tint and the WPF RootCard.Background both contribute to
-            // the final appearance.  Keep the compositor tint moderate so
-            // that the blur noise remains visible.
-            // opacityPercent 20→100: alpha 30→180.
+                var disabledPolicy = new AccentPolicy { AccentState = AccentState.ACCENT_DISABLED };
+                SetAccentPolicy(hwnd, disabledPolicy);
+                return;
+            }
+
+            // Windows 11 22H2+ transient system backdrop (Desktop Acrylic)
+            int backdropVal = DWMSBT_TRANSIENTWINDOW;
+            int dwmRes = DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropVal, sizeof(int));
+
+            // Accent Policy:
+            // AccentFlags = 0 (removes the unwanted top-border line from AccentFlags = 2).
+            // When DWM backdrop succeeds, use minimal alpha (0x01) so the compositor activates
+            // the hardware blur filter without imposing a competing second tint layer over WPF.
+            // When DWM backdrop is not supported (Windows 10 fallback), apply the acrylic tint.
             byte r = isDark ? (byte)20 : (byte)255;
             byte g = isDark ? (byte)20 : (byte)255;
             byte b = isDark ? (byte)28 : (byte)255;
-            byte alpha = (byte)Math.Clamp((int)Math.Round((opacityPercent - 20.0) * (150.0 / 80.0) + 30.0), 30, 180);
+            byte alpha = (dwmRes == 0) ? (byte)1 : (byte)Math.Clamp((int)Math.Round((opacityPercent - 20.0) * (180.0 / 80.0) + 30.0), 30, 220);
             uint abgrColor = ((uint)alpha << 24) | ((uint)b << 16) | ((uint)g << 8) | (uint)r;
 
             var policy = new AccentPolicy
             {
                 AccentState = AccentState.ACCENT_ENABLE_ACRYLICBLURBEHIND,
-                AccentFlags = 2,
+                AccentFlags = 0, // Clean: WPF renders the Fluent border
                 GradientColor = abgrColor,
                 AnimationId = 0
             };
-
-            int size = Marshal.SizeOf(policy);
-            IntPtr buffer = Marshal.AllocHGlobal(size);
-            try
-            {
-                Marshal.StructureToPtr(policy, buffer, false);
-                var data = new WindowCompositionAttributeData
-                {
-                    Attribute = WindowCompositionAttribute.WCA_ACCENT_POLICY,
-                    Data = buffer,
-                    SizeOfData = size
-                };
-                SetWindowCompositionAttribute(hwnd, ref data);
-            }
-            finally
-            {
-                Marshal.FreeHGlobal(buffer);
-            }
+            SetAccentPolicy(hwnd, policy);
         }
         catch
         {
             // Fallback gracefully
+        }
+    }
+
+    private static void SetAccentPolicy(IntPtr hwnd, AccentPolicy policy)
+    {
+        int size = Marshal.SizeOf(policy);
+        IntPtr buffer = Marshal.AllocHGlobal(size);
+        try
+        {
+            Marshal.StructureToPtr(policy, buffer, false);
+            var data = new WindowCompositionAttributeData
+            {
+                Attribute = WindowCompositionAttribute.WCA_ACCENT_POLICY,
+                Data = buffer,
+                SizeOfData = size
+            };
+            SetWindowCompositionAttribute(hwnd, ref data);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
         }
     }
 

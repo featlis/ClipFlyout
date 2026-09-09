@@ -13,6 +13,7 @@ public class ThemeService : IDisposable
 
     private AppThemeMode _mode = AppThemeMode.System;
     private bool _isDarkTheme;
+    private bool _isTransparencyEnabled = true;
 
     public event Action? ThemeChanged;
 
@@ -30,6 +31,7 @@ public class ThemeService : IDisposable
     }
 
     public bool IsDarkTheme => _isDarkTheme;
+    public bool IsTransparencyEnabled => _isTransparencyEnabled;
 
     public Color AccentColor
     {
@@ -46,8 +48,20 @@ public class ThemeService : IDisposable
         }
     }
 
+    private readonly Action<AppSettings> _settingsChangedHandler;
+
     public ThemeService()
     {
+        _mode = SettingsService.Instance.Current.Theme;
+        _settingsChangedHandler = cfg =>
+        {
+            if (_mode != cfg.Theme)
+            {
+                _mode = cfg.Theme;
+                UpdateThemeResolution();
+            }
+        };
+        SettingsService.Instance.SettingsChanged += _settingsChangedHandler;
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         UpdateThemeResolution();
     }
@@ -56,16 +70,14 @@ public class ThemeService : IDisposable
     {
         if (e.Category == UserPreferenceCategory.General || e.Category == UserPreferenceCategory.Color)
         {
-            if (_mode == AppThemeMode.System)
-            {
-                Application.Current?.Dispatcher.Invoke(UpdateThemeResolution);
-            }
+            Application.Current?.Dispatcher.Invoke(UpdateThemeResolution);
         }
     }
 
     public void UpdateThemeResolution()
     {
         bool wasDark = _isDarkTheme;
+        bool wasTransparency = _isTransparencyEnabled;
 
         if (_mode == AppThemeMode.Dark)
         {
@@ -79,6 +91,8 @@ public class ThemeService : IDisposable
         {
             _isDarkTheme = GetWindowsIsDarkTheme();
         }
+
+        _isTransparencyEnabled = GetWindowsIsTransparencyEnabled();
 
         ThemeChanged?.Invoke();
     }
@@ -101,8 +115,27 @@ public class ThemeService : IDisposable
         return true;
     }
 
+    private static bool GetWindowsIsTransparencyEnabled()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            var value = key?.GetValue("EnableTransparency");
+            if (value is int intVal)
+            {
+                return intVal != 0;
+            }
+        }
+        catch
+        {
+            // Default to true if cannot read
+        }
+        return true;
+    }
+
     public void Dispose()
     {
+        SettingsService.Instance.SettingsChanged -= _settingsChangedHandler;
         SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
     }
 }

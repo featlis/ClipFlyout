@@ -24,6 +24,9 @@ public partial class FlyoutWindow : Window
     public event Action? MouseLeft;
     public event Action? CloseRequested;
 
+    private readonly Action _themeChangedHandler;
+    private readonly Action<AppSettings> _settingsChangedHandler;
+
     public FlyoutWindow()
     {
         InitializeComponent();
@@ -35,8 +38,28 @@ public partial class FlyoutWindow : Window
         MouseEnter += (_, _) => MouseEntered?.Invoke();
         MouseLeave += (_, _) => MouseLeft?.Invoke();
 
-        ThemeService.Instance.ThemeChanged += () => Dispatcher.Invoke(ApplyTheme);
-        SettingsService.Instance.SettingsChanged += _ => Dispatcher.Invoke(ApplyTheme);
+        _themeChangedHandler = () =>
+        {
+            if (!Dispatcher.HasShutdownStarted && !Dispatcher.HasShutdownFinished)
+            {
+                Dispatcher.BeginInvoke(ApplyTheme);
+            }
+        };
+        _settingsChangedHandler = _ =>
+        {
+            if (!Dispatcher.HasShutdownStarted && !Dispatcher.HasShutdownFinished)
+            {
+                Dispatcher.BeginInvoke(ApplyTheme);
+            }
+        };
+
+        ThemeService.Instance.ThemeChanged += _themeChangedHandler;
+        SettingsService.Instance.SettingsChanged += _settingsChangedHandler;
+        Closed += (_, _) =>
+        {
+            ThemeService.Instance.ThemeChanged -= _themeChangedHandler;
+            SettingsService.Instance.SettingsChanged -= _settingsChangedHandler;
+        };
 
         ApplyTheme();
     }
@@ -68,26 +91,35 @@ public partial class FlyoutWindow : Window
         if (_hwnd == IntPtr.Zero) return;
 
         bool isDark = ThemeService.Instance.IsDarkTheme;
-        Win32.EnableAcrylicBlur(_hwnd, isDark, SettingsService.Instance.Current.OpacityPercent);
+        bool isTransparency = ThemeService.Instance.IsTransparencyEnabled;
+        Win32.EnableAcrylicBlur(_hwnd, isDark, SettingsService.Instance.Current.OpacityPercent, isTransparency);
     }
 
     public void ApplyTheme()
     {
         bool isDark = ThemeService.Instance.IsDarkTheme;
+        bool isTransparency = ThemeService.Instance.IsTransparencyEnabled;
         double opacity = SettingsService.Instance.Current.OpacityPercent;
         var accent = ThemeService.Instance.AccentColor;
 
         ApplyHardwareAcrylic();
 
-        // bgAlpha: tint layer over the DWM acrylic blur.
-        // Now that CompositionTarget.BackgroundColor is transparent the blur
-        // is actually visible, so this tint controls readability vs blur.
-        // 20% opacity → alpha=20 (very translucent), 100% → alpha=160.
-        byte bgAlpha = (byte)Math.Clamp((int)Math.Round((opacity - 20.0) * (140.0 / 80.0) + 20.0), 20, 160);
+        // bgAlpha: single unified tint layer over the DWM acrylic blur.
+        // If transparency is disabled in Windows Settings, fall back to solid background (alpha=255).
+        // If transparency is enabled, map user opacity (20%-100%) cleanly to single tint alpha (30-230).
+        byte bgAlpha;
+        if (!isTransparency)
+        {
+            bgAlpha = 255;
+        }
+        else
+        {
+            bgAlpha = (byte)Math.Clamp((int)Math.Round((opacity - 20.0) * (200.0 / 80.0) + 30.0), 30, 230);
+        }
 
         if (isDark)
         {
-            RootCard.Background = new SolidColorBrush(Color.FromArgb(bgAlpha, 18, 18, 24));
+            RootCard.Background = new SolidColorBrush(Color.FromArgb(bgAlpha, 20, 20, 26));
             RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(90, 255, 255, 255));
             InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255));
 
@@ -95,12 +127,12 @@ public partial class FlyoutWindow : Window
             HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
             CloseButton.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
 
-            // Translucent preview panel (never completely opaque black)
-            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(35, 255, 255, 255));
+            // Translucent preview panel (subtle plate over acrylic, allowing blur to show through)
+            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(25, 255, 255, 255));
             TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
             BodyPreviewText.Foreground = new SolidColorBrush(Color.FromRgb(226, 232, 240));
 
-            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(35, 255, 255, 255));
+            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(25, 255, 255, 255));
             ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
 
             ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
@@ -112,7 +144,7 @@ public partial class FlyoutWindow : Window
         }
         else
         {
-            // Light mode: pure white tint over OS acrylic, NOT blue-grey
+            // Light mode: pure white tint over OS acrylic
             RootCard.Background = new SolidColorBrush(Color.FromArgb(bgAlpha, 255, 255, 255));
             RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(120, 180, 190, 200));
             InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255));
@@ -121,12 +153,12 @@ public partial class FlyoutWindow : Window
             HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
             CloseButton.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
 
-            // Translucent preview panel — white with subtle border
-            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255));
+            // Translucent preview panel — subtle translucent plate over acrylic, letting blur show through
+            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
             TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 148, 163, 184));
             BodyPreviewText.Foreground = new SolidColorBrush(Color.FromRgb(30, 41, 59));
 
-            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255));
+            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
             ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 148, 163, 184));
 
             ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
@@ -239,6 +271,8 @@ public partial class FlyoutWindow : Window
         _presentationGeneration++;
         _currentResult = result;
         _isClosing = false;
+
+        ApplyTheme();
 
         // A new clipboard value can arrive while the previous card is fading
         // out. Remove that clock before displaying the new content; otherwise
