@@ -60,27 +60,7 @@ public partial class TaskbarWidgetWindow : Window
         exStyle |= Win32.WS_EX_NOACTIVATE | Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_TOPMOST;
         Win32.SetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE, (IntPtr)exStyle);
 
-        // Make taskbar the owner window so widget stays in front of taskbar even when clicked
-        IntPtr taskbarHwnd = Win32.FindWindow("Shell_TrayWnd", null);
-        if (taskbarHwnd != IntPtr.Zero)
-        {
-            Win32.SetWindowLongPtr(_hwnd, Win32.GWL_HWNDPARENT, taskbarHwnd);
-        }
-
-        hwndSource?.AddHook(WndProc);
-
         ApplyTheme();
-    }
-
-    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
-    {
-        if (msg == Win32.WM_WINDOWPOSCHANGING && lParam != IntPtr.Zero)
-        {
-            var pos = Marshal.PtrToStructure<Win32.WINDOWPOS>(lParam);
-            pos.hwndInsertAfter = Win32.HWND_TOPMOST;
-            Marshal.StructureToPtr(pos, lParam, false);
-        }
-        return IntPtr.Zero;
     }
 
     public void UpdatePosition()
@@ -229,9 +209,10 @@ public partial class TaskbarWidgetWindow : Window
             displayContent = result.PreviewTitle;
         }
 
-        if (displayContent.Length > 45)
+        const int MaxWidgetPreviewLength = 18;
+        if (displayContent.Length > MaxWidgetPreviewLength)
         {
-            displayContent = displayContent.Substring(0, 42) + "...";
+            displayContent = displayContent.Substring(0, MaxWidgetPreviewLength) + "...";
         }
 
         ClipPreviewText.Text = displayContent;

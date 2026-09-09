@@ -89,6 +89,7 @@
                        FontSize="12"
                        FontWeight="SemiBold"
                        Foreground="#F1F5F9"
+                       HorizontalAlignment="Left"
                        TextTrimming="CharacterEllipsis"
                        VerticalAlignment="Center">
                 <TextBlock.Effect>

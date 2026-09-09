@@ -51,6 +51,11 @@ public class TrayIconService : IDisposable
             ToolTipText = "ClipFlyout",
             ContextMenu = _contextMenu
         };
+        _taskbarIcon.TrayLeftMouseUp += (s, e) =>
+        {
+            _contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+            _contextMenu.IsOpen = true;
+        };
         _taskbarIcon.TrayMouseDoubleClick += (s, e) => OpenSettings();
         _taskbarIcon.ForceCreate();
 
@@ -93,12 +98,33 @@ public class TrayIconService : IDisposable
         }
     }
 
+    private bool _pendingMenuRebuild;
+
     private ContextMenu CreateContextMenu()
     {
         var menu = new ContextMenu
         {
-            FontSize = 12.5
+            FontSize = 12.5,
+            Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint
         };
+
+        menu.Opened += (_, _) =>
+        {
+            if (PresentationSource.FromVisual(menu) is System.Windows.Interop.HwndSource source)
+            {
+                Native.Win32.SetForegroundWindow(source.Handle);
+            }
+        };
+
+        menu.Closed += (_, _) =>
+        {
+            if (_pendingMenuRebuild)
+            {
+                _pendingMenuRebuild = false;
+                RebuildContextMenu();
+            }
+        };
+
         return menu;
     }
 
@@ -159,6 +185,12 @@ public class TrayIconService : IDisposable
 
     private void RebuildContextMenu()
     {
+        if (_contextMenu.IsOpen)
+        {
+            _pendingMenuRebuild = true;
+            return;
+        }
+
         _contextMenu.Items.Clear();
         UpdateMenuTheme();
 
