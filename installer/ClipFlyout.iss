@@ -1,6 +1,6 @@
 #define MyAppName "ClipFlyout"
 #ifndef MyAppVersion
-#define MyAppVersion "0.7.4"
+#define MyAppVersion "0.7.5"
 #endif
 #define MyAppPublisher "ClipFlyout Team"
 #define MyAppURL "https://github.com/featlis/ClipFlyout"
@@ -67,7 +67,7 @@ var
   ResultCode: Integer;
 begin
   Result := True;
-  Exec('taskkill.exe', '/F /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('taskkill.exe', '/F /T /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Sleep(500);
 end;
 
@@ -76,6 +76,6 @@ var
   ResultCode: Integer;
 begin
   Result := True;
-  Exec('taskkill.exe', '/F /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('taskkill.exe', '/F /T /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Sleep(300);
 end;

@@ -140,9 +140,11 @@ public partial class ToggleSwitch : UserControl
         ApplyColors(animate);
     }
 
+    public bool? ForceLightMode { get; set; }
+
     private void ApplyColors(bool animate)
     {
-        bool isDark = ThemeService.Instance.IsDarkTheme;
+        bool isDark = ForceLightMode == true ? false : (ForceLightMode == false ? true : ThemeService.Instance.IsDarkTheme);
         Color targetBg;
         Color targetBorder;
         Color targetThumb;

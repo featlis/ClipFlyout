@@ -23,8 +23,12 @@ public partial class App : WpfApplication
     private HotkeyService? _hotkeyService;
     private long _detectionGeneration;
 
+    [System.Runtime.InteropServices.DllImport("shell32.dll", SetLastError = true)]
+    private static extern void SetCurrentProcessExplicitAppUserModelID([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string AppID);
+
     protected override void OnStartup(StartupEventArgs e)
     {
+        try { SetCurrentProcessExplicitAppUserModelID("featlis.ClipFlyout"); } catch { }
         base.OnStartup(e);
 
         try
@@ -76,12 +80,16 @@ public partial class App : WpfApplication
                 }
             }
 
-            if (isWelcomeArg || _settingsService.Current.IsFirstRun)
+            if (isWelcomeArg)
             {
                 var welcome = new WelcomeWindow();
                 welcome.CustomizeRequested += () => _trayIconService?.OpenSettings();
                 welcome.Show();
                 welcome.Activate();
+            }
+            else if (_settingsService.Current.IsFirstRun)
+            {
+                _settingsService.UpdateSettings(s => s.IsFirstRun = false);
             }
 
             if (ShouldCheckForUpdates(_settingsService.Current))

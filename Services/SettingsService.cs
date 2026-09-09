@@ -50,24 +50,54 @@ public class SettingsService
 
     public AppSettings LoadSettings()
     {
+        AppSettings result;
         try
         {
             if (File.Exists(_settingsFilePath))
             {
                 string json = File.ReadAllText(_settingsFilePath);
                 var loaded = JsonSerializer.Deserialize<AppSettings>(json);
-                if (loaded != null)
+                result = loaded?.Normalize() ?? new AppSettings().Normalize();
+            }
+            else
+            {
+                result = new AppSettings().Normalize();
+                if (_syncStartupRegistry && IsStartupConfigured())
                 {
-                    return loaded.Normalize();
+                    result.LaunchOnStartup = true;
                 }
             }
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Failed to load settings: {ex.Message}");
+            result = new AppSettings().Normalize();
         }
 
-        return new AppSettings().Normalize();
+        if (!result.LaunchOnStartup && _syncStartupRegistry && IsStartupConfigured())
+        {
+            result.LaunchOnStartup = true;
+        }
+
+        return result;
+    }
+
+    public static bool IsStartupConfigured()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false);
+            if (key?.GetValue("ClipFlyout") != null) return true;
+
+            string startupDir = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+            if (!string.IsNullOrEmpty(startupDir))
+            {
+                if (File.Exists(Path.Combine(startupDir, "ClipFlyout.lnk"))) return true;
+                if (File.Exists(Path.Combine(startupDir, "ClipFlyout.exe.lnk"))) return true;
+            }
+        }
+        catch { }
+        return false;
     }
 
     public void SaveSettings(AppSettings settings)
@@ -105,20 +135,30 @@ public class SettingsService
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
-            if (key == null) return;
-
             string? exePath = Environment.ProcessPath;
-            if (string.IsNullOrEmpty(exePath)) return;
 
             if (enable)
             {
-                key.SetValue("ClipFlyout", $"\"{exePath}\"");
+                if (key != null && !string.IsNullOrEmpty(exePath))
+                {
+                    key.SetValue("ClipFlyout", $"\"{exePath}\"");
+                }
             }
             else
             {
-                if (key.GetValue("ClipFlyout") != null)
+                if (key?.GetValue("ClipFlyout") != null)
                 {
                     key.DeleteValue("ClipFlyout", false);
+                }
+
+                // Also clean up shortcut dropped by Inno Setup in {userstartup}
+                string startupDir = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+                if (!string.IsNullOrEmpty(startupDir))
+                {
+                    string linkPath1 = Path.Combine(startupDir, "ClipFlyout.lnk");
+                    if (File.Exists(linkPath1)) { try { File.Delete(linkPath1); } catch { } }
+                    string linkPath2 = Path.Combine(startupDir, "ClipFlyout.exe.lnk");
+                    if (File.Exists(linkPath2)) { try { File.Delete(linkPath2); } catch { } }
                 }
             }
         }

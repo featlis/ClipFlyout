@@ -184,6 +184,7 @@ public class LocalizationService
         { "Toast_JsonArrayCopied", new("JSON配列をコピーしました", "JSON array copied") },
 
         // Tray Menu & Status
+        { "Tray_Settings_Flyout", new("フライアウトを開く", "Open Flyout") },
         { "Tray_Settings", new("設定...", "Settings...") },
         { "Tray_Theme", new("テーマ", "Theme") },
         { "Tray_ThemeSystem", new("システム連動", "System Default") },
@@ -334,6 +335,8 @@ public class LocalizationService
         { "Welcome_Feat3_Desc", new("外部通信なし。1PasswordやBitwardenなどのパスワード管理ツールは自動除外", "Zero external network requests. Password managers automatically excluded") },
         { "Welcome_Customize", new("詳細をカスタマイズ", "Customize Settings") },
         { "Welcome_UseDefaults", new("既定値で使用する (推奨)", "Use Defaults (Recommended)") },
+        { "Welcome_Language", new("表示言語", "Display Language") },
+        { "Welcome_Language_Desc", new("インターフェースの表示言語を選択します", "Select the display language for the application") },
 
         { "Section_About", new("アプリについて", "About") },
         { "About_Privacy_Title", new("ローカル処理について", "Local processing") },

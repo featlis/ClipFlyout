@@ -70,7 +70,15 @@ public static class AppIconHelper
     {
         using var bmp = CreateAppBitmap(size);
         IntPtr hIcon = bmp.GetHicon();
-        return (Icon)Icon.FromHandle(hIcon).Clone();
+        try
+        {
+            using var tempIcon = Icon.FromHandle(hIcon);
+            return (Icon)tempIcon.Clone();
+        }
+        finally
+        {
+            Native.Win32.DestroyIcon(hIcon);
+        }
     }
 
     public static BitmapSource CreateAppBitmapSource(int size = 32)

@@ -4,7 +4,7 @@
         xmlns:controls="clr-namespace:ClipFlyout.Controls"
         Title="ClipFlyout へようこそ"
         Width="580"
-        Height="620"
+        Height="670"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         SnapsToDevicePixels="True"
@@ -94,6 +94,27 @@
                     </Grid>
                 </Border>
 
+                <!-- Quick Language Option Card -->
+                <Border x:Name="CardOptionLanguage" CornerRadius="8" BorderThickness="1" BorderBrush="#E2E8F0" Background="#FFFFFF" Padding="16,12" Margin="0,0,0,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock x:Name="OptLanguageTitle" Text="表示言語" FontSize="13" FontWeight="Medium" Foreground="#0F172A"/>
+                            <TextBlock x:Name="OptLanguageDesc" Text="インターフェースの表示言語を選択します" FontSize="11.5" Foreground="#64748B" Margin="0,1,0,0"/>
+                        </StackPanel>
+                        <ComboBox x:Name="CmbLanguage" Grid.Column="1" Width="150" Height="30" VerticalAlignment="Center"
+                                  Background="#FFFFFF" BorderBrush="#CBD5E1" Foreground="#0F172A" FontSize="12"
+                                  SelectionChanged="CmbLanguage_SelectionChanged">
+                            <ComboBoxItem Content="自動検出 (OS設定)" Tag="Auto"/>
+                            <ComboBoxItem Content="日本語" Tag="Japanese"/>
+                            <ComboBoxItem Content="English" Tag="English"/>
+                        </ComboBox>
+                    </Grid>
+                </Border>
+
                 <!-- Quick Startup Option Card -->
                 <Border x:Name="CardOptionStartup" CornerRadius="8" BorderThickness="1" BorderBrush="#E2E8F0" Background="#FFFFFF" Padding="16,12">
                     <Grid>
@@ -105,7 +126,7 @@
                             <TextBlock x:Name="OptStartupTitle" Text="Windows 起動時に自動開始" FontSize="13" FontWeight="Medium" Foreground="#0F172A"/>
                             <TextBlock x:Name="OptStartupDesc" Text="PC起動時にバックグラウンドでスタンバイします" FontSize="11.5" Foreground="#64748B" Margin="0,1,0,0"/>
                         </StackPanel>
-                        <controls:ToggleSwitch Grid.Column="1" x:Name="ToggleStartup" VerticalAlignment="Center"/>
+                        <controls:ToggleSwitch Grid.Column="1" x:Name="ToggleStartup" VerticalAlignment="Center" ForceLightMode="True"/>
                     </Grid>
                 </Border>
             </StackPanel>
@@ -125,13 +146,32 @@
                         HorizontalAlignment="Left"
                         Height="36"
                         Padding="18,0"
+                        BorderThickness="1"
+                        FontSize="13"
+                        FontWeight="Medium"
                         Cursor="Hand"
                         Click="BtnCustomize_Click">
-                    <Button.Resources>
-                        <Style TargetType="Border">
-                            <Setter Property="CornerRadius" Value="6"/>
-                        </Style>
-                    </Button.Resources>
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="btnBorder"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="btnBorder" Property="Background" Value="#F8FAFC"/>
+                                    <Setter TargetName="btnBorder" Property="BorderBrush" Value="#94A3B8"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="btnBorder" Property="Background" Value="#E2E8F0"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
                 </Button>
 
                 <Button Grid.Column="1"
@@ -139,14 +179,31 @@
                         Content="既定値で使用する (推奨)"
                         Height="36"
                         Padding="22,0"
+                        FontSize="13"
                         FontWeight="SemiBold"
+                        BorderThickness="1"
                         Cursor="Hand"
                         Click="BtnUseDefaults_Click">
-                    <Button.Resources>
-                        <Style TargetType="Border">
-                            <Setter Property="CornerRadius" Value="6"/>
-                        </Style>
-                    </Button.Resources>
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="btnBorder"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="btnBorder" Property="Opacity" Value="0.92"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="btnBorder" Property="Opacity" Value="0.82"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
                 </Button>
             </Grid>
         </Border>

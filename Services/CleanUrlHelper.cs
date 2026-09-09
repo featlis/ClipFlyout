@@ -11,13 +11,15 @@ public static class CleanUrlHelper
     {
         "fbclid", "gclid", "msclkid", "yclid", "mc_cid", "mc_eid",
         "igshid", "twclid", "ttclid", "wbraid", "gbraid",
-        "_ga", "_gl", "ref", "ref_src", "source", "spm"
+        "_ga", "_gl", "ref", "ref_src", "source", "spm",
+        "si", "feature", "scm", "share_id", "tracking_id"
     };
 
     public static bool IsTrackingKey(string key)
     {
         if (string.IsNullOrWhiteSpace(key)) return false;
         if (key.StartsWith("utm_", StringComparison.OrdinalIgnoreCase)) return true;
+        if (key.StartsWith("ref_", StringComparison.OrdinalIgnoreCase)) return true;
         return KnownTrackingKeys.Contains(key);
     }
 

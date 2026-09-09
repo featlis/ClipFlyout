@@ -1,6 +1,6 @@
 {
   "project": "ClipFlyout",
-  "version": "0.7.4",
+  "version": "0.7.5",
   "target_framework": "net9.0-windows",
   "architecture": {
     "ui": "WPF + PowerToys-inspired settings cards (Windows 11 transient DWM acrylic with Accent Policy fallback, 20%-100% opacity, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings, Taskbar Widget, Welcome Wizard, rich WinUI 3 stretch toggle switch)",
@@ -107,6 +107,8 @@
     "v0.7.1: enhanced taskbar widget (frameless taskbar integration, position docking modes), animated WinUI 3 stretch toggle switch, full RGB slider & hex color picker, system theme default, tabbed settings with author info & GPLv3 license card, initial setup wizard (WelcomeWindow), high-res vector icon helper.",
     "v0.7.2: added TaskbarColorDetector for automatic taskbar color/luminance detection, adaptive high-contrast widget text color modes (Auto/Light/Dark) with drop shadows.",
     "v0.7.3: supported left-click tray menu activation, uninstaller and setup auto-termination of running ClipFlyout instances via taskkill, widget preview anchored to start of content (18 chars), eliminated cross-process GWL_HWNDPARENT Explorer focus contention.",
-    "v0.7.4: fixed widget continuous topmost persistence using 250ms DispatcherTimer + Win32.GetWindow(GW_HWNDPREV) + WM_WINDOWPOSCHANGING (protected during context menu active); fixed setup wizard display so it runs on clean installer install only (IsUpgrade registry detection in Inno Setup) and is suppressed on update; ensured user's preferred tray icon is permanently displayed on taskbar widget (removed emoji overrides); generated Win32 GDI / Inno Setup compliant BMP/PNG multi-res ICO asset."
+    "v0.7.4: fixed widget continuous topmost persistence using 250ms DispatcherTimer + Win32.GetWindow(GW_HWNDPREV) + WM_WINDOWPOSCHANGING (protected during context menu active); fixed setup wizard display so it runs on clean installer install only (IsUpgrade registry detection in Inno Setup) and is suppressed on update; ensured user's preferred tray icon is permanently displayed on taskbar widget (removed emoji overrides); generated Win32 GDI / Inno Setup compliant BMP/PNG multi-res ICO asset.",
+    "v0.7.4-refinement: setup wizard (WelcomeWindow) permanently fixed to Light Mode with custom ControlTemplate buttons and ForceLightMode ToggleSwitch; restricted setup launch strictly to installer --welcome flag (suppressed on upgrades and normal runs); coordinated widget topmost timer with FlyoutWindow.IsFlyoutOpen and TrayIconService.IsContextMenuActive; prevented GDI icon handle leaks via Win32.DestroyIcon; enabled tray icon left-click menu toggle.",
+    "v0.7.5: added language selection (Auto / Japanese / English) directly inside the initial setup wizard (WelcomeWindow) with real-time UI text update; resolved startup synchronization inconsistency between Inno Setup {userstartup} shortcuts and HKCU Run registry; registered missing Tray_Settings_Flyout localization key; enhanced CleanUrlHelper with YouTube (si, feature), Amazon (ref_), and share tracking parameter stripping; added WM_SETTINGCHANGE handling and DisplaySettingsChanged event unsubscribe to TaskbarWidgetWindow; cleaned redundant Icon attribute from SettingsWindow.xaml."
   ]
 }

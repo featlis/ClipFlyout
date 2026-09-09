@@ -20,13 +20,15 @@ public partial class SettingsWindow : Window
     private readonly LocalizationService _loc = LocalizationService.Instance;
     private IntPtr _hwnd = IntPtr.Zero;
     private UpdateRelease? _pendingUpdate;
+    private System.Drawing.Icon? _iconBig;
+    private System.Drawing.Icon? _iconSmall;
 
     public SettingsWindow()
     {
         InitializeComponent();
         try
         {
-            Icon = AppIconHelper.GetAppIconBitmapSource(32);
+            Icon = AppIconHelper.GetAppIconBitmapSource(64);
             HeaderAppIcon.Source = AppIconHelper.GetAppIconBitmapSource(40);
         }
         catch { }
@@ -36,6 +38,11 @@ public partial class SettingsWindow : Window
         _theme.ThemeChanged += () => Dispatcher.Invoke(ApplyTheme);
 
         Loaded += SettingsWindow_Loaded;
+        Closed += (_, _) =>
+        {
+            _iconBig?.Dispose();
+            _iconSmall?.Dispose();
+        };
     }
 
     private void SettingsWindow_SourceInitialized(object? sender, EventArgs e)
@@ -43,6 +50,41 @@ public partial class SettingsWindow : Window
         var helper = new WindowInteropHelper(this);
         _hwnd = helper.Handle;
         ApplyMicaEffect();
+
+        // Enforce the modern gradient clipboard icon directly on Win32 HWND so Windows Taskbar,
+        // Alt+Tab, and titlebar never fall back to old cached shell icons.
+        try
+        {
+            _iconBig = AppIconHelper.CreateAppIcon(64);
+            _iconSmall = AppIconHelper.CreateAppIcon(16);
+
+            Win32.SendMessage(_hwnd, Win32.WM_SETICON, (IntPtr)Win32.ICON_BIG, _iconBig.Handle);
+            Win32.SendMessage(_hwnd, Win32.WM_SETICON, (IntPtr)Win32.ICON_SMALL, _iconSmall.Handle);
+            Win32.SetClassLongPtr(_hwnd, Win32.GCLP_HICON, _iconBig.Handle);
+            Win32.SetClassLongPtr(_hwnd, Win32.GCLP_HICONSM, _iconSmall.Handle);
+        }
+        catch { }
+
+        var source = HwndSource.FromHwnd(_hwnd);
+        source?.AddHook(WndProc);
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == Win32.WM_GETICON)
+        {
+            if ((int)wParam == Win32.ICON_BIG && _iconBig != null)
+            {
+                handled = true;
+                return _iconBig.Handle;
+            }
+            if ((int)wParam == Win32.ICON_SMALL && _iconSmall != null)
+            {
+                handled = true;
+                return _iconSmall.Handle;
+            }
+        }
+        return IntPtr.Zero;
     }
 
     private void ApplyMicaEffect()

@@ -24,6 +24,7 @@ public partial class TaskbarWidgetWindow : Window
     private bool _isHovered;
 
     private readonly DispatcherTimer _topmostTimer;
+    private readonly EventHandler _displaySettingsHandler;
 
     public event Action<DetectionResult>? FlyoutRequested;
     public event Action? SettingsRequested;
@@ -40,6 +41,8 @@ public partial class TaskbarWidgetWindow : Window
         };
         _topmostTimer.Tick += (_, _) => EnsureTopmost();
 
+        _displaySettingsHandler = (_, _) => Dispatcher.Invoke(UpdatePosition);
+
         SourceInitialized += OnSourceInitialized;
         Loaded += (_, _) =>
         {
@@ -48,14 +51,18 @@ public partial class TaskbarWidgetWindow : Window
             _topmostTimer.Start();
             EnsureTopmost();
         };
-        Closed += (_, _) => _topmostTimer.Stop();
+        Closed += (_, _) =>
+        {
+            _topmostTimer.Stop();
+            SystemEvents.DisplaySettingsChanged -= _displaySettingsHandler;
+        };
         Deactivated += (_, _) => EnsureTopmost();
         LocationChanged += (_, _) => EnsureTopmost();
 
         _settings.SettingsChanged += OnSettingsChanged;
         _theme.ThemeChanged += () => Dispatcher.Invoke(ApplyTheme);
         _loc.LanguageChanged += () => Dispatcher.Invoke(ApplyLocalization);
-        SystemEvents.DisplaySettingsChanged += (_, _) => Dispatcher.Invoke(UpdatePosition);
+        SystemEvents.DisplaySettingsChanged += _displaySettingsHandler;
 
         ApplyTheme();
         ApplyLocalization();
@@ -398,7 +405,7 @@ public partial class TaskbarWidgetWindow : Window
     public void EnsureTopmost()
     {
         if (_hwnd == IntPtr.Zero || !IsVisible) return;
-        if (WidgetContextMenu?.IsOpen == true || TrayIconService.IsContextMenuActive) return;
+        if (WidgetContextMenu?.IsOpen == true || TrayIconService.IsContextMenuActive || FlyoutWindow.IsFlyoutOpen) return;
 
         IntPtr prevHwnd = Win32.GetWindow(_hwnd, Win32.GW_HWNDPREV);
         if (prevHwnd == IntPtr.Zero)
@@ -418,8 +425,12 @@ public partial class TaskbarWidgetWindow : Window
     {
         switch (msg)
         {
+            case Win32.WM_SETTINGCHANGE:
+                UpdatePosition();
+                break;
+
             case Win32.WM_WINDOWPOSCHANGING:
-                if (WidgetContextMenu?.IsOpen != true && !TrayIconService.IsContextMenuActive)
+                if (WidgetContextMenu?.IsOpen != true && !TrayIconService.IsContextMenuActive && !FlyoutWindow.IsFlyoutOpen)
                 {
                     var pos = Marshal.PtrToStructure<Win32.WINDOWPOS>(lParam);
                     pos.hwndInsertAfter = Win32.HWND_TOPMOST;

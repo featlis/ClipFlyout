@@ -20,6 +20,8 @@ public partial class FlyoutWindow : Window
     private IntPtr _hwnd = IntPtr.Zero;
     private long _presentationGeneration;
 
+    public static bool IsFlyoutOpen { get; private set; }
+
     public event Action? MouseEntered;
     public event Action? MouseLeft;
     public event Action? CloseRequested;
@@ -58,6 +60,7 @@ public partial class FlyoutWindow : Window
         SettingsService.Instance.SettingsChanged += _settingsChangedHandler;
         Closed += (_, _) =>
         {
+            IsFlyoutOpen = false;
             ThemeService.Instance.ThemeChanged -= _themeChangedHandler;
             SettingsService.Instance.SettingsChanged -= _settingsChangedHandler;
         };
@@ -288,6 +291,7 @@ public partial class FlyoutWindow : Window
         _presentationGeneration++;
         _currentResult = result;
         _isClosing = false;
+        IsFlyoutOpen = true;
 
         ApplyTheme();
 
@@ -359,6 +363,7 @@ public partial class FlyoutWindow : Window
                     return;
                 }
                 Hide();
+                IsFlyoutOpen = false;
                 _isClosing = false;
                 onCompleted();
             };
@@ -368,6 +373,7 @@ public partial class FlyoutWindow : Window
         else
         {
             Hide();
+            IsFlyoutOpen = false;
             _isClosing = false;
             onCompleted();
         }
@@ -403,6 +409,7 @@ public partial class FlyoutWindow : Window
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
+        IsFlyoutOpen = false;
         CloseRequested?.Invoke();
     }
 }

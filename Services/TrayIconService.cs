@@ -43,7 +43,7 @@ public class TrayIconService : IDisposable
     {
         _clipboardMonitor = clipboardMonitor;
         _contextMenu = CreateContextMenu();
-        _appIcon = CreateAppIcon();
+        _appIcon = AppIconHelper.CreateAppIcon(32);
 
         _taskbarIcon = new TaskbarIcon
         {
@@ -53,6 +53,11 @@ public class TrayIconService : IDisposable
         };
         _taskbarIcon.TrayLeftMouseUp += (s, e) =>
         {
+            if (_contextMenu.IsOpen)
+            {
+                _contextMenu.IsOpen = false;
+                return;
+            }
             _contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
             _contextMenu.IsOpen = true;
         };
@@ -425,67 +430,6 @@ public class TrayIconService : IDisposable
 
         string title = _clipboardMonitor.IsEnabled ? _loc.Get("Tray_TitleActive") : _loc.Get("Tray_TitlePaused");
         _taskbarIcon.ToolTipText = title.Length > 63 ? title[..63] : title;
-    }
-
-    private static Icon CreateAppIcon()
-    {
-        try
-        {
-            using var bmp = new Bitmap(32, 32);
-            using (var g = Graphics.FromImage(bmp))
-            {
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                g.Clear(Color.Transparent);
-
-                using var bgBrush = new LinearGradientBrush(
-                    new DrawingRectangle(0, 0, 32, 32),
-                    Color.FromArgb(59, 130, 246),
-                    Color.FromArgb(147, 51, 234),
-                    45f
-                );
-                using var path = GetRoundedRect(new DrawingRectangle(2, 2, 28, 28), 6);
-                g.FillPath(bgBrush, path);
-
-                using var pen = new Pen(Color.White, 2f);
-                g.DrawRectangle(pen, 9, 10, 14, 15);
-                g.FillRectangle(Brushes.White, 12, 7, 8, 4);
-
-                using var linePen = new Pen(Color.FromArgb(210, 255, 255, 255), 1.5f);
-                g.DrawLine(linePen, 12, 14, 20, 14);
-                g.DrawLine(linePen, 12, 18, 18, 18);
-            }
-
-            IntPtr hIcon = bmp.GetHicon();
-            return (Icon)Icon.FromHandle(hIcon).Clone();
-        }
-        catch
-        {
-            return SystemIcons.Application;
-        }
-    }
-
-    private static GraphicsPath GetRoundedRect(DrawingRectangle bounds, int radius)
-    {
-        int diameter = radius * 2;
-        var size = new DrawingSize(diameter, diameter);
-        var arc = new DrawingRectangle(bounds.Location, size);
-        var path = new GraphicsPath();
-
-        if (radius == 0)
-        {
-            path.AddRectangle(bounds);
-            return path;
-        }
-
-        path.AddArc(arc, 180, 90);
-        arc.X = bounds.Right - diameter;
-        path.AddArc(arc, 270, 90);
-        arc.Y = bounds.Bottom - diameter;
-        path.AddArc(arc, 0, 90);
-        arc.X = bounds.Left;
-        path.AddArc(arc, 90, 90);
-        path.CloseFigure();
-        return path;
     }
 
     public void Dispose()

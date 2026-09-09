@@ -58,6 +58,21 @@ public class ExtendedFeaturesTests : IDisposable
     }
 
     [Fact]
+    public void CleanUrl_StripsYouTubeAndAmazonTrackingParameters()
+    {
+        string yt = "https://youtu.be/abcdef?si=xyz123&t=40";
+        bool ytResult = CleanUrlHelper.TryCleanUrl(yt, out string ytClean);
+        Assert.True(ytResult);
+        Assert.DoesNotContain("si=xyz123", ytClean);
+        Assert.Contains("t=40", ytClean);
+
+        string amz = "https://amazon.co.jp/dp/B00000?ref_=cm_sw_r_cp_ud&tag=test";
+        bool amzResult = CleanUrlHelper.TryCleanUrl(amz, out string amzClean);
+        Assert.True(amzResult);
+        Assert.DoesNotContain("ref_=", amzClean);
+    }
+
+    [Fact]
     public void CleanUrl_ReturnsFalseWhenNoTrackingParams()
     {
         string cleanInput = "https://example.com/search?q=csharp&sort=newest";
