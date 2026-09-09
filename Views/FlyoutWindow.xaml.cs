@@ -25,6 +25,8 @@ public partial class FlyoutWindow : Window
     public event Action? MouseEntered;
     public event Action? MouseLeft;
     public event Action? CloseRequested;
+    public event Action? ButtonMouseEntered;
+    public event Action? ButtonMouseLeft;
 
     private readonly Action _themeChangedHandler;
     private readonly Action<AppSettings> _settingsChangedHandler;
@@ -40,6 +42,9 @@ public partial class FlyoutWindow : Window
         SourceInitialized += OnSourceInitialized;
         MouseEnter += (_, _) => MouseEntered?.Invoke();
         MouseLeave += (_, _) => MouseLeft?.Invoke();
+
+        CloseButton.MouseEnter += (_, _) => ButtonMouseEntered?.Invoke();
+        CloseButton.MouseLeave += (_, _) => ButtonMouseLeft?.Invoke();
 
         _themeChangedHandler = () =>
         {
@@ -222,11 +227,22 @@ public partial class FlyoutWindow : Window
 
     private void ActionButton_Loaded(object sender, RoutedEventArgs e)
     {
-        if (sender is Button btn && btn.DataContext is ActionItem action)
+        if (sender is Button btn)
         {
-            ApplySingleButtonStyle(btn, action);
+            btn.MouseEnter -= ActionButton_MouseEnter;
+            btn.MouseEnter += ActionButton_MouseEnter;
+            btn.MouseLeave -= ActionButton_MouseLeave;
+            btn.MouseLeave += ActionButton_MouseLeave;
+
+            if (btn.DataContext is ActionItem action)
+            {
+                ApplySingleButtonStyle(btn, action);
+            }
         }
     }
+
+    private void ActionButton_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e) => ButtonMouseEntered?.Invoke();
+    private void ActionButton_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e) => ButtonMouseLeft?.Invoke();
 
     private void ApplySingleButtonStyle(Button btn, ActionItem action)
     {

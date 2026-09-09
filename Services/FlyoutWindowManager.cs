@@ -17,6 +17,7 @@ public class FlyoutWindowManager : IDisposable
     private readonly DispatcherTimer _autoHideTimer;
     private readonly SettingsService _settings = SettingsService.Instance;
     private bool _isShowing;
+    private bool _isButtonHovered;
     private DetectionResult? _lastResult;
 
     public FlyoutWindow Window => _window;
@@ -28,6 +29,8 @@ public class FlyoutWindowManager : IDisposable
         _window = new FlyoutWindow();
         _window.MouseEntered += OnMouseEntered;
         _window.MouseLeft += OnMouseLeft;
+        _window.ButtonMouseEntered += OnButtonMouseEntered;
+        _window.ButtonMouseLeft += OnButtonMouseLeft;
         _window.CloseRequested += OnCloseRequested;
 
         executor.ActionExecuted += OnActionExecuted;
@@ -160,6 +163,26 @@ public class FlyoutWindowManager : IDisposable
         }
     }
 
+    private void OnButtonMouseEntered()
+    {
+        _isButtonHovered = true;
+        _autoHideTimer.Stop();
+    }
+
+    private void OnButtonMouseLeft()
+    {
+        _isButtonHovered = false;
+        if (_window.IsMouseOver || IsCursorOverFlyout())
+        {
+            _autoHideTimer.Stop();
+            return;
+        }
+
+        double leaveSec = Math.Max(0.5, _settings.Current.HoverLeaveDurationSeconds);
+        _autoHideTimer.Interval = TimeSpan.FromSeconds(leaveSec);
+        _autoHideTimer.Start();
+    }
+
     private void OnMouseEntered()
     {
         // Pause timer on hover
@@ -168,6 +191,13 @@ public class FlyoutWindowManager : IDisposable
 
     private void OnMouseLeft()
     {
+        // If cursor is on a button or still inside window bounds (e.g. tooltip popup active), keep timer stopped
+        if (_isButtonHovered || IsCursorOverFlyout())
+        {
+            _autoHideTimer.Stop();
+            return;
+        }
+
         // Resume countdown with user configured hover leave time
         double leaveSec = Math.Max(0.5, _settings.Current.HoverLeaveDurationSeconds);
         _autoHideTimer.Interval = TimeSpan.FromSeconds(leaveSec);
@@ -241,7 +271,27 @@ public class FlyoutWindowManager : IDisposable
 
     private void AutoHideTimer_Tick(object? sender, EventArgs e)
     {
+        if (_isButtonHovered || _window.IsMouseOver || IsCursorOverFlyout())
+        {
+            _autoHideTimer.Stop();
+            return;
+        }
+
         HideFlyout();
+    }
+
+    private bool IsCursorOverFlyout()
+    {
+        if (!_window.IsVisible) return false;
+        if (!Win32.GetCursorPos(out var cursorPos)) return false;
+
+        var helper = new WindowInteropHelper(_window);
+        if (helper.Handle == IntPtr.Zero) return false;
+
+        if (!Win32.GetWindowRect(helper.Handle, out var rect)) return false;
+
+        return cursorPos.X >= rect.Left - 2 && cursorPos.X <= rect.Right + 2 &&
+               cursorPos.Y >= rect.Top - 2 && cursorPos.Y <= rect.Bottom + 2;
     }
 
     public void Dispose()
