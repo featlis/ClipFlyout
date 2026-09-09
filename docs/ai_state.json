@@ -1,6 +1,6 @@
 {
   "project": "ClipFlyout",
-  "version": "0.7.0",
+  "version": "0.7.4",
   "target_framework": "net9.0-windows",
   "architecture": {
     "ui": "WPF + PowerToys-inspired settings cards (Windows 11 transient DWM acrylic with Accent Policy fallback, 20%-100% opacity, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings, Taskbar Widget, Welcome Wizard, rich WinUI 3 stretch toggle switch)",
@@ -102,6 +102,11 @@
     "v0.5.2: refined light mode color palette and secondary button styling, pinned tray icon context menu to light palette even in dark mode, and extended DWM frame with DwmExtendFrameIntoClientArea (-1) to guarantee real Windows Acrylic backdrop rendering",
     "v0.5.4: fixed acrylic transparency — WPF RootCard background alpha reduced to 5-60 range (was 30-240/100-240) so DWM compositor blur is always visible; AccentPolicy tint alpha remapped to 20-120 (was 64-230 which caused near-opaque look); light mode tint changed from blue-grey RGB(249,250,252) to pure white RGB(255,255,255) eliminating the grey cast",
     "v0.5.5: ROOT CAUSE FIX — added HwndSource.CompositionTarget.BackgroundColor = Colors.Transparent in OnSourceInitialized; without this the WPF back-buffer was opaque and completely occluded the DWM acrylic blur regardless of any other setting; AccentPolicy alpha remapped to 30-180; RootCard bgAlpha remapped to 20-160 for proper tint-over-blur; ref MS Learn Fluent Design acrylic material docs",
-    "v0.5.6: Acrylic transparency perfection ref MS Learn Fluent Acrylic guidelines — eliminated double-tinting between AccentPolicy and WPF RootCard by unifying tint control in WPF with clean 30-230 alpha scaling (20%-100% slider); removed unwanted native top border line by resetting AccentFlags to 0; reduced light mode preview panels background alpha from 120 (47% white) to 40 so acrylic frosted blur transmits through card content; integrated Windows system Transparency Effects (EnableTransparency) registry detection in ThemeService with solid opaque fallback when disabled; ensured FlyoutWindow.Present executes ApplyTheme on every presentation."
+    "v0.5.6: Acrylic transparency perfection ref MS Learn Fluent Acrylic guidelines — eliminated double-tinting between AccentPolicy and WPF RootCard by unifying tint control in WPF with clean 30-230 alpha scaling (20%-100% slider); removed unwanted native top border line by resetting AccentFlags to 0; reduced light mode preview panels background alpha from 120 (47% white) to 40 so acrylic frosted blur transmits through card content; integrated Windows system Transparency Effects (EnableTransparency) registry detection in ThemeService with solid opaque fallback when disabled; ensured FlyoutWindow.Present executes ApplyTheme on every presentation.",
+    "v0.6.0: added taskbar clipboard widget, transform paste action, and extended productivity tools (Clean URL, Case Converter, JWT Decoder).",
+    "v0.7.1: enhanced taskbar widget (frameless taskbar integration, position docking modes), animated WinUI 3 stretch toggle switch, full RGB slider & hex color picker, system theme default, tabbed settings with author info & GPLv3 license card, initial setup wizard (WelcomeWindow), high-res vector icon helper.",
+    "v0.7.2: added TaskbarColorDetector for automatic taskbar color/luminance detection, adaptive high-contrast widget text color modes (Auto/Light/Dark) with drop shadows.",
+    "v0.7.3: supported left-click tray menu activation, uninstaller and setup auto-termination of running ClipFlyout instances via taskkill, widget preview anchored to start of content (18 chars), eliminated cross-process GWL_HWNDPARENT Explorer focus contention.",
+    "v0.7.4: fixed widget continuous topmost persistence using 250ms DispatcherTimer + Win32.GetWindow(GW_HWNDPREV) + WM_WINDOWPOSCHANGING (protected during context menu active); fixed setup wizard display so it runs on clean installer install only (IsUpgrade registry detection in Inno Setup) and is suppressed on update; ensured user's preferred tray icon is permanently displayed on taskbar widget (removed emoji overrides); generated Win32 GDI / Inno Setup compliant BMP/PNG multi-res ICO asset."
   ]
 }
