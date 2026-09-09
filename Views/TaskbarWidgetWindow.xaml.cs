@@ -143,6 +143,7 @@ public partial class TaskbarWidgetWindow : Window
                 Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE);
         }
 
+        ApplyTheme();
         UpdateMenuCheckedState();
     }
 
@@ -238,14 +239,29 @@ public partial class TaskbarWidgetWindow : Window
 
     public void ApplyTheme()
     {
-        if (_hwnd == IntPtr.Zero) return;
+        var textColorMode = _settings.Current.WidgetTextColor;
+        bool isLightText;
 
-        bool isDark = _theme.IsDarkTheme;
+        switch (textColorMode)
+        {
+            case WidgetTextColorMode.Light:
+                isLightText = true;
+                break;
+            case WidgetTextColorMode.Dark:
+                isLightText = false;
+                break;
+            case WidgetTextColorMode.Auto:
+            default:
+                // Auto-detect based on actual taskbar pixels / system shell theme
+                bool isTaskbarLight = TaskbarColorDetector.IsTaskbarLight(Left + Width / 2, Top + Height / 2);
+                isLightText = !isTaskbarLight;
+                break;
+        }
 
-        // No acrylic or blur effect on taskbar widget: seamless overlay
+        // Seamless overlay styling
         if (_isHovered)
         {
-            RootPill.Background = isDark
+            RootPill.Background = isLightText
                 ? new SolidColorBrush(Color.FromArgb(45, 255, 255, 255))
                 : new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
         }
@@ -254,12 +270,31 @@ public partial class TaskbarWidgetWindow : Window
             RootPill.Background = Brushes.Transparent;
         }
 
-        var fg = isDark
-            ? new SolidColorBrush(Color.FromRgb(241, 245, 249))
-            : new SolidColorBrush(Color.FromRgb(30, 41, 59));
+        var fg = isLightText
+            ? new SolidColorBrush(Color.FromRgb(255, 255, 255))
+            : new SolidColorBrush(Color.FromRgb(15, 23, 42));
 
         ClipPreviewText.Foreground = fg;
         IconBadgeText.Foreground = fg;
+
+        // Apply contrast drop-shadow to guarantee legibility regardless of desktop background
+        if (ClipPreviewShadow != null)
+        {
+            ClipPreviewShadow.Color = isLightText ? Colors.Black : Colors.White;
+            ClipPreviewShadow.Opacity = isLightText ? 0.75 : 0.85;
+            ClipPreviewShadow.BlurRadius = 3;
+            ClipPreviewShadow.ShadowDepth = 0.5;
+        }
+
+        if (IconBadgeShadow != null)
+        {
+            IconBadgeShadow.Color = isLightText ? Colors.Black : Colors.White;
+            IconBadgeShadow.Opacity = isLightText ? 0.75 : 0.85;
+            IconBadgeShadow.BlurRadius = 3;
+            IconBadgeShadow.ShadowDepth = 0.5;
+        }
+
+        UpdateMenuCheckedState();
     }
 
     private void RootPill_MouseEnter(object sender, MouseEventArgs e)
@@ -287,6 +322,11 @@ public partial class TaskbarWidgetWindow : Window
         MenuPosFarLeft.Header = _loc.Get("Widget_Pos_FarLeft");
         MenuPosAboveTaskbar.Header = _loc.Get("Widget_Pos_AboveTaskbar");
 
+        MenuTextColor.Header = _loc.Get("Setting_WidgetTextColor");
+        MenuTextColorAuto.Header = _loc.Get("Widget_TextColor_Auto");
+        MenuTextColorLight.Header = _loc.Get("Widget_TextColor_Light");
+        MenuTextColorDark.Header = _loc.Get("Widget_TextColor_Dark");
+
         if (_currentResult == null)
         {
             ClipPreviewText.Text = _loc.Get("Widget_Empty");
@@ -303,6 +343,11 @@ public partial class TaskbarWidgetWindow : Window
         MenuPosCenterLeft.IsChecked = pos == WidgetPositionMode.CenterLeft;
         MenuPosFarLeft.IsChecked = pos == WidgetPositionMode.FarLeft;
         MenuPosAboveTaskbar.IsChecked = pos == WidgetPositionMode.AboveTaskbar;
+
+        var textColorMode = _settings.Current.WidgetTextColor;
+        MenuTextColorAuto.IsChecked = textColorMode == WidgetTextColorMode.Auto;
+        MenuTextColorLight.IsChecked = textColorMode == WidgetTextColorMode.Light;
+        MenuTextColorDark.IsChecked = textColorMode == WidgetTextColorMode.Dark;
     }
 
     private void MenuPos_Click(object sender, RoutedEventArgs e)
@@ -313,6 +358,18 @@ public partial class TaskbarWidgetWindow : Window
             {
                 _settings.UpdateSettings(s => s.WidgetPosition = mode);
                 UpdatePosition();
+            }
+        }
+    }
+
+    private void MenuTextColor_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem item && item.Tag is string tagStr)
+        {
+            if (Enum.TryParse<WidgetTextColorMode>(tagStr, out var mode))
+            {
+                _settings.UpdateSettings(s => s.WidgetTextColor = mode);
+                ApplyTheme();
             }
         }
     }

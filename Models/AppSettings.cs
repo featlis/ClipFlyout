@@ -28,6 +28,13 @@ public enum WidgetPositionMode
     AboveTaskbar
 }
 
+public enum WidgetTextColorMode
+{
+    Auto,
+    Light,
+    Dark
+}
+
 /// <summary>
 /// User settings model with persistence support.
 /// </summary>
@@ -41,6 +48,7 @@ public class AppSettings
     public bool ShowTaskbarWidget { get; set; } = true;
     public WidgetPositionMode WidgetPosition { get; set; } = WidgetPositionMode.TrayLeft;
     public double WidgetOffsetX { get; set; } = 0.0;
+    public WidgetTextColorMode WidgetTextColor { get; set; } = WidgetTextColorMode.Auto;
     public bool IgnorePasswordManagers { get; set; } = true;
     public bool EnableRecallHotkey { get; set; } = true;
     public bool IsFirstRun { get; set; } = true;

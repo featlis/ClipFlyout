@@ -88,6 +88,12 @@ public partial class SettingsWindow : Window
         ComboWidgetPos.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_Pos_FarLeft"), Tag = WidgetPositionMode.FarLeft });
         ComboWidgetPos.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_Pos_AboveTaskbar"), Tag = WidgetPositionMode.AboveTaskbar });
 
+        // Widget Text Color dropdown
+        ComboWidgetTextColor.Items.Clear();
+        ComboWidgetTextColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_TextColor_Auto"), Tag = WidgetTextColorMode.Auto });
+        ComboWidgetTextColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_TextColor_Light"), Tag = WidgetTextColorMode.Light });
+        ComboWidgetTextColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_TextColor_Dark"), Tag = WidgetTextColorMode.Dark });
+
         // Placement dropdown
         ComboPlacement.Items.Clear();
         ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_BottomRight"), Tag = FlyoutPlacement.BottomRight });
@@ -108,6 +114,7 @@ public partial class SettingsWindow : Window
         SelectComboByTag(ComboTheme, cfg.Theme);
         SelectComboByTag(ComboLanguage, cfg.Language);
         SelectComboByTag(ComboWidgetPos, cfg.WidgetPosition);
+        SelectComboByTag(ComboWidgetTextColor, cfg.WidgetTextColor);
         SelectComboByTag(ComboPlacement, cfg.Placement);
 
         InitColorPicker(cfg.AccentColor);
@@ -340,6 +347,15 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void ComboWidgetTextColor_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isInitializing) return;
+        if (ComboWidgetTextColor.SelectedItem is ComboBoxItem { Tag: WidgetTextColorMode mode })
+        {
+            _settings.UpdateSettings(s => s.WidgetTextColor = mode);
+        }
+    }
+
     private void SliderWidgetOffset_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (TextWidgetOffsetVal != null)
@@ -434,6 +450,7 @@ public partial class SettingsWindow : Window
             SetComboStyle(ComboTheme, darkComboBg, darkComboBorder, darkComboFg);
             SetComboStyle(ComboLanguage, darkComboBg, darkComboBorder, darkComboFg);
             SetComboStyle(ComboWidgetPos, darkComboBg, darkComboBorder, darkComboFg);
+            SetComboStyle(ComboWidgetTextColor, darkComboBg, darkComboBorder, darkComboFg);
             SetComboStyle(ComboPlacement, darkComboBg, darkComboBorder, darkComboFg);
 
             TextHexCode.Background = darkComboBg;
@@ -494,6 +511,7 @@ public partial class SettingsWindow : Window
             SetComboStyle(ComboTheme, lightComboBg, lightComboBorder, lightComboFg);
             SetComboStyle(ComboLanguage, lightComboBg, lightComboBorder, lightComboFg);
             SetComboStyle(ComboWidgetPos, lightComboBg, lightComboBorder, lightComboFg);
+            SetComboStyle(ComboWidgetTextColor, lightComboBg, lightComboBorder, lightComboFg);
             SetComboStyle(ComboPlacement, lightComboBg, lightComboBorder, lightComboFg);
 
             TextHexCode.Background = lightComboBg;
@@ -555,6 +573,7 @@ public partial class SettingsWindow : Window
         Sep3a.Background = sepBrush;
         Sep3b.Background = sepBrush;
         Sep3c.Background = sepBrush;
+        Sep3d.Background = sepBrush;
         Sep3e.Background = sepBrush;
         Sep4.Background = sepBrush;
         Sep5.Background = sepBrush;
@@ -600,6 +619,8 @@ public partial class SettingsWindow : Window
         DescWidgetPos.Text = _loc.Get("Setting_WidgetPosition_Desc");
         LblWidgetOffset.Text = _loc.Get("Setting_WidgetOffsetX");
         DescWidgetOffset.Text = _loc.Get("Setting_WidgetOffsetX_Desc");
+        LblWidgetTextColor.Text = _loc.Get("Setting_WidgetTextColor");
+        DescWidgetTextColor.Text = _loc.Get("Setting_WidgetTextColor_Desc");
         LblIgnorePasswords.Text = _loc.Get("Setting_IgnorePasswordManagers");
         DescIgnorePasswords.Text = _loc.Get("Setting_IgnorePasswordManagers_Desc");
         LblRecallHotkey.Text = _loc.Get("Setting_EnableRecallHotkey");
@@ -677,6 +698,7 @@ public partial class SettingsWindow : Window
         int themeIdx = ComboTheme.SelectedIndex;
         int langIdx = ComboLanguage.SelectedIndex;
         int widgetPosIdx = ComboWidgetPos.SelectedIndex;
+        int widgetTextColorIdx = ComboWidgetTextColor.SelectedIndex;
         int placementIdx = ComboPlacement.SelectedIndex;
 
         PopulateDropdowns();
@@ -684,6 +706,7 @@ public partial class SettingsWindow : Window
         ComboTheme.SelectedIndex = themeIdx;
         ComboLanguage.SelectedIndex = langIdx;
         ComboWidgetPos.SelectedIndex = widgetPosIdx;
+        ComboWidgetTextColor.SelectedIndex = widgetTextColorIdx;
         ComboPlacement.SelectedIndex = placementIdx;
     }
 

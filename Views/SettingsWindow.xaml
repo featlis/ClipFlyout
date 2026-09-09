@@ -320,6 +320,28 @@
                                 </StackPanel>
                             </Grid>
                         </Border>
+
+                        <Separator x:Name="Sep3d" Margin="16,0"/>
+
+                        <!-- Widget Text Color Selector -->
+                        <Border Padding="16,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="34" Height="34" CornerRadius="8" Background="#2010B981" Margin="0,0,14,0" VerticalAlignment="Center">
+                                    <TextBlock Text="🎨" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblWidgetTextColor" Text="ウィジェットの文字色" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescWidgetTextColor" Text="タスクバーの明るさに合わせた自動検知、または固定色（白・黒）を選択します" FontSize="11.5" Margin="0,1.5,0,0"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="2" x:Name="ComboWidgetTextColor" Width="200" Height="32" VerticalAlignment="Center"
+                                          SelectionChanged="ComboWidgetTextColor_SelectionChanged"/>
+                            </Grid>
+                        </Border>
                     </StackPanel>
                 </Border>
             </StackPanel>

@@ -33,6 +33,11 @@
                     <MenuItem x:Name="MenuPosFarLeft" Header="タスクバー左端" Click="MenuPos_Click" Tag="FarLeft"/>
                     <MenuItem x:Name="MenuPosAboveTaskbar" Header="画面右下 (タスクバー直上)" Click="MenuPos_Click" Tag="AboveTaskbar"/>
                 </MenuItem>
+                <MenuItem x:Name="MenuTextColor" Header="文字色">
+                    <MenuItem x:Name="MenuTextColorAuto" Header="自動検知 (タスクバー色に最適化) [既定]" Click="MenuTextColor_Click" Tag="Auto"/>
+                    <MenuItem x:Name="MenuTextColorLight" Header="常に白 (ダーク系タスクバー向け)" Click="MenuTextColor_Click" Tag="Light"/>
+                    <MenuItem x:Name="MenuTextColorDark" Header="常に黒 (ライト系タスクバー向け)" Click="MenuTextColor_Click" Tag="Dark"/>
+                </MenuItem>
                 <Separator/>
                 <MenuItem x:Name="MenuOpenSettings" Header="設定" Click="MenuOpenSettings_Click"/>
                 <Separator/>
@@ -57,7 +62,16 @@
                        FontSize="13"
                        VerticalAlignment="Center"
                        Margin="0,0,6,0"
-                       Visibility="Collapsed"/>
+                       Visibility="Collapsed">
+                <TextBlock.Effect>
+                    <DropShadowEffect x:Name="IconBadgeShadow"
+                                      Color="Black"
+                                      BlurRadius="3"
+                                      ShadowDepth="0.5"
+                                      Direction="270"
+                                      Opacity="0.6"/>
+                </TextBlock.Effect>
+            </TextBlock>
 
             <!-- Color Swatch Badge when content is HexColor -->
             <Border x:Name="ColorBox"
@@ -73,10 +87,19 @@
                        Grid.Column="1"
                        Text="(クリップボード空)"
                        FontSize="12"
-                       FontWeight="Normal"
+                       FontWeight="SemiBold"
                        Foreground="#F1F5F9"
                        TextTrimming="CharacterEllipsis"
-                       VerticalAlignment="Center"/>
+                       VerticalAlignment="Center">
+                <TextBlock.Effect>
+                    <DropShadowEffect x:Name="ClipPreviewShadow"
+                                      Color="Black"
+                                      BlurRadius="3"
+                                      ShadowDepth="0.5"
+                                      Direction="270"
+                                      Opacity="0.6"/>
+                </TextBlock.Effect>
+            </TextBlock>
         </Grid>
     </Border>
 </Window>
