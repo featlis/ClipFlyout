@@ -102,6 +102,17 @@ public class LocalizationService
         { "Type_TableData", new("表データ (CSV/TSV)", "Table Data (CSV/TSV)") },
 
         // Actions: Hex Color
+        { "Type_HexColor_Desc", new("カラー HEX コード", "Color Hex Code") },
+        { "Flyout_Time_JustNow", new("たった今", "Just now") },
+        { "Flyout_Time_MinutesAgo", new("{0}分前", "{0}m ago") },
+        { "Flyout_Time_HoursAgo", new("{0}時間前", "{0}h ago") },
+        { "Flyout_Recent_Header", new("履歴", "Recent") },
+        { "Flyout_Settings_Tooltip", new("設定を開く", "Open Settings") },
+        { "Flyout_Close_Tooltip", new("閉じる", "Close") },
+        { "Action_CopyHex", new("HEXをコピー", "Copy Hex") },
+        { "Action_CopyHex_Desc", new("HEXカラーコードをコピー", "Copy color hex code") },
+        { "Action_ConvertColor", new("形式を変換", "Convert") },
+        { "Action_ConvertColor_Desc", new("RGB, HSL, RGBA", "RGB, HSL, RGBA") },
         { "Action_CopyRgb", new("RGBコピー", "Copy RGB") },
         { "Action_CopyRgb_Desc", new("RGB形式 (rgb(r, g, b)) でコピー", "Copy in rgb(r, g, b) format") },
         { "Action_CopyHsl", new("HSLコピー", "Copy HSL") },

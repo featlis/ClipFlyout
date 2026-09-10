@@ -218,17 +218,19 @@ public partial class TaskbarWidgetWindow : Window
 
         if (result == null)
         {
-            IconImage.Visibility = Visibility.Visible;
+            FluentClipboardIcon.Visibility = Visibility.Visible;
+            IconImage.Visibility = Visibility.Collapsed;
             IconBadgeText.Visibility = Visibility.Collapsed;
             ColorBox.Visibility = Visibility.Collapsed;
             ClipPreviewText.Text = _loc.Get("Widget_Empty");
             return;
         }
 
-        // 1. Icon / Visual indicator - always keep the user's preferred tray icon displayed on widget
+        // 1. Icon / Visual indicator - Fluent icon or color swatch for HexColor
         if (result.Type == ClipDataType.HexColor && result.ColorValue.HasValue)
         {
-            IconImage.Visibility = Visibility.Visible;
+            FluentClipboardIcon.Visibility = Visibility.Collapsed;
+            IconImage.Visibility = Visibility.Collapsed;
             IconBadgeText.Visibility = Visibility.Collapsed;
             ColorBox.Visibility = Visibility.Visible;
             ColorBox.Background = new SolidColorBrush(result.ColorValue.Value);
@@ -236,7 +238,8 @@ public partial class TaskbarWidgetWindow : Window
         else
         {
             ColorBox.Visibility = Visibility.Collapsed;
-            IconImage.Visibility = Visibility.Visible;
+            FluentClipboardIcon.Visibility = Visibility.Visible;
+            IconImage.Visibility = Visibility.Collapsed;
             IconBadgeText.Visibility = Visibility.Collapsed;
         }
 
@@ -297,16 +300,24 @@ public partial class TaskbarWidgetWindow : Window
                 break;
         }
 
-        // Seamless overlay styling
+        // Seamless overlay styling matching Windows 11 taskbar items
         if (_isHovered)
         {
             RootPill.Background = isLightText
-                ? new SolidColorBrush(Color.FromArgb(45, 255, 255, 255))
-                : new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
+                ? new SolidColorBrush(Color.FromArgb(50, 255, 255, 255))
+                : new SolidColorBrush(Color.FromArgb(38, 0, 0, 0));
+            RootPill.BorderBrush = isLightText
+                ? new SolidColorBrush(Color.FromArgb(65, 255, 255, 255))
+                : new SolidColorBrush(Color.FromArgb(45, 0, 0, 0));
         }
         else
         {
-            RootPill.Background = Brushes.Transparent;
+            RootPill.Background = isLightText
+                ? new SolidColorBrush(Color.FromArgb(24, 255, 255, 255))
+                : new SolidColorBrush(Color.FromArgb(16, 0, 0, 0));
+            RootPill.BorderBrush = isLightText
+                ? new SolidColorBrush(Color.FromArgb(35, 255, 255, 255))
+                : new SolidColorBrush(Color.FromArgb(25, 0, 0, 0));
         }
 
         var fg = isLightText
@@ -314,6 +325,7 @@ public partial class TaskbarWidgetWindow : Window
             : new SolidColorBrush(Color.FromRgb(15, 23, 42));
 
         ClipPreviewText.Foreground = fg;
+        FluentClipboardIcon.Foreground = fg;
         IconBadgeText.Foreground = fg;
 
         // Apply contrast drop-shadow to guarantee legibility regardless of desktop background

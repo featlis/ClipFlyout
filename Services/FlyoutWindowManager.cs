@@ -23,6 +23,8 @@ public class FlyoutWindowManager : IDisposable
     public FlyoutWindow Window => _window;
     public DetectionResult? LastResult => _lastResult;
 
+    public event Action? SettingsRequested;
+
     public FlyoutWindowManager(ActionExecutor executor)
     {
         _executor = executor;
@@ -32,6 +34,8 @@ public class FlyoutWindowManager : IDisposable
         _window.ButtonMouseEntered += OnButtonMouseEntered;
         _window.ButtonMouseLeft += OnButtonMouseLeft;
         _window.CloseRequested += OnCloseRequested;
+        _window.SettingsRequested += () => SettingsRequested?.Invoke();
+        _window.HistoryItemSelected += result => ShowFlyout(result);
 
         executor.ActionExecuted += OnActionExecuted;
         executor.TransformedActionExecuted += OnTransformedActionExecuted;

@@ -49,6 +49,7 @@ public partial class App : WpfApplication
             _actionExecutor = new ActionExecutor(_clipboardMonitor);
             _detector = new DataTypeDetector(_actionExecutor);
             _windowManager = new FlyoutWindowManager(_actionExecutor);
+            _windowManager.SettingsRequested += () => _trayIconService?.OpenSettings();
             _trayIconService = new TrayIconService(_clipboardMonitor);
 
             _taskbarWidget = new TaskbarWidgetWindow();

@@ -398,4 +398,55 @@ public class ExtendedFeaturesTests : IDisposable
         loc.CurrentLanguage = AppLanguage.English;
         Assert.Equal("(Clipboard empty)", loc.Get("Widget_Empty"));
     }
+
+    [Fact]
+    public void ActionItem_RichPresentationProperties_ResolveCorrectly()
+    {
+        var actionWithGlyph = new ActionItem("Action_Custom", "Custom", "CustomKey", "CustomDesc", () => { },
+            IsPrimary: true, Subtitle: "Custom Subtitle", IconGlyph: "\uE8C8");
+
+        Assert.Equal("Custom Subtitle", actionWithGlyph.DisplaySubtitle);
+        Assert.Equal("\uE8C8", actionWithGlyph.EffectiveGlyph);
+        Assert.True(actionWithGlyph.IsPrimary);
+
+        // Fallback resolution from IconKey/LabelKey
+        var saveAction = new ActionItem("Action_Save", "Save", "Save24", "Save to disk", () => { });
+        Assert.Equal("\uE74E", saveAction.EffectiveGlyph);
+        Assert.Equal("Save to disk", saveAction.DisplaySubtitle);
+
+        var colorAction = new ActionItem("Action_Color", "Color", "Color24", "Color palette", () => { });
+        Assert.Equal("\uE790", colorAction.EffectiveGlyph);
+
+        var convertAction = new ActionItem("Action_Convert", "Convert", "Dial24", "Convert format", () => { });
+        Assert.Equal("\uE895", convertAction.EffectiveGlyph);
+    }
+
+    [Fact]
+    public void DataTypeDetector_HexColor_ProducesFullCardActionsMatchingPreview()
+    {
+        var actionExecutor = new ActionExecutor(new MockClipboardMonitor());
+        var detector = new DataTypeDetector(actionExecutor);
+
+        var result = detector.Detect("#3B82F6");
+        Assert.NotNull(result);
+        Assert.Equal(ClipDataType.HexColor, result.Type);
+
+        // Verify primary copy hex action
+        var primaryAction = result.AvailableActions.FirstOrDefault(a => a.LabelKey == "Action_CopyHex");
+        Assert.NotNull(primaryAction);
+        Assert.True(primaryAction.IsPrimary);
+        Assert.Equal("#3B82F6", primaryAction.Subtitle);
+        Assert.Equal("\uE8C8", primaryAction.EffectiveGlyph);
+
+        // Verify convert action
+        var convertAction = result.AvailableActions.FirstOrDefault(a => a.LabelKey == "Action_ConvertColor");
+        Assert.NotNull(convertAction);
+        Assert.Equal("RGB, HSL, RGBA", convertAction.Subtitle);
+        Assert.Equal("\uE895", convertAction.EffectiveGlyph);
+
+        // Verify description
+        var loc = LocalizationService.Instance;
+        loc.CurrentLanguage = AppLanguage.English;
+        Assert.Equal("Color Hex Code", loc.Get("Type_HexColor_Desc"));
+    }
 }

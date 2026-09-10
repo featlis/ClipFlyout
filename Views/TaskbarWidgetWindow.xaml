@@ -16,8 +16,8 @@
         FontFamily="Segoe UI Variable Text, Segoe UI, sans-serif">
 
     <Border x:Name="RootPill"
-            CornerRadius="4"
-            BorderThickness="0"
+            CornerRadius="6"
+            BorderThickness="1"
             Background="Transparent"
             Cursor="Hand"
             MouseEnter="RootPill_MouseEnter"
@@ -44,17 +44,26 @@
                 <MenuItem x:Name="MenuHideWidget" Header="タスクバーウィジェットを非表示" Click="MenuHideWidget_Click"/>
             </ContextMenu>
         </Border.ContextMenu>
-        <Grid Margin="8,0,8,0" VerticalAlignment="Center">
+        <Grid Margin="9,0,9,0" VerticalAlignment="Center">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- App Icon Image -->
+            <!-- Fluent Clipboard Glyph Icon -->
+            <TextBlock x:Name="FluentClipboardIcon"
+                       Text="&#xE8C8;"
+                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                       FontSize="13.5"
+                       VerticalAlignment="Center"
+                       Margin="0,0,7,0"/>
+
+            <!-- App Icon Image (Fallback) -->
             <Image x:Name="IconImage"
-                   Width="22" Height="22"
+                   Width="20" Height="20"
                    Margin="0,0,7,0"
                    VerticalAlignment="Center"
+                   Visibility="Collapsed"
                    RenderOptions.BitmapScalingMode="HighQuality"/>
 
             <!-- Fallback Emoji/Glyph Badge for special content types -->

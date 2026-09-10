@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -10,6 +12,8 @@ using ClipFlyout.Native;
 using ClipFlyout.Services;
 
 namespace ClipFlyout.Views;
+
+public record RecentHistoryEntry(string IconGlyph, string DisplayText, DetectionResult Result);
 
 public partial class FlyoutWindow : Window
 {
@@ -27,6 +31,8 @@ public partial class FlyoutWindow : Window
     public event Action? CloseRequested;
     public event Action? ButtonMouseEntered;
     public event Action? ButtonMouseLeft;
+    public event Action? SettingsRequested;
+    public event Action<DetectionResult>? HistoryItemSelected;
 
     private readonly Action _themeChangedHandler;
     private readonly Action<AppSettings> _settingsChangedHandler;
@@ -45,6 +51,8 @@ public partial class FlyoutWindow : Window
 
         CloseButton.MouseEnter += (_, _) => ButtonMouseEntered?.Invoke();
         CloseButton.MouseLeave += (_, _) => ButtonMouseLeft?.Invoke();
+        SettingsButton.MouseEnter += (_, _) => ButtonMouseEntered?.Invoke();
+        SettingsButton.MouseLeave += (_, _) => ButtonMouseLeft?.Invoke();
 
         _themeChangedHandler = () =>
         {
@@ -78,10 +86,6 @@ public partial class FlyoutWindow : Window
         var helper = new WindowInteropHelper(this);
         _hwnd = helper.Handle;
 
-        // Make the WPF back-buffer transparent so the DWM acrylic backdrop
-        // painted behind this window is actually visible.  Without this the
-        // HwndSource renders an opaque background that completely hides the
-        // compositor blur — this was the root cause of acrylic never working.
         var hwndSource = HwndSource.FromHwnd(_hwnd);
         if (hwndSource?.CompositionTarget != null)
         {
@@ -109,22 +113,12 @@ public partial class FlyoutWindow : Window
         bool isDark = ThemeService.Instance.IsDarkTheme;
         bool isTransparency = ThemeService.Instance.IsTransparencyEnabled;
         double opacity = SettingsService.Instance.Current.OpacityPercent;
-        var accent = ThemeService.Instance.AccentColor;
 
         ApplyHardwareAcrylic();
 
-        // bgAlpha: single unified tint layer over the DWM acrylic blur.
-        // If transparency is disabled in Windows Settings, fall back to solid background (alpha=255).
-        // If transparency is enabled, map user opacity (20%-100%) cleanly to single tint alpha (30-230).
-        byte bgAlpha;
-        if (!isTransparency)
-        {
-            bgAlpha = 255;
-        }
-        else
-        {
-            bgAlpha = (byte)Math.Clamp((int)Math.Round((opacity - 20.0) * (200.0 / 80.0) + 30.0), 30, 230);
-        }
+        byte bgAlpha = !isTransparency
+            ? (byte)255
+            : (byte)Math.Clamp((int)Math.Round((opacity - 20.0) * (200.0 / 80.0) + 30.0), 30, 230);
 
         if (isDark)
         {
@@ -132,20 +126,28 @@ public partial class FlyoutWindow : Window
             RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(90, 255, 255, 255));
             InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255));
 
-            HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
-            HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
+            HeaderAppName.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
+            TimestampText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
+            SettingsButton.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
             CloseButton.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
 
-            // Translucent preview panel (subtle plate over acrylic, allowing blur to show through)
+            HeroCardBorder.Background = new SolidColorBrush(Color.FromArgb(26, 255, 255, 255));
+            HeroCardBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(32, 255, 255, 255));
+
+            ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
+            ColorDescText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
+            ColorValuesText.Foreground = new SolidColorBrush(Color.FromRgb(209, 213, 219));
+
             TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(25, 255, 255, 255));
             TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
             BodyPreviewText.Foreground = new SolidColorBrush(Color.FromRgb(226, 232, 240));
+            HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
+            HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
 
             ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(25, 255, 255, 255));
             ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
 
-            ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
-            ColorValuesText.Foreground = new SolidColorBrush(Color.FromRgb(209, 213, 219));
+            RecentHeader.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
 
             InlineFeedbackBar.Background = new SolidColorBrush(Color.FromArgb(110, 30, 41, 59));
             InlineFeedbackBar.BorderBrush = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
@@ -153,25 +155,32 @@ public partial class FlyoutWindow : Window
         }
         else
         {
-            // Light mode: pure white tint over OS acrylic
             RootCard.Background = new SolidColorBrush(Color.FromArgb(bgAlpha, 255, 255, 255));
             RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(120, 180, 190, 200));
             InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255));
 
-            HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-            HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
+            HeaderAppName.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
+            TimestampText.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
+            SettingsButton.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
             CloseButton.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
 
-            // Translucent preview panel — subtle translucent plate over acrylic, letting blur show through
+            HeroCardBorder.Background = new SolidColorBrush(Color.FromArgb(160, 255, 255, 255));
+            HeroCardBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(50, 148, 163, 184));
+
+            ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
+            ColorDescText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
+            ColorValuesText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
+
             TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
             TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 148, 163, 184));
             BodyPreviewText.Foreground = new SolidColorBrush(Color.FromRgb(30, 41, 59));
+            HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
+            HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
 
             ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
             ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 148, 163, 184));
 
-            ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-            ColorValuesText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
+            RecentHeader.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
 
             InlineFeedbackBar.Background = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255));
             InlineFeedbackBar.BorderBrush = new SolidColorBrush(Color.FromArgb(80, 148, 163, 184));
@@ -247,34 +256,28 @@ public partial class FlyoutWindow : Window
     private void ApplySingleButtonStyle(Button btn, ActionItem action)
     {
         bool isDark = ThemeService.Instance.IsDarkTheme;
-        bool isPrimary = action.IsPrimary || (_currentResult?.AvailableActions.Count > 0 && _currentResult.AvailableActions[0] == action);
+        bool isPrimary = action.IsPrimary;
 
         if (isPrimary)
         {
-            btn.Height = 30;
-            btn.Padding = new Thickness(12, 0, 12, 0);
             var accent = ThemeService.Instance.AccentColor;
             btn.Background = new SolidColorBrush(accent);
             btn.BorderBrush = new SolidColorBrush(Color.FromRgb(
-                (byte)Math.Min(255, accent.R + 28),
-                (byte)Math.Min(255, accent.G + 28),
-                (byte)Math.Min(255, accent.B + 28)));
+                (byte)Math.Min(255, accent.R + 25),
+                (byte)Math.Min(255, accent.G + 25),
+                (byte)Math.Min(255, accent.B + 25)));
             btn.Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 255));
         }
         else if (isDark)
         {
-            btn.Height = 28;
-            btn.Padding = new Thickness(10, 0, 10, 0);
-            btn.Background = new SolidColorBrush(Color.FromArgb(200, 42, 47, 61));
-            btn.BorderBrush = new SolidColorBrush(Color.FromArgb(100, 75, 85, 110));
+            btn.Background = new SolidColorBrush(Color.FromArgb(32, 255, 255, 255));
+            btn.BorderBrush = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255));
             btn.Foreground = new SolidColorBrush(Color.FromRgb(243, 244, 246));
         }
         else
         {
-            btn.Height = 28;
-            btn.Padding = new Thickness(10, 0, 10, 0);
-            btn.Background = new SolidColorBrush(Color.FromArgb(240, 255, 255, 255));
-            btn.BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225));
+            btn.Background = new SolidColorBrush(Color.FromArgb(170, 255, 255, 255));
+            btn.BorderBrush = new SolidColorBrush(Color.FromArgb(50, 148, 163, 184));
             btn.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
         }
     }
@@ -311,9 +314,6 @@ public partial class FlyoutWindow : Window
 
         ApplyTheme();
 
-        // A new clipboard value can arrive while the previous card is fading
-        // out. Remove that clock before displaying the new content; otherwise
-        // its Completed callback would hide the new card.
         _hideStoryboard?.Remove(this);
         RootCard.BeginAnimation(OpacityProperty, null);
         RootTransform.BeginAnimation(TranslateTransform.YProperty, null);
@@ -327,9 +327,11 @@ public partial class FlyoutWindow : Window
         ActionsItemsControl.Visibility = Visibility.Visible;
         InlineFeedbackBar.Visibility = Visibility.Collapsed;
 
-        HeaderTitleText.Text = result.PreviewTitle;
-        HeaderSubtitleText.Text = result.PreviewSubtitle;
-        TypeBadgeText.Text = result.BadgeText ?? result.Type.ToString();
+        // Header info
+        TimestampText.Text = LocalizationService.Instance.Get("Flyout_Time_JustNow");
+        SettingsButton.ToolTip = LocalizationService.Instance.Get("Flyout_Settings_Tooltip");
+        CloseButton.ToolTip = LocalizationService.Instance.Get("Flyout_Close_Tooltip");
+        RecentHeader.Text = LocalizationService.Instance.Get("Flyout_Recent_Header");
 
         bool isDark = ThemeService.Instance.IsDarkTheme;
         ApplyTypeBadgeTheme(result.Type, isDark);
@@ -340,7 +342,8 @@ public partial class FlyoutWindow : Window
                 ColorPreviewPanel.Visibility = Visibility.Visible;
                 ColorSwatch.Background = new SolidColorBrush(result.ColorValue.Value);
                 ColorHexText.Text = result.HexColorCode ?? result.PreviewTitle;
-                ColorValuesText.Text = result.PreviewSubtitle;
+                ColorDescText.Text = result.PreviewSubtitle ?? LocalizationService.Instance.Get("Type_HexColor_Desc");
+                ColorValuesText.Text = result.PreviewBody;
                 break;
 
             case ClipDataType.Image when result.ImagePreview != null:
@@ -350,11 +353,61 @@ public partial class FlyoutWindow : Window
 
             default:
                 TextPreviewPanel.Visibility = Visibility.Visible;
+                HeaderTitleText.Text = result.PreviewTitle;
+                HeaderSubtitleText.Text = result.PreviewSubtitle;
+                TypeBadgeText.Text = result.BadgeText ?? result.Type.ToString();
                 BodyPreviewText.Text = result.PreviewBody;
                 break;
         }
 
         ActionsItemsControl.ItemsSource = result.AvailableActions;
+
+        // Populate Recent History (excluding current result)
+        try
+        {
+            var history = HistoryService.Instance.GetItems()
+                .Where(h => !AreResultsEqual(h.Result, result))
+                .Take(2)
+                .Select(h => new RecentHistoryEntry(
+                    GetRecentGlyph(h.Result.Type),
+                    $"{h.DisplayTitle}: {h.DisplaySnippet}",
+                    h.Result
+                ))
+                .ToList();
+
+            if (history.Count > 0)
+            {
+                RecentHistoryItemsControl.ItemsSource = history;
+                RecentHistoryPanel.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                RecentHistoryPanel.Visibility = Visibility.Collapsed;
+            }
+        }
+        catch
+        {
+            RecentHistoryPanel.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private static string GetRecentGlyph(ClipDataType type) => type switch
+    {
+        ClipDataType.HexColor => "\uE790",
+        ClipDataType.Image => "\uEB9F",
+        ClipDataType.Url => "\uE71B",
+        ClipDataType.Email => "\uE715",
+        ClipDataType.Code => "\uE943",
+        ClipDataType.Json => "\uE943",
+        ClipDataType.UnixTimestamp => "\uE823",
+        _ => "\uE8A5"
+    };
+
+    private static bool AreResultsEqual(DetectionResult a, DetectionResult b)
+    {
+        if (ReferenceEquals(a, b)) return true;
+        if (a.Type != b.Type) return false;
+        return Equals(a.RawData, b.RawData);
     }
 
     public void ShowFlyout()
@@ -424,6 +477,19 @@ public partial class FlyoutWindow : Window
         if (sender is FrameworkElement { Tag: ActionItem actionItem })
         {
             actionItem.ExecuteAction();
+        }
+    }
+
+    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        SettingsRequested?.Invoke();
+    }
+
+    private void RecentItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: RecentHistoryEntry entry })
+        {
+            HistoryItemSelected?.Invoke(entry.Result);
         }
     }
 

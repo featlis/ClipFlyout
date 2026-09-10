@@ -222,25 +222,54 @@ public partial class DataTypeDetector : IDataTypeDetector
             var actions = new List<ActionItem>
             {
                 new(
+                    "Action_CopyHex",
+                    _loc.Get("Action_CopyHex"),
+                    "Copy24",
+                    hex.ToUpperInvariant(),
+                    () => _executor.CopyText(hex.ToUpperInvariant(), "Toast_Copied"),
+                    IsPrimary: true,
+                    Subtitle: hex.ToUpperInvariant(),
+                    IconGlyph: "\uE8C8"
+                ),
+                new(
+                    "Action_ConvertColor",
+                    _loc.Get("Action_ConvertColor"),
+                    "Dial24",
+                    _loc.Get("Action_ConvertColor_Desc"),
+                    () => _executor.CopyText(rgbStr, "Toast_Copied"),
+                    IsPrimary: false,
+                    Subtitle: "RGB, HSL, RGBA",
+                    IconGlyph: "\uE895"
+                ),
+                new(
                     "Action_CopyRgb",
                     _loc.Get("Action_CopyRgb"),
                     "Color24",
                     _loc.Get("Action_CopyRgb_Desc"),
-                    () => _executor.CopyText(rgbStr, "Toast_Copied")
+                    () => _executor.CopyText(rgbStr, "Toast_Copied"),
+                    IsPrimary: false,
+                    Subtitle: rgbStr,
+                    IconGlyph: "\uE790"
                 ),
                 new(
                     "Action_CopyHsl",
                     _loc.Get("Action_CopyHsl"),
                     "Dial24",
                     _loc.Get("Action_CopyHsl_Desc"),
-                    () => _executor.CopyText(hslStr, "Toast_Copied")
+                    () => _executor.CopyText(hslStr, "Toast_Copied"),
+                    IsPrimary: false,
+                    Subtitle: hslStr,
+                    IconGlyph: "\uE895"
                 ),
                 new(
                     "Action_CopyRgba",
                     _loc.Get("Action_CopyRgba"),
                     "Copy24",
                     _loc.Get("Action_CopyRgba_Desc"),
-                    () => _executor.CopyText(rgbaStr, "Toast_Copied")
+                    () => _executor.CopyText(rgbaStr, "Toast_Copied"),
+                    IsPrimary: false,
+                    Subtitle: rgbaStr,
+                    IconGlyph: "\uE8C8"
                 )
             };
 
@@ -248,8 +277,8 @@ public partial class DataTypeDetector : IDataTypeDetector
                 Type: ClipDataType.HexColor,
                 RawData: hex,
                 PreviewTitle: hex.ToUpperInvariant(),
-                PreviewSubtitle: $"{rgbStr}  •  {hslStr}",
-                PreviewBody: $"RGB: {r}, {g}, {b} | Alpha: {a}",
+                PreviewSubtitle: _loc.Get("Type_HexColor_Desc"),
+                PreviewBody: $"{rgbStr}  •  {hslStr}",
                 AvailableActions: actions,
                 HexColorCode: hex.ToUpperInvariant(),
                 ColorValue: mediaColor,
