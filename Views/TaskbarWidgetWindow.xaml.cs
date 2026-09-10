@@ -122,6 +122,14 @@ public partial class TaskbarWidgetWindow : Window
         exStyle |= Win32.WS_EX_NOACTIVATE | Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_TOPMOST;
         Win32.SetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE, (IntPtr)exStyle);
 
+        IntPtr trayHwnd = Win32.FindWindow("Shell_TrayWnd", null);
+        if (trayHwnd != IntPtr.Zero)
+        {
+            // By setting the taskbar as the owner (GWL_HWNDPARENT), the OS ensures 
+            // our widget is always drawn above the taskbar in the Z-order.
+            Win32.SetWindowLongPtr(_hwnd, Win32.GWL_HWNDPARENT, trayHwnd);
+        }
+
         ApplyTheme();
     }
 
