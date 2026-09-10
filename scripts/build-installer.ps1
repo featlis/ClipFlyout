@@ -34,7 +34,7 @@ $dotnet = if (Test-Path $localDotnet) {
 } else {
     throw "dotnet SDK was not found. Install the .NET 9 SDK first."
 }
-& $dotnet publish (Join-Path $ProjectRoot "ClipFlyout.csproj") -c Release -r win-x64 --self-contained true -p:RestoreLockedMode=true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:Version=$Version -p:AssemblyVersion="$Version.0" -p:FileVersion="$Version.0" -o $PublishDir
+& $dotnet publish (Join-Path $ProjectRoot "ClipFlyout.csproj") -c Release -r win-x64 --self-contained true -p:RestoreLockedMode=false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:Version=$Version -p:AssemblyVersion="$Version.0" -p:FileVersion="$Version.0" -o $PublishDir
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "dotnet publish failed!"
