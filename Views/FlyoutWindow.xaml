@@ -284,6 +284,7 @@
                                         BorderThickness="1"
                                         HorizontalContentAlignment="Stretch"
                                         Cursor="Hand"
+                                        ToolTip="{Binding Description}"
                                         Click="ActionButton_Click"
                                         Loaded="ActionButton_Loaded"
                                         Tag="{Binding}">
@@ -313,7 +314,7 @@
 
                                                     <!-- Title & Subtitle Stack -->
                                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,0,0">
-                                                        <TextBlock Text="{Binding Title}"
+                                                        <TextBlock Text="{Binding Label}"
                                                                    FontSize="12"
                                                                    FontWeight="SemiBold"
                                                                    Foreground="{TemplateBinding Foreground}"

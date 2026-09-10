@@ -1,4 +1,5 @@
 using System;
+using System.Windows;
 
 namespace ClipFlyout.Models;
 
@@ -17,9 +18,24 @@ public record ActionItem(
 )
 {
     /// <summary>
-    /// Gets display subtitle for rich card presentation (custom subtitle, or description).
+    /// Display title for the action button (aliases Label for UI bindings).
+    /// </summary>
+    public string Title => Label;
+
+    /// <summary>
+    /// Gets display subtitle for rich card presentation (custom subtitle, or description fallback).
     /// </summary>
     public string DisplaySubtitle => !string.IsNullOrWhiteSpace(Subtitle) ? Subtitle : (Description ?? string.Empty);
+
+    /// <summary>
+    /// Returns whether this action has a non-empty explicit subtitle.
+    /// </summary>
+    public bool HasSubtitle => !string.IsNullOrWhiteSpace(Subtitle);
+
+    /// <summary>
+    /// Controls visibility of the subtitle line in WPF templates (only shown if explicit subtitle exists).
+    /// </summary>
+    public Visibility SubtitleVisibility => HasSubtitle ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>
     /// Property for direct WPF data binding of the Segoe Fluent / MDL2 glyph.

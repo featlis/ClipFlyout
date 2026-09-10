@@ -19,6 +19,7 @@ public class FlyoutWindowManager : IDisposable
     private bool _isShowing;
     private bool _isButtonHovered;
     private DetectionResult? _lastResult;
+    private (double Left, double Top, double Right, double Bottom) _currentWorkArea;
 
     public FlyoutWindow Window => _window;
     public DetectionResult? LastResult => _lastResult;
@@ -50,9 +51,29 @@ public class FlyoutWindowManager : IDisposable
 
     private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (_isShowing)
+        if (!_isShowing) return;
+
+        // Keep position stable on the active monitor without re-querying cursor position (which causes jumps across monitors).
+        if (_currentWorkArea.Bottom > _currentWorkArea.Top && e.NewSize.Height > 0)
         {
-            UpdateWindowPosition();
+            var placement = _settings.Current.Placement;
+            if (placement == FlyoutPlacement.BottomRight || placement == FlyoutPlacement.BottomLeft)
+            {
+                if (e.PreviousSize.Height > 0)
+                {
+                    double deltaH = e.NewSize.Height - e.PreviousSize.Height;
+                    _window.Top -= deltaH;
+                }
+                else
+                {
+                    _window.Top = _currentWorkArea.Bottom - e.NewSize.Height - 20;
+                }
+            }
+
+            // Strict screen boundary clamping within the current monitor's work area
+            double minTop = _currentWorkArea.Top + 12;
+            double maxTop = Math.Max(minTop, _currentWorkArea.Bottom - e.NewSize.Height - 12);
+            _window.Top = Math.Clamp(_window.Top, minTop, maxTop);
         }
     }
 
@@ -69,13 +90,12 @@ public class FlyoutWindowManager : IDisposable
 
         _autoHideTimer.Stop();
 
-        // 1. Populate content and force layout so actual size is measurable
+        // 1. Populate content and measure full desired size with all generated action items
         _window.Present(result);
-        _window.Measure(new Size(360, double.PositiveInfinity));
-        _window.UpdateLayout();
+        double measuredHeight = _window.MeasureContentHeight();
 
         // 2. Position window based on actual measured size & active monitor
-        UpdateWindowPosition();
+        UpdateWindowPosition(measuredHeight);
 
         // 3. Display and animate now that position is correctly set
         _window.ShowFlyout();
@@ -99,10 +119,11 @@ public class FlyoutWindowManager : IDisposable
         });
     }
 
-    private void UpdateWindowPosition()
+    private void UpdateWindowPosition(double? explicitHeight = null)
     {
         double targetWidth = _window.ActualWidth > 0 ? _window.ActualWidth : (_window.Width > 0 ? _window.Width : 360);
-        double targetHeight = _window.ActualHeight > 0 ? _window.ActualHeight : (_window.DesiredSize.Height > 0 ? _window.DesiredSize.Height : 240);
+        double targetHeight = explicitHeight ?? (_window.ActualHeight > 0 ? _window.ActualHeight : _window.MeasureContentHeight());
+        if (targetHeight <= 0) targetHeight = 320;
 
         // Get cursor position
         Win32.GetCursorPos(out var cursorPos);
@@ -121,6 +142,8 @@ public class FlyoutWindowManager : IDisposable
             double workTop = monitorInfo.rcWork.Top / dpiScale;
             double workRight = monitorInfo.rcWork.Right / dpiScale;
             double workBottom = monitorInfo.rcWork.Bottom / dpiScale;
+
+            _currentWorkArea = (workLeft, workTop, workRight, workBottom);
 
             // Ensure window height can never exceed the monitor work area
             double maxAllowedHeight = Math.Max(150, workBottom - workTop - 24);
@@ -179,8 +202,13 @@ public class FlyoutWindowManager : IDisposable
         else
         {
             // Primary screen fallback
+            double workLeft = SystemParameters.WorkArea.Left;
+            double workTop = SystemParameters.WorkArea.Top;
             double workRight = SystemParameters.WorkArea.Right;
             double workBottom = SystemParameters.WorkArea.Bottom;
+
+            _currentWorkArea = (workLeft, workTop, workRight, workBottom);
+
             _window.Left = Math.Max(12, workRight - targetWidth - 20);
             _window.Top = Math.Max(12, workBottom - targetHeight - 20);
         }

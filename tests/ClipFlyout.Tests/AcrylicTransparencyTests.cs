@@ -140,4 +140,72 @@ public class AcrylicTransparencyTests
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(5)));
     }
+
+    [Fact]
+    public void TestFlyoutWindowPresentAndMeasurement()
+    {
+        var thread = new Thread(() =>
+        {
+            var window = new FlyoutWindow();
+            var actions2 = new List<ActionItem>
+            {
+                new("Action_Copy", "HEXをコピー", "Copy24", "クリップボードにコピー", () => { }, IsPrimary: true, Subtitle: "#3882F6"),
+                new("Action_Convert", "形式を変換", "Convert24", "RGB, HSLへ変換", () => { }, IsPrimary: false, Subtitle: "RGB, HSL, RGBA")
+            };
+            var result2 = new DetectionResult(
+                ClipDataType.HexColor,
+                "#3882F6",
+                "#3882F6",
+                "カラー HEX コード",
+                "RGB(56, 130, 246)",
+                actions2
+            );
+
+            window.Present(result2);
+            double height2 = window.MeasureContentHeight();
+
+            var actions5 = new List<ActionItem>(actions2)
+            {
+                new("Action_3", "Action 3", "Copy24", "Desc 3", () => { }),
+                new("Action_4", "Action 4", "Copy24", "Desc 4", () => { }),
+                new("Action_5", "Action 5", "Copy24", "Desc 5", () => { })
+            };
+            var result5 = new DetectionResult(
+                ClipDataType.HexColor,
+                "#3882F6",
+                "#3882F6",
+                "カラー HEX コード",
+                "RGB(56, 130, 246)",
+                actions5
+            );
+            window.Present(result5);
+            double height5 = window.MeasureContentHeight();
+
+            Assert.True(height2 > 100, $"height2 was {height2}");
+            Assert.True(height5 > height2, $"height5 ({height5}) should be greater than height2 ({height2})");
+
+            window.Close();
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
+    public void TestActionItemTitleAndSubtitleBindings()
+    {
+        var actionWithSub = new ActionItem("Key_1", "Action Label", "Copy24", "Action Description", () => { }, Subtitle: "Sub Text");
+        Assert.Equal("Action Label", actionWithSub.Title);
+        Assert.Equal("Action Label", actionWithSub.Label);
+        Assert.Equal("Sub Text", actionWithSub.DisplaySubtitle);
+        Assert.True(actionWithSub.HasSubtitle);
+        Assert.Equal(Visibility.Visible, actionWithSub.SubtitleVisibility);
+
+        var actionNoSub = new ActionItem("Key_2", "Plain Action", "Save24", "Plain Description", () => { });
+        Assert.Equal("Plain Action", actionNoSub.Title);
+        Assert.Equal("Plain Action", actionNoSub.Label);
+        Assert.Equal("Plain Description", actionNoSub.DisplaySubtitle);
+        Assert.False(actionNoSub.HasSubtitle);
+        Assert.Equal(Visibility.Collapsed, actionNoSub.SubtitleVisibility);
+    }
 }

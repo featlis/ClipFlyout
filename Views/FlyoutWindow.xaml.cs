@@ -416,6 +416,20 @@ public partial class FlyoutWindow : Window
         return Equals(a.RawData, b.RawData);
     }
 
+    /// <summary>
+    /// Measures the exact rendered height of the entire card content,
+    /// forcing layout on children so ItemsControl generates and sizes all action buttons.
+    /// </summary>
+    public double MeasureContentHeight()
+    {
+        double width = Width > 0 ? Width : 360;
+        RootCard.Measure(new Size(width, double.PositiveInfinity));
+        RootCard.Arrange(new Rect(0, 0, width, Math.Max(1, RootCard.DesiredSize.Height)));
+        UpdateLayout();
+        RootCard.Measure(new Size(width, double.PositiveInfinity));
+        return RootCard.DesiredSize.Height;
+    }
+
     public void ShowFlyout()
     {
         Show();
