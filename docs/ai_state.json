@@ -1,6 +1,6 @@
 {
   "project": "ClipFlyout",
-  "version": "0.7.7",
+  "version": "0.7.8",
   "target_framework": "net9.0-windows",
   "architecture": {
     "ui": "WPF + PowerToys-inspired settings cards (Windows 11 transient DWM acrylic with Accent Policy fallback, 20%-100% opacity, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings, Taskbar Widget, Welcome Wizard, rich WinUI 3 stretch toggle switch)",
@@ -111,6 +111,7 @@
     "v0.7.4-refinement: setup wizard (WelcomeWindow) permanently fixed to Light Mode with custom ControlTemplate buttons and ForceLightMode ToggleSwitch; restricted setup launch strictly to installer --welcome flag (suppressed on upgrades and normal runs); coordinated widget topmost timer with FlyoutWindow.IsFlyoutOpen and TrayIconService.IsContextMenuActive; prevented GDI icon handle leaks via Win32.DestroyIcon; enabled tray icon left-click menu toggle.",
     "v0.7.5: added language selection (Auto / Japanese / English) directly inside the initial setup wizard (WelcomeWindow) with real-time UI text update; resolved startup synchronization inconsistency between Inno Setup {userstartup} shortcuts and HKCU Run registry; registered missing Tray_Settings_Flyout localization key; enhanced CleanUrlHelper with YouTube (si, feature), Amazon (ref_), and share tracking parameter stripping; added WM_SETTINGCHANGE handling and DisplaySettingsChanged event unsubscribe to TaskbarWidgetWindow; cleaned redundant Icon attribute from SettingsWindow.xaml.",
     "v0.7.6: resolved all 11 bug audit issues: eliminated duplicate Theme validation and added WidgetTextColor validation in AppSettings.Normalize; tightened future update check limit to 1h; unsubscribed theme, history, and language events across TrayIconService, SettingsWindow, TaskbarWidgetWindow, and WelcomeWindow on close/dispose to eliminate memory leaks; removed over-aggressive ref/source stripping from CleanUrlHelper while preserving ref_ and utm_* trackers; implemented full pixel-data equality comparison in HistoryService for robust image deduplication; separated FlyoutWindow layout preparation from display animation to guarantee correct position before show; localized widget image preview label [Image].",
-    "v0.7.7: stopped flyout auto-hide countdown while hovering buttons (action buttons / close button) or remaining within flyout bounds via ButtonMouseEntered/Left events and Win32 cursor tracking."
+    "v0.7.7: stopped flyout auto-hide countdown while hovering buttons (action buttons / close button) or remaining within flyout bounds via ButtonMouseEntered/Left events and Win32 cursor tracking.",
+    "v0.7.8: fixed widget Z-order flicker during taskbar interactions by assigning Shell_TrayWnd as its owner and eliminating unnecessary polling delays."
   ]
 }
