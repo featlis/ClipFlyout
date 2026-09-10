@@ -21,6 +21,7 @@ public static class Win32
     public const uint SWP_NOSIZE = 0x0001;
     public const uint SWP_NOMOVE = 0x0002;
     public const uint SWP_NOACTIVATE = 0x0010;
+    public const uint SWP_NOREDRAW = 0x0008;
     public const uint SWP_SHOWWINDOW = 0x0040;
     public const int WM_WINDOWPOSCHANGING = 0x0046;
     public const int WM_SETTINGCHANGE = 0x001A;

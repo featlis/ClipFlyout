@@ -24,6 +24,7 @@ public partial class TaskbarWidgetWindow : Window
     private bool _isHovered;
 
     private readonly DispatcherTimer _topmostTimer;
+    private readonly DispatcherTimer _debouncedTopmostTimer;
     private readonly EventHandler _displaySettingsHandler;
     private readonly Action _themeChangedHandler;
     private readonly Action _languageChangedHandler;
@@ -39,9 +40,21 @@ public partial class TaskbarWidgetWindow : Window
 
         _topmostTimer = new DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
         {
-            Interval = TimeSpan.FromMilliseconds(250)
+            Interval = TimeSpan.FromMilliseconds(500)
         };
         _topmostTimer.Tick += (_, _) => EnsureTopmost();
+
+        // Debounced timer for Deactivated — lets the shell finish Z-order
+        // operations before we restore topmost, preventing visible flicker.
+        _debouncedTopmostTimer = new DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(80)
+        };
+        _debouncedTopmostTimer.Tick += (_, _) =>
+        {
+            _debouncedTopmostTimer.Stop();
+            EnsureTopmost();
+        };
 
         _displaySettingsHandler = (_, _) => Dispatcher.Invoke(UpdatePosition);
         _themeChangedHandler = () =>
@@ -70,13 +83,19 @@ public partial class TaskbarWidgetWindow : Window
         Closed += (_, _) =>
         {
             _topmostTimer.Stop();
+            _debouncedTopmostTimer.Stop();
             SystemEvents.DisplaySettingsChanged -= _displaySettingsHandler;
             _settings.SettingsChanged -= OnSettingsChanged;
             _theme.ThemeChanged -= _themeChangedHandler;
             _loc.LanguageChanged -= _languageChangedHandler;
         };
-        Deactivated += (_, _) => EnsureTopmost();
-        LocationChanged += (_, _) => EnsureTopmost();
+        Deactivated += (_, _) =>
+        {
+            // Debounce: don't call SetWindowPos immediately during shell
+            // Z-order changes (taskbar click, start menu, etc.).
+            _debouncedTopmostTimer.Stop();
+            _debouncedTopmostTimer.Start();
+        };
 
         _settings.SettingsChanged += OnSettingsChanged;
         _theme.ThemeChanged += _themeChangedHandler;
@@ -437,7 +456,7 @@ public partial class TaskbarWidgetWindow : Window
             _hwnd,
             Win32.HWND_TOPMOST,
             0, 0, 0, 0,
-            Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE
+            Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE | Win32.SWP_NOREDRAW
         );
     }
 
