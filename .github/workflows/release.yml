@@ -28,7 +28,13 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Install Inno Setup
-        run: choco install innosetup --no-progress
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress
+          $innoDir = "${env:ProgramFiles(x86)}\Inno Setup 6"
+          if (Test-Path $innoDir) {
+            Write-Output $innoDir >> $env:GITHUB_PATH
+          }
 
       - name: Determine Version
         id: version
@@ -56,9 +62,12 @@ jobs:
         shell: pwsh
         working-directory: dist
         run: |
-          Get-FileHash -Algorithm SHA256 * | ForEach-Object {
-            "$($_.Hash)  $($_.Path | Split-Path -Leaf)"
-          } | Out-File -Encoding ascii checksums-sha256.txt
+          $files = Get-ChildItem -File | Where-Object { $_.Name -ne "checksums-sha256.txt" }
+          $hashes = foreach ($f in $files) {
+            $h = Get-FileHash -Algorithm SHA256 $f.FullName
+            "$($h.Hash)  $($f.Name)"
+          }
+          $hashes | Set-Content -Encoding ascii checksums-sha256.txt
           Get-Content checksums-sha256.txt
 
       - name: Create GitHub Release

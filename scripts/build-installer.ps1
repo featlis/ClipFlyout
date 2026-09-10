@@ -52,9 +52,11 @@ Write-Host "  -> Created: $ZipPath" -ForegroundColor Green
 Write-Host "`n[3/3] Building Inno Setup Installer..." -ForegroundColor Yellow
 $IsccCandidates = @(
     "ISCC.exe",
-    "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
     "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
-    "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+    "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+    "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
+    "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+    "C:\Program Files\Inno Setup 6\ISCC.exe"
 )
 
 $IsccPath = $null
@@ -69,7 +71,8 @@ foreach ($candidate in $IsccCandidates) {
 }
 
 if (-not $IsccPath) {
-    Write-Warning "ISCC.exe not found! Please install Inno Setup 6 (winget install JRSoftware.InnoSetup)"
+    Write-Error "ISCC.exe not found! Please install Inno Setup 6 (winget install JRSoftware.InnoSetup)"
+    exit 1
 } else {
     Write-Host "  Using compiler: $IsccPath" -ForegroundColor Gray
     & "$IsccPath" "/DMyAppVersion=$Version" "$IssFile"
