@@ -22,6 +22,7 @@ public partial class TaskbarWidgetWindow : Window
     private readonly ThemeService _theme = ThemeService.Instance;
     private readonly LocalizationService _loc = LocalizationService.Instance;
     private bool _isHovered;
+    private readonly uint _taskbarCreatedMsg;
 
     private readonly DispatcherTimer _topmostTimer;
     private readonly DispatcherTimer _debouncedTopmostTimer;
@@ -35,6 +36,7 @@ public partial class TaskbarWidgetWindow : Window
     public TaskbarWidgetWindow()
     {
         InitializeComponent();
+        _taskbarCreatedMsg = Win32.RegisterWindowMessage("TaskbarCreated");
 
         try { IconImage.Source = AppIconHelper.CreateAppBitmapSource(32); } catch { }
 
@@ -122,15 +124,31 @@ public partial class TaskbarWidgetWindow : Window
         exStyle |= Win32.WS_EX_NOACTIVATE | Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_TOPMOST;
         Win32.SetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE, (IntPtr)exStyle);
 
-        IntPtr trayHwnd = Win32.FindWindow("Shell_TrayWnd", null);
-        if (trayHwnd != IntPtr.Zero)
-        {
-            // By setting the taskbar as the owner (GWL_HWNDPARENT), the OS ensures 
-            // our widget is always drawn above the taskbar in the Z-order.
-            Win32.SetWindowLongPtr(_hwnd, Win32.GWL_HWNDPARENT, trayHwnd);
-        }
+        SetTaskbarOwner();
 
         ApplyTheme();
+    }
+
+    private void SetTaskbarOwner()
+    {
+        if (_hwnd == IntPtr.Zero) return;
+
+        // Try to get the taskbar of the monitor where the widget is currently located
+        IntPtr hMonitor = Win32.MonitorFromWindow(_hwnd, Win32.MONITOR_DEFAULTTONEAREST);
+        IntPtr ownerTaskbar = IntPtr.Zero;
+
+        // Primary taskbar is Shell_TrayWnd, secondary taskbars are Shell_SecondaryTrayWnd
+        // A robust way in Win32 is to enumerate windows, but as a fast approximation:
+        // We set GWL_HWNDPARENT to the primary taskbar. If Z-order issues arise on secondary monitors,
+        // it may need Shell_SecondaryTrayWnd on that specific monitor.
+        // For now, attaching to the primary Shell_TrayWnd usually forces the OS to treat this window
+        // as part of the Shell's Z-band.
+        ownerTaskbar = Win32.FindWindow("Shell_TrayWnd", null);
+
+        if (ownerTaskbar != IntPtr.Zero)
+        {
+            Win32.SetWindowLongPtr(_hwnd, Win32.GWL_HWNDPARENT, ownerTaskbar);
+        }
     }
 
     public void UpdatePosition()
@@ -470,6 +488,14 @@ public partial class TaskbarWidgetWindow : Window
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (msg == _taskbarCreatedMsg)
+        {
+            // Explorer restarted, re-attach to the new taskbar
+            SetTaskbarOwner();
+            EnsureTopmost();
+            return IntPtr.Zero;
+        }
+
         switch (msg)
         {
             case Win32.WM_SETTINGCHANGE:

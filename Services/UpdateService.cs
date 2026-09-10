@@ -21,12 +21,12 @@ public sealed class UpdateService
 
     public static UpdateService Instance => _instance.Value;
 
-    public async Task<UpdateRelease?> CheckForUpdateAsync()
+    public async Task<UpdateRelease?> CheckForUpdateAsync(CancellationToken cancellationToken = default)
     {
-        using var response = await Client.GetAsync(LatestReleaseUrl).ConfigureAwait(false);
+        using var response = await Client.GetAsync(LatestReleaseUrl, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-        using var document = await JsonDocument.ParseAsync(stream).ConfigureAwait(false);
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
         var root = document.RootElement;
 
         if (root.TryGetProperty("prerelease", out var prerelease) && prerelease.GetBoolean()) return null;

@@ -123,7 +123,7 @@ public static class TaskbarColorDetector
         try
         {
             using var personalizeKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
-            
+
             // Check if accent color is applied to taskbar
             var colorPrevalence = personalizeKey?.GetValue("ColorPrevalence");
             if (colorPrevalence is int cp && cp == 1)

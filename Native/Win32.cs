@@ -116,6 +116,14 @@ public static class Win32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern uint RegisterWindowMessage(string lpString);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+
+
     [StructLayout(LayoutKind.Sequential)]
     public struct INPUT
     {

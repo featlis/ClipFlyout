@@ -21,6 +21,7 @@ public partial class App : WpfApplication
     private ThemeService? _themeService;
     private TaskbarWidgetWindow? _taskbarWidget;
     private HotkeyService? _hotkeyService;
+    private readonly CancellationTokenSource _appLifetimeCts = new();
     private long _detectionGeneration;
 
     [System.Runtime.InteropServices.DllImport("shell32.dll", SetLastError = true)]
@@ -96,7 +97,7 @@ public partial class App : WpfApplication
 
             if (ShouldCheckForUpdates(_settingsService.Current))
             {
-                _ = CheckForAutomaticUpdateAsync();
+                _ = CheckForAutomaticUpdateAsync(_appLifetimeCts.Token);
             }
 
             _settingsService.SettingsChanged += cfg =>
@@ -128,15 +129,15 @@ public partial class App : WpfApplication
         }
     }
 
-    private async Task CheckForAutomaticUpdateAsync()
+    private async Task CheckForAutomaticUpdateAsync(CancellationToken cancellationToken = default)
     {
         try
         {
             // Let startup and clipboard monitoring become responsive first.
-            await Task.Delay(TimeSpan.FromSeconds(5));
+            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
             if (_settingsService?.Current.AutomaticallyInstallUpdates != true) return;
             _settingsService?.UpdateSettings(s => s.LastUpdateCheckUtc = DateTimeOffset.UtcNow);
-            var update = await UpdateService.Instance.CheckForUpdateAsync();
+            var update = await UpdateService.Instance.CheckForUpdateAsync(cancellationToken);
             if (update is not null && _windowManager != null)
             {
                 Dispatcher.Invoke(() =>
@@ -195,6 +196,10 @@ public partial class App : WpfApplication
                 });
             }
         }
+        catch (OperationCanceledException)
+        {
+            // Application is shutting down, ignore cancellation
+        }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Automatic update check failed: {ex.Message}");
@@ -244,6 +249,8 @@ public partial class App : WpfApplication
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _appLifetimeCts.Cancel();
+        _appLifetimeCts.Dispose();
         _hotkeyService?.Dispose();
         _taskbarWidget?.Close();
         _clipboardMonitor?.Dispose();
