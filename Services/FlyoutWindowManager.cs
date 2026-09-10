@@ -36,6 +36,7 @@ public class FlyoutWindowManager : IDisposable
         _window.CloseRequested += OnCloseRequested;
         _window.SettingsRequested += () => SettingsRequested?.Invoke();
         _window.HistoryItemSelected += result => ShowFlyout(result);
+        _window.SizeChanged += OnWindowSizeChanged;
 
         executor.ActionExecuted += OnActionExecuted;
         executor.TransformedActionExecuted += OnTransformedActionExecuted;
@@ -45,6 +46,14 @@ public class FlyoutWindowManager : IDisposable
             Interval = TimeSpan.FromSeconds(_settings.Current.DisplayDurationSeconds)
         };
         _autoHideTimer.Tick += AutoHideTimer_Tick;
+    }
+
+    private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_isShowing)
+        {
+            UpdateWindowPosition();
+        }
     }
 
     public void ShowFlyout(DetectionResult result)
@@ -60,9 +69,10 @@ public class FlyoutWindowManager : IDisposable
 
         _autoHideTimer.Stop();
 
-        // 1. Populate content first so actual size is measurable
+        // 1. Populate content and force layout so actual size is measurable
         _window.Present(result);
-        _window.Measure(new Size(352, double.PositiveInfinity));
+        _window.Measure(new Size(360, double.PositiveInfinity));
+        _window.UpdateLayout();
 
         // 2. Position window based on actual measured size & active monitor
         UpdateWindowPosition();
@@ -91,8 +101,8 @@ public class FlyoutWindowManager : IDisposable
 
     private void UpdateWindowPosition()
     {
-        double targetWidth = _window.Width > 0 ? _window.Width : 352;
-        double targetHeight = _window.DesiredSize.Height > 0 ? _window.DesiredSize.Height : 160;
+        double targetWidth = _window.ActualWidth > 0 ? _window.ActualWidth : (_window.Width > 0 ? _window.Width : 360);
+        double targetHeight = _window.ActualHeight > 0 ? _window.ActualHeight : (_window.DesiredSize.Height > 0 ? _window.DesiredSize.Height : 240);
 
         // Get cursor position
         Win32.GetCursorPos(out var cursorPos);
@@ -111,6 +121,13 @@ public class FlyoutWindowManager : IDisposable
             double workTop = monitorInfo.rcWork.Top / dpiScale;
             double workRight = monitorInfo.rcWork.Right / dpiScale;
             double workBottom = monitorInfo.rcWork.Bottom / dpiScale;
+
+            // Ensure window height can never exceed the monitor work area
+            double maxAllowedHeight = Math.Max(150, workBottom - workTop - 24);
+            if (_window.MaxHeight != maxAllowedHeight)
+            {
+                _window.MaxHeight = maxAllowedHeight;
+            }
 
             double cursorX = cursorPos.X / dpiScale;
             double cursorY = cursorPos.Y / dpiScale;
@@ -162,8 +179,10 @@ public class FlyoutWindowManager : IDisposable
         else
         {
             // Primary screen fallback
-            _window.Left = Math.Max(12, SystemParameters.WorkArea.Right - targetWidth - 20);
-            _window.Top = Math.Max(12, SystemParameters.WorkArea.Bottom - targetHeight - 20);
+            double workRight = SystemParameters.WorkArea.Right;
+            double workBottom = SystemParameters.WorkArea.Bottom;
+            _window.Left = Math.Max(12, workRight - targetWidth - 20);
+            _window.Top = Math.Max(12, workBottom - targetHeight - 20);
         }
     }
 
@@ -301,6 +320,7 @@ public class FlyoutWindowManager : IDisposable
     public void Dispose()
     {
         _autoHideTimer.Stop();
+        _window.SizeChanged -= OnWindowSizeChanged;
         _window.Close();
     }
 }

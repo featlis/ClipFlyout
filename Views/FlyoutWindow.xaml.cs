@@ -45,7 +45,10 @@ public partial class FlyoutWindow : Window
         _showStoryboard = TryFindResource("ShowStoryboard") as Storyboard;
         _hideStoryboard = TryFindResource("HideStoryboard") as Storyboard;
 
+        RootCard.Opacity = 0;
+
         SourceInitialized += OnSourceInitialized;
+
         MouseEnter += (_, _) => MouseEntered?.Invoke();
         MouseLeave += (_, _) => MouseLeft?.Invoke();
 
@@ -77,6 +80,9 @@ public partial class FlyoutWindow : Window
             ThemeService.Instance.ThemeChanged -= _themeChangedHandler;
             SettingsService.Instance.SettingsChanged -= _settingsChangedHandler;
         };
+
+        // Ensure HWND is created upfront so DWM acrylic and Win32 styles are initialized immediately
+        new WindowInteropHelper(this).EnsureHandle();
 
         ApplyTheme();
     }
@@ -317,8 +323,8 @@ public partial class FlyoutWindow : Window
         _hideStoryboard?.Remove(this);
         RootCard.BeginAnimation(OpacityProperty, null);
         RootTransform.BeginAnimation(TranslateTransform.YProperty, null);
-        RootCard.Opacity = 1;
-        RootTransform.Y = 0;
+        RootCard.Opacity = 0;
+        RootTransform.Y = 12;
 
         ColorPreviewPanel.Visibility = Visibility.Collapsed;
         ImagePreviewPanel.Visibility = Visibility.Collapsed;
@@ -458,7 +464,14 @@ public partial class FlyoutWindow : Window
         InlineFeedbackText.Text = message;
 
         ActionsItemsControl.Visibility = Visibility.Collapsed;
+        InlineFeedbackBar.Opacity = 0;
         InlineFeedbackBar.Visibility = Visibility.Visible;
+
+        var anim = new DoubleAnimation(0.0, 1.0, TimeSpan.FromMilliseconds(160))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        InlineFeedbackBar.BeginAnimation(UIElement.OpacityProperty, anim);
 
         Task.Delay(950).ContinueWith(_ =>
         {

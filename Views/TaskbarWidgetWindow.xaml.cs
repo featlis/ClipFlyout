@@ -23,6 +23,7 @@ public partial class TaskbarWidgetWindow : Window
     private readonly LocalizationService _loc = LocalizationService.Instance;
     private bool _isHovered;
     private readonly uint _taskbarCreatedMsg;
+    private bool _isContextMenuOpen;
 
     private readonly DispatcherTimer _topmostTimer;
     private readonly DispatcherTimer _debouncedTopmostTimer;
@@ -57,6 +58,21 @@ public partial class TaskbarWidgetWindow : Window
             _debouncedTopmostTimer.Stop();
             EnsureTopmost();
         };
+
+        if (WidgetContextMenu != null)
+        {
+            WidgetContextMenu.Opened += (_, _) =>
+            {
+                _isContextMenuOpen = true;
+                _topmostTimer.Stop();
+                _debouncedTopmostTimer.Stop();
+            };
+            WidgetContextMenu.Closed += (_, _) =>
+            {
+                _isContextMenuOpen = false;
+                _topmostTimer.Start();
+            };
+        }
 
         _displaySettingsHandler = (_, _) => Dispatcher.Invoke(UpdatePosition);
         _themeChangedHandler = () =>
@@ -150,51 +166,84 @@ public partial class TaskbarWidgetWindow : Window
             return;
         }
 
-        var workArea = SystemParameters.WorkArea;
-        double screenHeight = SystemParameters.PrimaryScreenHeight;
-        double screenWidth = SystemParameters.PrimaryScreenWidth;
-        var cfg = _settings.Current;
+        double workLeft;
+        double workTop;
+        double workRight;
+        double workBottom;
+        double screenWidth;
+        double screenHeight;
 
+        // Discover the taskbar's monitor and effective DPI scale
+        IntPtr ownerTaskbar = Win32.FindWindow("Shell_TrayWnd", null);
+        IntPtr hMonitor = ownerTaskbar != IntPtr.Zero
+            ? Win32.MonitorFromWindow(ownerTaskbar, Win32.MONITOR_DEFAULTTOPRIMARY)
+            : IntPtr.Zero;
+
+        var monitorInfo = new Win32.MONITORINFO();
+        monitorInfo.cbSize = Marshal.SizeOf<Win32.MONITORINFO>();
+
+        if (hMonitor != IntPtr.Zero && Win32.GetMonitorInfo(hMonitor, ref monitorInfo))
+        {
+            double dpiScale = Win32.GetMonitorDpiScale(hMonitor, _hwnd);
+            workLeft = monitorInfo.rcWork.Left / dpiScale;
+            workTop = monitorInfo.rcWork.Top / dpiScale;
+            workRight = monitorInfo.rcWork.Right / dpiScale;
+            workBottom = monitorInfo.rcWork.Bottom / dpiScale;
+            screenWidth = (monitorInfo.rcMonitor.Right - monitorInfo.rcMonitor.Left) / dpiScale;
+            screenHeight = (monitorInfo.rcMonitor.Bottom - monitorInfo.rcMonitor.Top) / dpiScale;
+        }
+        else
+        {
+            var workArea = SystemParameters.WorkArea;
+            workLeft = workArea.Left;
+            workTop = workArea.Top;
+            workRight = workArea.Right;
+            workBottom = workArea.Bottom;
+            screenWidth = SystemParameters.PrimaryScreenWidth;
+            screenHeight = SystemParameters.PrimaryScreenHeight;
+        }
+
+        var cfg = _settings.Current;
         double offset = cfg.WidgetOffsetX;
         double left;
         double top;
 
         // Base vertical taskbar alignment (centered in taskbar strip if on bottom)
-        double taskbarBottomDock = screenHeight > workArea.Bottom
-            ? workArea.Bottom + (screenHeight - workArea.Bottom - Height) / 2.0
-            : workArea.Bottom - Height - 4;
+        double taskbarBottomDock = screenHeight > workBottom
+            ? workBottom + (screenHeight - workBottom - Height) / 2.0
+            : workBottom - Height - 4;
 
         switch (cfg.WidgetPosition)
         {
             case WidgetPositionMode.CenterRight:
-                left = (screenWidth / 2.0) + 120 + offset;
+                left = workLeft + (screenWidth / 2.0) + 120 + offset;
                 top = taskbarBottomDock;
                 break;
 
             case WidgetPositionMode.CenterLeft:
-                left = (screenWidth / 2.0) - Width - 120 + offset;
+                left = workLeft + (screenWidth / 2.0) - Width - 120 + offset;
                 top = taskbarBottomDock;
                 break;
 
             case WidgetPositionMode.FarLeft:
-                left = workArea.Left + 180 + offset;
+                left = workLeft + 180 + offset;
                 top = taskbarBottomDock;
                 break;
 
             case WidgetPositionMode.AboveTaskbar:
-                left = workArea.Right - Width - 16 + offset;
-                top = workArea.Bottom - Height - 8;
+                left = workRight - Width - 16 + offset;
+                top = workBottom - Height - 8;
                 break;
 
             case WidgetPositionMode.TrayLeft:
             default:
-                left = workArea.Right - Width - 16 + offset;
+                left = workRight - Width - 16 + offset;
                 top = taskbarBottomDock;
                 break;
         }
 
-        Left = Math.Clamp(left, 8, screenWidth - Width - 8);
-        Top = Math.Clamp(top, 8, screenHeight - Height - 4);
+        Left = Math.Clamp(left, workLeft + 8, workRight - Width - 8);
+        Top = Math.Clamp(top, workTop + 8, screenHeight - Height - 4);
 
         if (_hwnd != IntPtr.Zero)
         {
@@ -473,7 +522,7 @@ public partial class TaskbarWidgetWindow : Window
     public void EnsureTopmost()
     {
         if (_hwnd == IntPtr.Zero || !IsVisible) return;
-        if (WidgetContextMenu?.IsOpen == true || TrayIconService.IsContextMenuActive || FlyoutWindow.IsFlyoutOpen) return;
+        if (_isContextMenuOpen || WidgetContextMenu?.IsOpen == true || TrayIconService.IsContextMenuActive || FlyoutWindow.IsFlyoutOpen) return;
 
         IntPtr prevHwnd = Win32.GetWindow(_hwnd, Win32.GW_HWNDPREV);
         if (prevHwnd == IntPtr.Zero)
@@ -506,7 +555,7 @@ public partial class TaskbarWidgetWindow : Window
                 break;
 
             case Win32.WM_WINDOWPOSCHANGING:
-                if (WidgetContextMenu?.IsOpen != true && !TrayIconService.IsContextMenuActive && !FlyoutWindow.IsFlyoutOpen)
+                if (!_isContextMenuOpen && WidgetContextMenu?.IsOpen != true && !TrayIconService.IsContextMenuActive && !FlyoutWindow.IsFlyoutOpen)
                 {
                     var pos = Marshal.PtrToStructure<Win32.WINDOWPOS>(lParam);
                     pos.hwndInsertAfter = Win32.HWND_TOPMOST;

@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using H.NotifyIcon;
 using ClipFlyout.Models;
 using ClipFlyout.Services;
@@ -24,6 +25,7 @@ public class TrayIconService : IDisposable
     private readonly TaskbarIcon _taskbarIcon;
     private readonly ContextMenu _contextMenu;
     private readonly Icon _appIcon;
+    private readonly HwndSource _anchorSource;
     private SettingsWindow? _settingsWindow;
 
     private MenuItem? _settingsItem;
@@ -47,22 +49,24 @@ public class TrayIconService : IDisposable
         _contextMenu = CreateContextMenu();
         _appIcon = AppIconHelper.CreateAppIcon(32);
 
+        // Hidden anchor window provides a valid foreground HWND so the context menu
+        // can be dismissed properly when clicking outside (standard Win32 tray behavior).
+        _anchorSource = new HwndSource(new HwndSourceParameters("ClipFlyoutTrayAnchor")
+        {
+            Width = 0,
+            Height = 0,
+            WindowStyle = 0
+        });
+
         _taskbarIcon = new TaskbarIcon
         {
             Icon = _appIcon,
-            ToolTipText = "ClipFlyout",
-            ContextMenu = _contextMenu
+            ToolTipText = "ClipFlyout"
+            // Note: We do NOT assign ContextMenu to TaskbarIcon directly. H.NotifyIcon's
+            // built-in right-click handler causes immediate popup dismissal due to focus conflicts.
         };
-        _taskbarIcon.TrayLeftMouseUp += (s, e) =>
-        {
-            if (_contextMenu.IsOpen)
-            {
-                _contextMenu.IsOpen = false;
-                return;
-            }
-            _contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
-            _contextMenu.IsOpen = true;
-        };
+        _taskbarIcon.TrayLeftMouseUp += (s, e) => ToggleContextMenu();
+        _taskbarIcon.TrayRightMouseUp += (s, e) => ToggleContextMenu();
         _taskbarIcon.TrayMouseDoubleClick += (s, e) => OpenSettings();
         _taskbarIcon.ForceCreate();
 
@@ -122,6 +126,24 @@ public class TrayIconService : IDisposable
         }
     }
 
+    private void ToggleContextMenu()
+    {
+        if (_contextMenu.IsOpen)
+        {
+            _contextMenu.IsOpen = false;
+            return;
+        }
+
+        IsContextMenuActive = true;
+        if (_anchorSource.Handle != IntPtr.Zero)
+        {
+            Native.Win32.SetForegroundWindow(_anchorSource.Handle);
+        }
+
+        _contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+        _contextMenu.IsOpen = true;
+    }
+
     public static bool IsContextMenuActive { get; private set; }
 
     private bool _pendingMenuRebuild;
@@ -137,15 +159,15 @@ public class TrayIconService : IDisposable
         menu.Opened += (_, _) =>
         {
             IsContextMenuActive = true;
-            if (PresentationSource.FromVisual(menu) is System.Windows.Interop.HwndSource source)
-            {
-                Native.Win32.SetForegroundWindow(source.Handle);
-            }
         };
 
         menu.Closed += (_, _) =>
         {
             IsContextMenuActive = false;
+            if (_anchorSource.Handle != IntPtr.Zero)
+            {
+                Native.Win32.PostMessage(_anchorSource.Handle, Native.Win32.WM_NULL, IntPtr.Zero, IntPtr.Zero);
+            }
             if (_pendingMenuRebuild)
             {
                 _pendingMenuRebuild = false;
@@ -458,5 +480,6 @@ public class TrayIconService : IDisposable
         HistoryService.Instance.HistoryChanged -= _historyChangedHandler;
         _taskbarIcon.Dispose();
         _appIcon.Dispose();
+        _anchorSource.Dispose();
     }
 }

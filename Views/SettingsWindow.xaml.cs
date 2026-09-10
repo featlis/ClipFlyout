@@ -624,6 +624,11 @@ public partial class SettingsWindow : Window
         combo.Background = bg;
         combo.BorderBrush = border;
         combo.Foreground = fg;
+
+        var itemStyle = new Style(typeof(ComboBoxItem));
+        itemStyle.Setters.Add(new Setter(ComboBoxItem.BackgroundProperty, bg));
+        itemStyle.Setters.Add(new Setter(ComboBoxItem.ForegroundProperty, fg));
+        combo.ItemContainerStyle = itemStyle;
     }
 
     private void SetSeparatorColors(bool isDark)

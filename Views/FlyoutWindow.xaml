@@ -225,6 +225,7 @@
                         </Grid>
                                     <!-- 3. Textual / JSON / Code / URL Preview -->
                         <Border x:Name="TextPreviewPanel"
+                                Visibility="Collapsed"
                                 CornerRadius="6"
                                 BorderThickness="1"
                                 Padding="8,6"
@@ -278,14 +279,13 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Button Height="44"
-                                        Margin="0,0,0,5"
-                                        Padding="12,0"
+                                        Margin="0,0,0,6"
+                                        Padding="10,6"
                                         BorderThickness="1"
                                         HorizontalContentAlignment="Stretch"
                                         Cursor="Hand"
-                                        ToolTip="{Binding Description}"
-                                        Loaded="ActionButton_Loaded"
                                         Click="ActionButton_Click"
+                                        Loaded="ActionButton_Loaded"
                                         Tag="{Binding}">
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
@@ -294,7 +294,7 @@
                                                     BorderBrush="{TemplateBinding BorderBrush}"
                                                     BorderThickness="{TemplateBinding BorderThickness}"
                                                     CornerRadius="7"
-                                                    Padding="12,6">
+                                                    Padding="{TemplateBinding Padding}">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="28"/>
@@ -302,47 +302,47 @@
                                                         <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
 
-                                                    <!-- Fluent Glyph Icon -->
+                                                    <!-- Icon Badge / Glyph -->
                                                     <TextBlock Grid.Column="0"
                                                                Text="{Binding EffectiveGlyph}"
                                                                FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                                               FontSize="15"
+                                                               FontSize="14"
                                                                VerticalAlignment="Center"
-                                                               HorizontalAlignment="Left"
+                                                               HorizontalAlignment="Center"
                                                                Foreground="{TemplateBinding Foreground}"/>
 
-                                                    <!-- Action Title and Subtitle -->
-                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="2,0,0,0">
-                                                        <TextBlock Text="{Binding Label}"
+                                                    <!-- Title & Subtitle Stack -->
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,0,0">
+                                                        <TextBlock Text="{Binding Title}"
                                                                    FontSize="12"
                                                                    FontWeight="SemiBold"
                                                                    Foreground="{TemplateBinding Foreground}"
                                                                    TextTrimming="CharacterEllipsis"/>
                                                         <TextBlock Text="{Binding DisplaySubtitle}"
                                                                    FontSize="10"
-                                                                   Opacity="0.75"
-                                                                   Margin="0,1,0,0"
+                                                                   Opacity="0.8"
                                                                    Foreground="{TemplateBinding Foreground}"
-                                                                   TextTrimming="CharacterEllipsis"/>
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Visibility="{Binding SubtitleVisibility}"/>
                                                     </StackPanel>
 
-                                                    <!-- Chevron Arrow -->
+                                                    <!-- Chevron Arrow Glyph -->
                                                     <TextBlock Grid.Column="2"
                                                                Text="&#xE76C;"
                                                                FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                                                FontSize="10"
-                                                               Opacity="0.4"
+                                                               Opacity="0.5"
                                                                VerticalAlignment="Center"
+                                                               Margin="4,0,2,0"
                                                                Foreground="{TemplateBinding Foreground}"/>
                                                 </Grid>
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="btnBorder" Property="Background" Value="#25888888"/>
-                                                    <Setter TargetName="btnBorder" Property="BorderBrush" Value="#45888888"/>
+                                                    <Setter TargetName="btnBorder" Property="Opacity" Value="0.88"/>
                                                 </Trigger>
                                                 <Trigger Property="IsPressed" Value="True">
-                                                    <Setter TargetName="btnBorder" Property="Background" Value="#40888888"/>
+                                                    <Setter TargetName="btnBorder" Property="Opacity" Value="0.75"/>
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
@@ -352,21 +352,26 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <!-- Inline Feedback Toast -->
+                    <!-- Feedback Toast Overlay (shows briefly on action copy/transform) -->
                     <Border x:Name="InlineFeedbackBar"
-                            Visibility="Collapsed"
-                            CornerRadius="6"
-                            Height="38"
-                            Padding="14,0"
-                            MaxWidth="332"
+                            CornerRadius="7"
                             BorderThickness="1"
-                            HorizontalAlignment="Stretch">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock Text="✓" FontWeight="Bold" FontSize="13" Margin="0,0,8,0" Foreground="#10B981"/>
+                            Padding="12,10"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Stretch"
+                            Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <TextBlock Text="&#xE73E;"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="14"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0"
+                                       Foreground="#10B981"/>
                             <TextBlock x:Name="InlineFeedbackText"
-                                       Text="コピーしました"
+                                       Text="クリップボードにコピーしました"
                                        FontSize="12"
-                                       FontWeight="SemiBold"/>
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -400,15 +405,15 @@
                                                                FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                                                FontSize="12"
                                                                VerticalAlignment="Center"
-                                                               Opacity="0.75"
-                                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                                               Opacity="0.85"
+                                                               Foreground="{Binding Foreground, ElementName=RecentHeader}"/>
                                                     <TextBlock Grid.Column="1"
                                                                Text="{Binding DisplayText}"
                                                                FontSize="11"
                                                                VerticalAlignment="Center"
-                                                               Opacity="0.85"
+                                                               Opacity="0.95"
                                                                TextTrimming="CharacterEllipsis"
-                                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                                               Foreground="{Binding Foreground, ElementName=HeaderAppName}"/>
                                                 </Grid>
                                             </Border>
                                             <ControlTemplate.Triggers>

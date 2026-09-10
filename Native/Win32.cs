@@ -69,6 +69,7 @@ public static class Win32
     public const uint INPUT_KEYBOARD = 1;
     public const uint KEYEVENTF_KEYUP = 0x0002;
 
+    public const uint MONITOR_DEFAULTTOPRIMARY = 0x00000001;
     public const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
     public const int MDT_EFFECTIVE_DPI = 0;
 
@@ -308,6 +309,12 @@ public static class Win32
     [DllImport("user32.dll")]
     public static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WindowCompositionAttributeData data);
 
+    public const uint WM_NULL = 0x0000;
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
     /// <summary>
     /// Accurately retrieves the DPI scaling factor for the given monitor and window.
     /// </summary>
@@ -315,15 +322,15 @@ public static class Win32
     {
         try
         {
+            if (hMonitor != IntPtr.Zero && GetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, out uint dpiX, out _) == 0 && dpiX > 0)
+            {
+                return dpiX / 96.0;
+            }
+
             if (hwnd != IntPtr.Zero)
             {
                 uint dpi = GetDpiForWindow(hwnd);
                 if (dpi > 0) return dpi / 96.0;
-            }
-
-            if (hMonitor != IntPtr.Zero && GetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, out uint dpiX, out _) == 0 && dpiX > 0)
-            {
-                return dpiX / 96.0;
             }
         }
         catch { }
