@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.7.8"
+    [string]$Version = "1.0.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,8 +9,8 @@ $PublishDir = Join-Path $ProjectRoot "publish\win-x64"
 $DistDir = Join-Path $ProjectRoot "dist"
 $IssFile = Join-Path $ProjectRoot "installer\ClipFlyout.iss"
 
-if ($Version -notmatch '^0\.\d+\.\d+$') {
-    throw "Version must use the pre-1.0 format 0.x.x (for example, 0.4.1)."
+if ($Version -notmatch '^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$') {
+    throw "Version must use semantic version format x.y.z (for example, 1.0.0 or 1.0.0-rc1)."
 }
 
 Write-Host "==========================================" -ForegroundColor Cyan

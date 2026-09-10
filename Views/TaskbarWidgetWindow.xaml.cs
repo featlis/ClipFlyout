@@ -133,18 +133,9 @@ public partial class TaskbarWidgetWindow : Window
     {
         if (_hwnd == IntPtr.Zero) return;
 
-        // Try to get the taskbar of the monitor where the widget is currently located
-        IntPtr hMonitor = Win32.MonitorFromWindow(_hwnd, Win32.MONITOR_DEFAULTTONEAREST);
-        IntPtr ownerTaskbar = IntPtr.Zero;
-
-        // Primary taskbar is Shell_TrayWnd, secondary taskbars are Shell_SecondaryTrayWnd
-        // A robust way in Win32 is to enumerate windows, but as a fast approximation:
-        // We set GWL_HWNDPARENT to the primary taskbar. If Z-order issues arise on secondary monitors,
-        // it may need Shell_SecondaryTrayWnd on that specific monitor.
-        // For now, attaching to the primary Shell_TrayWnd usually forces the OS to treat this window
-        // as part of the Shell's Z-band.
-        ownerTaskbar = Win32.FindWindow("Shell_TrayWnd", null);
-
+        // Attaching to the primary Shell_TrayWnd forces the OS to treat this window
+        // as part of the Shell's Z-band and prevents taskbar click from hiding it.
+        IntPtr ownerTaskbar = Win32.FindWindow("Shell_TrayWnd", null);
         if (ownerTaskbar != IntPtr.Zero)
         {
             Win32.SetWindowLongPtr(_hwnd, Win32.GWL_HWNDPARENT, ownerTaskbar);
