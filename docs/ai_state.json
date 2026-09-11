@@ -1,6 +1,6 @@
 {
   "project": "ClipFlyout",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "target_framework": "net9.0-windows",
   "architecture": {
     "ui": "WPF + PowerToys-inspired settings cards (Windows 11 transient DWM acrylic with Accent Policy fallback, 20%-100% opacity, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings, Taskbar Widget, Welcome Wizard, rich WinUI 3 stretch toggle switch)",
@@ -114,6 +114,7 @@
     "v0.7.7: stopped flyout auto-hide countdown while hovering buttons (action buttons / close button) or remaining within flyout bounds via ButtonMouseEntered/Left events and Win32 cursor tracking.",
     "v0.7.8: fixed widget Z-order flicker during taskbar interactions by assigning Shell_TrayWnd as its owner and eliminating unnecessary polling delays.",
     "v1.0.0: official stable release; automated release packaging and verification via GitHub Actions; enabled semver versioning in build scripts; added TaskbarCreated broadcast message handling on Explorer restart; cleaned Win32 P/Invoke declarations; verified full test suite.",
-    "v1.0.1: resolved widget fullscreen suppression and auto text color reliability: implemented Win32 SHQueryUserNotificationState + foreground window rcMonitor coverage check to cleanly collapse and restore widget during fullscreen apps; overhauled TaskbarColorDetector to sample outside widget physical bounds with DPI scaling, avoiding self-text sampling loops; added periodic 300ms luminance checking and multi-stage debounce timers (250ms/600ms/1200ms) for Windows 11 theme transition animation completion."
+    "v1.0.1: resolved widget fullscreen suppression and auto text color reliability: implemented Win32 SHQueryUserNotificationState + foreground window rcMonitor coverage check to cleanly collapse and restore widget during fullscreen apps; overhauled TaskbarColorDetector to sample outside widget physical bounds with DPI scaling, avoiding self-text sampling loops; added periodic 300ms luminance checking and multi-stage debounce timers (250ms/600ms/1200ms) for Windows 11 theme transition animation completion.",
+    "v1.1.0: major UI polish and taskbar sync: responsive taskbar auto-hide tracking (smooth sliding sync at 30ms polling without frame lag), eliminated hover flickering by removing SWP_NOREDRAW and ensuring full background hit-testing (Alpha=1 transparent brush), rich Fluent UI overhaul across Flyout and Taskbar Widget."
   ]
 }
