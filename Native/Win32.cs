@@ -123,6 +123,37 @@ public static class Win32
     [DllImport("user32.dll")]
     public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
 
+    public enum QUERY_USER_NOTIFICATION_STATE
+    {
+        QUNS_NOT_PRESENT = 1,
+        QUNS_BUSY = 2,
+        QUNS_RUNNING_D3D_FULL_SCREEN = 3,
+        QUNS_PRESENTATION_MODE = 4,
+        QUNS_ACCEPTS_NOTIFICATIONS = 5,
+        QUNS_QUIET_TIME = 6,
+        QUNS_APP = 7
+    }
+
+    [DllImport("shell32.dll")]
+    public static extern int SHQueryUserNotificationState(out QUERY_USER_NOTIFICATION_STATE pquns);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetDesktopWindow();
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetShellWindow();
+
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsIconic(IntPtr hWnd);
+
 
 
     [StructLayout(LayoutKind.Sequential)]

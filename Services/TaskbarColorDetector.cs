@@ -44,7 +44,156 @@ public static class TaskbarColorDetector
     }
 
     /// <summary>
+    /// Detects whether the background behind/around the widget is light (high luminance).
+    /// Samples pixels strictly OUTSIDE the widget physical bounds to avoid sampling the widget's own text or pill.
+    /// </summary>
+    public static bool IsTaskbarLight(
+        double widgetDipLeft,
+        double widgetDipTop,
+        double widgetDipWidth,
+        double widgetDipHeight,
+        double dpiScale,
+        bool isAboveTaskbar)
+    {
+        if (TrySampleOutsideWidgetLuminance(widgetDipLeft, widgetDipTop, widgetDipWidth, widgetDipHeight, dpiScale, isAboveTaskbar, out double luminance))
+        {
+            return IsLuminanceLight(luminance);
+        }
+
+        return GetRegistryTaskbarIsLight();
+    }
+
+    /// <summary>
+    /// Samples pixels strictly outside the widget's physical bounding box to determine background luminance.
+    /// </summary>
+    public static bool TrySampleOutsideWidgetLuminance(
+        double widgetDipLeft,
+        double widgetDipTop,
+        double widgetDipWidth,
+        double widgetDipHeight,
+        double dpiScale,
+        bool isAboveTaskbar,
+        out double averageLuminance)
+    {
+        averageLuminance = 0;
+        if (dpiScale <= 0) dpiScale = 1.0;
+
+        int physLeft = (int)Math.Round(widgetDipLeft * dpiScale);
+        int physTop = (int)Math.Round(widgetDipTop * dpiScale);
+        int physWidth = (int)Math.Round(widgetDipWidth * dpiScale);
+        int physHeight = (int)Math.Round(widgetDipHeight * dpiScale);
+        int physRight = physLeft + physWidth;
+        int physBottom = physTop + physHeight;
+
+        IntPtr hdc = Win32.GetDC(IntPtr.Zero);
+        if (hdc == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        try
+        {
+            double totalLum = 0;
+            int validSamples = 0;
+
+            if (isAboveTaskbar)
+            {
+                // Widget is floating on desktop/windows above taskbar:
+                // Sample points immediately surrounding the widget perimeter
+                var samplePoints = new (int X, int Y)[]
+                {
+                    (physLeft - 16, physTop + physHeight / 2),
+                    (physRight + 16, physTop + physHeight / 2),
+                    (physLeft + physWidth / 2, physTop - 12),
+                    (physLeft + physWidth / 2, physBottom + 12),
+                    (physLeft - 12, physTop - 10),
+                    (physRight + 12, physTop - 10)
+                };
+
+                foreach (var pt in samplePoints)
+                {
+                    uint pixel = Win32.GetPixel(hdc, pt.X, pt.Y);
+                    if (pixel != CLR_INVALID)
+                    {
+                        byte r = (byte)(pixel & 0xFF);
+                        byte g = (byte)((pixel >> 8) & 0xFF);
+                        byte b = (byte)((pixel >> 16) & 0xFF);
+                        totalLum += CalculateLuminance(r, g, b);
+                        validSamples++;
+                    }
+                }
+            }
+            else
+            {
+                // Widget is on taskbar: sample taskbar strip outside widget bounds
+                IntPtr taskbarHwnd = Win32.FindWindow("Shell_TrayWnd", null);
+                if (taskbarHwnd == IntPtr.Zero || !Win32.GetWindowRect(taskbarHwnd, out Win32.RECT tbRect))
+                {
+                    return false;
+                }
+
+                int tbCenterY = (tbRect.Top + tbRect.Bottom) / 2;
+                // Sample points to the left and right of the widget on the taskbar
+                int[] candidateXOffsets = { -15, -30, -50, 15, 30, 50 };
+
+                foreach (int offset in candidateXOffsets)
+                {
+                    int sx = offset < 0 ? physLeft + offset : physRight + offset;
+                    // Ensure sample point is within the taskbar bounds and outside widget
+                    if (sx >= tbRect.Left + 5 && sx <= tbRect.Right - 5 && (sx < physLeft || sx > physRight))
+                    {
+                        uint pixel = Win32.GetPixel(hdc, sx, tbCenterY);
+                        if (pixel != CLR_INVALID)
+                        {
+                            byte r = (byte)(pixel & 0xFF);
+                            byte g = (byte)((pixel >> 8) & 0xFF);
+                            byte b = (byte)((pixel >> 16) & 0xFF);
+                            totalLum += CalculateLuminance(r, g, b);
+                            validSamples++;
+                        }
+                    }
+                }
+
+                // If insufficient samples outside widget (e.g. edge of screen), sample taskbar center area
+                if (validSamples < 2)
+                {
+                    int tbCenterX = (tbRect.Left + tbRect.Right) / 2;
+                    if (tbCenterX < physLeft || tbCenterX > physRight)
+                    {
+                        uint pixel = Win32.GetPixel(hdc, tbCenterX, tbCenterY);
+                        if (pixel != CLR_INVALID)
+                        {
+                            byte r = (byte)(pixel & 0xFF);
+                            byte g = (byte)((pixel >> 8) & 0xFF);
+                            byte b = (byte)((pixel >> 16) & 0xFF);
+                            totalLum += CalculateLuminance(r, g, b);
+                            validSamples++;
+                        }
+                    }
+                }
+            }
+
+            if (validSamples > 0)
+            {
+                averageLuminance = totalLum / validSamples;
+                return true;
+            }
+
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            Win32.ReleaseDC(IntPtr.Zero, hdc);
+        }
+    }
+
+    /// <summary>
     /// Samples pixels from the taskbar area to calculate the average background luminance.
+    /// Kept for backwards compatibility with tests and callers.
     /// </summary>
     public static bool TrySampleTaskbarLuminance(double? screenX, double? screenY, out double averageLuminance)
     {
@@ -78,7 +227,6 @@ public static class TaskbarColorDetector
             targetX = Math.Clamp(targetX, tbRect.Left + 5, Math.Max(tbRect.Left + 5, tbRect.Right - 5));
             targetY = Math.Clamp(targetY, tbRect.Top + 5, Math.Max(tbRect.Top + 5, tbRect.Bottom - 5));
 
-            // Sample multiple points (center, and slightly left and right) to reduce noise
             int[] xOffsets = { -15, 0, 15 };
             double totalLum = 0;
             int validSamples = 0;

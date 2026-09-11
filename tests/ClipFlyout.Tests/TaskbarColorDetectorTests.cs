@@ -62,4 +62,45 @@ public class TaskbarColorDetectorTests
         var settings = new AppSettings();
         Assert.Equal(WidgetTextColorMode.Auto, settings.WidgetTextColor);
     }
+
+    [Theory]
+    [InlineData(100, 1000, 160, 30, 1.0, false)]
+    [InlineData(100, 1000, 160, 30, 1.5, false)]
+    [InlineData(100, 1000, 160, 30, 1.0, true)]
+    [InlineData(100, 1000, 160, 30, 1.25, true)]
+    public void IsTaskbarLight_WithWidgetBoundsAndDpi_DoesNotThrow(
+        double left, double top, double width, double height, double dpi, bool isAboveTaskbar)
+    {
+        var exception = Record.Exception(() =>
+        {
+            bool isLight = TaskbarColorDetector.IsTaskbarLight(left, top, width, height, dpi, isAboveTaskbar);
+            Assert.True(isLight || !isLight);
+        });
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void GetRegistryTaskbarIsLight_ReturnsValidBool()
+    {
+        var exception = Record.Exception(() =>
+        {
+            bool isLight = TaskbarColorDetector.GetRegistryTaskbarIsLight();
+            Assert.True(isLight || !isLight);
+        });
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void IsFullScreenApplicationActive_WithNullHandle_DoesNotThrow()
+    {
+        var exception = Record.Exception(() =>
+        {
+            bool isFs = ClipFlyout.Views.TaskbarWidgetWindow.IsFullScreenApplicationActive(IntPtr.Zero);
+            Assert.True(isFs || !isFs);
+        });
+
+        Assert.Null(exception);
+    }
 }

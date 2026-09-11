@@ -24,9 +24,13 @@ public partial class TaskbarWidgetWindow : Window
     private bool _isHovered;
     private readonly uint _taskbarCreatedMsg;
     private bool _isContextMenuOpen;
+    private bool _isFullScreenSuppressed;
+    private bool _lastDetectedLightText;
 
     private readonly DispatcherTimer _topmostTimer;
     private readonly DispatcherTimer _debouncedTopmostTimer;
+    private readonly DispatcherTimer _themeTransitionTimer;
+    private int _themeTransitionStep;
     private readonly EventHandler _displaySettingsHandler;
     private readonly Action _themeChangedHandler;
     private readonly Action _languageChangedHandler;
@@ -43,9 +47,9 @@ public partial class TaskbarWidgetWindow : Window
 
         _topmostTimer = new DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
         {
-            Interval = TimeSpan.FromMilliseconds(500)
+            Interval = TimeSpan.FromMilliseconds(300)
         };
-        _topmostTimer.Tick += (_, _) => EnsureTopmost();
+        _topmostTimer.Tick += (_, _) => OnTopmostTimerTick();
 
         // Debounced timer for Deactivated — lets the shell finish Z-order
         // operations before we restore topmost, preventing visible flicker.
@@ -59,6 +63,13 @@ public partial class TaskbarWidgetWindow : Window
             EnsureTopmost();
         };
 
+        // Multi-stage timer for OS theme transition animations
+        _themeTransitionTimer = new DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(250)
+        };
+        _themeTransitionTimer.Tick += OnThemeTransitionTick;
+
         if (WidgetContextMenu != null)
         {
             WidgetContextMenu.Opened += (_, _) =>
@@ -66,6 +77,7 @@ public partial class TaskbarWidgetWindow : Window
                 _isContextMenuOpen = true;
                 _topmostTimer.Stop();
                 _debouncedTopmostTimer.Stop();
+                _themeTransitionTimer.Stop();
             };
             WidgetContextMenu.Closed += (_, _) =>
             {
@@ -79,7 +91,7 @@ public partial class TaskbarWidgetWindow : Window
         {
             if (!Dispatcher.HasShutdownStarted)
             {
-                Dispatcher.Invoke(ApplyTheme);
+                Dispatcher.Invoke(ScheduleThemeTransitionChecks);
             }
         };
         _languageChangedHandler = () =>
@@ -102,6 +114,7 @@ public partial class TaskbarWidgetWindow : Window
         {
             _topmostTimer.Stop();
             _debouncedTopmostTimer.Stop();
+            _themeTransitionTimer.Stop();
             SystemEvents.DisplaySettingsChanged -= _displaySettingsHandler;
             _settings.SettingsChanged -= OnSettingsChanged;
             _theme.ThemeChanged -= _themeChangedHandler;
@@ -265,6 +278,15 @@ public partial class TaskbarWidgetWindow : Window
 
         _currentResult = result;
 
+        if (_settings.Current.WidgetTextColor == WidgetTextColorMode.Auto)
+        {
+            bool currentIsLight = DetectIsLightText();
+            if (currentIsLight != _lastDetectedLightText)
+            {
+                ApplyTheme();
+            }
+        }
+
         if (result == null)
         {
             FluentClipboardIcon.Visibility = Visibility.Visible;
@@ -343,11 +365,11 @@ public partial class TaskbarWidgetWindow : Window
                 break;
             case WidgetTextColorMode.Auto:
             default:
-                // Auto-detect based on actual taskbar pixels / system shell theme
-                bool isTaskbarLight = TaskbarColorDetector.IsTaskbarLight(Left + Width / 2, Top + Height / 2);
-                isLightText = !isTaskbarLight;
+                isLightText = DetectIsLightText();
                 break;
         }
+
+        _lastDetectedLightText = isLightText;
 
         // Seamless overlay styling matching Windows 11 taskbar items
         if (_isHovered)
@@ -519,9 +541,177 @@ public partial class TaskbarWidgetWindow : Window
         _settings.UpdateSettings(s => s.ShowTaskbarWidget = false);
     }
 
+    private bool DetectIsLightText()
+    {
+        IntPtr hMonitor = _hwnd != IntPtr.Zero
+            ? Win32.MonitorFromWindow(_hwnd, Win32.MONITOR_DEFAULTTOPRIMARY)
+            : IntPtr.Zero;
+        double dpiScale = Win32.GetMonitorDpiScale(hMonitor, _hwnd);
+        bool isAboveTaskbar = _settings.Current.WidgetPosition == WidgetPositionMode.AboveTaskbar;
+
+        bool isTaskbarLight = TaskbarColorDetector.IsTaskbarLight(
+            Left,
+            Top,
+            ActualWidth > 0 ? ActualWidth : Width,
+            ActualHeight > 0 ? ActualHeight : Height,
+            dpiScale,
+            isAboveTaskbar);
+
+        return !isTaskbarLight;
+    }
+
+    private void OnTopmostTimerTick()
+    {
+        if (_hwnd == IntPtr.Zero) return;
+
+        bool isFullScreen = IsFullScreenApplicationActive(_hwnd);
+        if (isFullScreen != _isFullScreenSuppressed)
+        {
+            _isFullScreenSuppressed = isFullScreen;
+            if (isFullScreen)
+            {
+                Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                if (_settings.Current.ShowTaskbarWidget)
+                {
+                    Visibility = Visibility.Visible;
+                    UpdatePosition();
+                    EnsureTopmost();
+                }
+            }
+        }
+
+        if (_isFullScreenSuppressed) return;
+
+        if (_settings.Current.WidgetTextColor == WidgetTextColorMode.Auto && IsVisible)
+        {
+            bool currentIsLight = DetectIsLightText();
+            if (currentIsLight != _lastDetectedLightText)
+            {
+                ApplyTheme();
+            }
+        }
+
+        EnsureTopmost();
+    }
+
+    private void ScheduleThemeTransitionChecks()
+    {
+        _themeTransitionStep = 0;
+        _themeTransitionTimer.Stop();
+        _themeTransitionTimer.Interval = TimeSpan.FromMilliseconds(250);
+        _themeTransitionTimer.Start();
+        ApplyTheme();
+    }
+
+    private void OnThemeTransitionTick(object? sender, EventArgs e)
+    {
+        _themeTransitionStep++;
+        ApplyTheme();
+        if (_themeTransitionStep == 1)
+        {
+            _themeTransitionTimer.Interval = TimeSpan.FromMilliseconds(350);
+        }
+        else if (_themeTransitionStep == 2)
+        {
+            _themeTransitionTimer.Interval = TimeSpan.FromMilliseconds(600);
+        }
+        else
+        {
+            _themeTransitionTimer.Stop();
+        }
+    }
+
+    public static bool IsFullScreenApplicationActive(IntPtr widgetHwnd)
+    {
+        try
+        {
+            // 1. Check DirectX / presentation mode
+            if (Win32.SHQueryUserNotificationState(out var qState) == 0)
+            {
+                if (qState == Win32.QUERY_USER_NOTIFICATION_STATE.QUNS_RUNNING_D3D_FULL_SCREEN ||
+                    qState == Win32.QUERY_USER_NOTIFICATION_STATE.QUNS_PRESENTATION_MODE)
+                {
+                    return true;
+                }
+            }
+
+            // 2. Check active foreground window
+            IntPtr fg = Win32.GetForegroundWindow();
+            if (fg == IntPtr.Zero || fg == widgetHwnd)
+            {
+                return false;
+            }
+
+            if (!Win32.IsWindowVisible(fg) || Win32.IsIconic(fg))
+            {
+                return false;
+            }
+
+            if (fg == Win32.GetDesktopWindow() || fg == Win32.GetShellWindow())
+            {
+                return false;
+            }
+
+            Win32.GetWindowThreadProcessId(fg, out uint fgPid);
+            if (fgPid == Environment.ProcessId)
+            {
+                return false;
+            }
+
+            var sb = new System.Text.StringBuilder(256);
+            Win32.GetClassName(fg, sb, 256);
+            string cls = sb.ToString();
+            if (cls == "Progman" || cls == "WorkerW" || cls == "Shell_TrayWnd" || cls == "Shell_SecondaryTrayWnd")
+            {
+                return false;
+            }
+
+            IntPtr widgetMonitor = widgetHwnd != IntPtr.Zero
+                ? Win32.MonitorFromWindow(widgetHwnd, Win32.MONITOR_DEFAULTTOPRIMARY)
+                : IntPtr.Zero;
+
+            IntPtr fgMonitor = Win32.MonitorFromWindow(fg, Win32.MONITOR_DEFAULTTONEAREST);
+
+            if (widgetMonitor != IntPtr.Zero && fgMonitor != IntPtr.Zero && widgetMonitor != fgMonitor)
+            {
+                return false;
+            }
+
+            IntPtr targetMonitor = widgetMonitor != IntPtr.Zero ? widgetMonitor : fgMonitor;
+            if (targetMonitor == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            var monInfo = new Win32.MONITORINFO();
+            monInfo.cbSize = Marshal.SizeOf<Win32.MONITORINFO>();
+            if (!Win32.GetMonitorInfo(targetMonitor, ref monInfo))
+            {
+                return false;
+            }
+
+            if (!Win32.GetWindowRect(fg, out Win32.RECT fgRect))
+            {
+                return false;
+            }
+
+            return fgRect.Left <= monInfo.rcMonitor.Left &&
+                   fgRect.Top <= monInfo.rcMonitor.Top &&
+                   fgRect.Right >= monInfo.rcMonitor.Right &&
+                   fgRect.Bottom >= monInfo.rcMonitor.Bottom;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public void EnsureTopmost()
     {
-        if (_hwnd == IntPtr.Zero || !IsVisible) return;
+        if (_hwnd == IntPtr.Zero || !IsVisible || _isFullScreenSuppressed) return;
         if (_isContextMenuOpen || WidgetContextMenu?.IsOpen == true || TrayIconService.IsContextMenuActive || FlyoutWindow.IsFlyoutOpen) return;
 
         IntPtr prevHwnd = Win32.GetWindow(_hwnd, Win32.GW_HWNDPREV);
@@ -552,10 +742,11 @@ public partial class TaskbarWidgetWindow : Window
         {
             case Win32.WM_SETTINGCHANGE:
                 UpdatePosition();
+                ScheduleThemeTransitionChecks();
                 break;
 
             case Win32.WM_WINDOWPOSCHANGING:
-                if (!_isContextMenuOpen && WidgetContextMenu?.IsOpen != true && !TrayIconService.IsContextMenuActive && !FlyoutWindow.IsFlyoutOpen)
+                if (!_isFullScreenSuppressed && !_isContextMenuOpen && WidgetContextMenu?.IsOpen != true && !TrayIconService.IsContextMenuActive && !FlyoutWindow.IsFlyoutOpen)
                 {
                     var pos = Marshal.PtrToStructure<Win32.WINDOWPOS>(lParam);
                     pos.hwndInsertAfter = Win32.HWND_TOPMOST;
