@@ -449,4 +449,123 @@ public class ExtendedFeaturesTests : IDisposable
         loc.CurrentLanguage = AppLanguage.English;
         Assert.Equal("Color Hex Code", loc.Get("Type_HexColor_Desc"));
     }
+
+    [Fact]
+    public void AppSettings_WidgetAutoAlignAndMonitor_DefaultsAndNormalization()
+    {
+        var settings = new AppSettings();
+        Assert.True(settings.WidgetAutoAlign);
+        Assert.Equal(WidgetMonitorTarget.Primary, settings.WidgetMonitor);
+
+        // Test normalization for invalid enum value
+        settings.WidgetMonitor = (WidgetMonitorTarget)999;
+        var normalized = settings.Normalize();
+        Assert.Equal(WidgetMonitorTarget.Primary, normalized.WidgetMonitor);
+    }
+
+    [Fact]
+    public void LocalizationService_WidgetAutoAlignAndMonitor_KeysExist()
+    {
+        var loc = LocalizationService.Instance;
+        loc.CurrentLanguage = AppLanguage.Japanese;
+        Assert.NotEmpty(loc.Get("Setting_WidgetAutoAlign"));
+        Assert.NotEmpty(loc.Get("Setting_WidgetMonitor"));
+        Assert.NotEmpty(loc.Get("Widget_Monitor_Primary"));
+        Assert.NotEmpty(loc.Get("Widget_Monitor_Cursor"));
+
+        loc.CurrentLanguage = AppLanguage.English;
+        Assert.NotEmpty(loc.Get("Setting_WidgetAutoAlign"));
+        Assert.NotEmpty(loc.Get("Setting_WidgetMonitor"));
+        Assert.NotEmpty(loc.Get("Widget_Monitor_Primary"));
+        Assert.NotEmpty(loc.Get("Widget_Monitor_Cursor"));
+    }
+
+    [Fact]
+    public void SettingsService_ThreadSafeUpdates_NoRaceCondition()
+    {
+        string tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"clipflyout_test_{System.Guid.NewGuid()}.json");
+        try
+        {
+            var service = new SettingsService(tempPath, syncStartupRegistry: false);
+            System.Threading.Tasks.Parallel.For(0, 50, i =>
+            {
+                service.UpdateSettings(s => s.OpacityPercent = 50 + (i % 30));
+            });
+
+            Assert.True(service.Current.OpacityPercent >= 50 && service.Current.OpacityPercent <= 80);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempPath)) System.IO.File.Delete(tempPath);
+        }
+    }
+
+    [Fact]
+    public void HistoryService_LargeImageDeduplication_SampledRows()
+    {
+        var history = HistoryService.Instance;
+        history.Clear();
+
+        // 200x200 Bgra32 = 160,000 bytes (> 64KB threshold)
+        int width = 200;
+        int height = 200;
+        int stride = width * 4;
+        byte[] pixels1 = new byte[stride * height];
+        Array.Fill(pixels1, (byte)128);
+
+        var bmp1 = System.Windows.Media.Imaging.BitmapSource.Create(width, height, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, pixels1, stride);
+        var res1 = new DetectionResult(
+            ClipDataType.Image,
+            bmp1,
+            "Large Image 1",
+            $"{width}x{height}",
+            "",
+            [],
+            ImagePreview: bmp1
+        );
+
+        byte[] pixels2 = (byte[])pixels1.Clone();
+        var bmp2 = System.Windows.Media.Imaging.BitmapSource.Create(width, height, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, pixels2, stride);
+        var res2 = new DetectionResult(
+            ClipDataType.Image,
+            bmp2,
+            "Large Image 2",
+            $"{width}x{height}",
+            "",
+            [],
+            ImagePreview: bmp2
+        );
+
+        history.Add(res1);
+        Assert.Single(history.GetItems());
+
+        // Identical large image should be deduplicated
+        history.Add(res2);
+        Assert.Single(history.GetItems());
+
+        // Modify a pixel in the center row (sampled row)
+        byte[] pixels3 = (byte[])pixels1.Clone();
+        pixels3[(height / 2) * stride + 10] = 255;
+        var bmp3 = System.Windows.Media.Imaging.BitmapSource.Create(width, height, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, pixels3, stride);
+        var res3 = new DetectionResult(
+            ClipDataType.Image,
+            bmp3,
+            "Large Image 3",
+            $"{width}x{height}",
+            "",
+            [],
+            ImagePreview: bmp3
+        );
+
+        history.Add(res3);
+        Assert.Equal(2, history.GetItems().Count);
+    }
+
+    [Fact]
+    public void TaskbarColorDetector_TargetTaskbarOverload_ExecutesWithoutError()
+    {
+        bool result = TaskbarColorDetector.IsTaskbarLight(0, 0, 100, 30, 1.0, false, IntPtr.Zero);
+        Assert.True(result || !result); // Valid boolean return without exception
+    }
 }
+

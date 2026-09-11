@@ -26,6 +26,9 @@ public partial class TaskbarWidgetWindow : Window
     private bool _isContextMenuOpen;
     private bool _isFullScreenSuppressed;
     private bool _lastDetectedLightText;
+    private double _lastKnownTrayLeft;
+    private Win32.RECT _lastTaskbarRect;
+    private int _colorCheckTickCount;
 
     private readonly DispatcherTimer _topmostTimer;
     private readonly DispatcherTimer _debouncedTopmostTimer;
@@ -47,7 +50,7 @@ public partial class TaskbarWidgetWindow : Window
 
         _topmostTimer = new DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
         {
-            Interval = TimeSpan.FromMilliseconds(300)
+            Interval = TimeSpan.FromMilliseconds(30)
         };
         _topmostTimer.Tick += (_, _) => OnTopmostTimerTick();
 
@@ -158,17 +161,101 @@ public partial class TaskbarWidgetWindow : Window
         ApplyTheme();
     }
 
-    private void SetTaskbarOwner()
+    private void SetTaskbarOwner(IntPtr ownerTaskbar = default)
     {
         if (_hwnd == IntPtr.Zero) return;
 
-        // Attaching to the primary Shell_TrayWnd forces the OS to treat this window
-        // as part of the Shell's Z-band and prevents taskbar click from hiding it.
-        IntPtr ownerTaskbar = Win32.FindWindow("Shell_TrayWnd", null);
+        if (ownerTaskbar == IntPtr.Zero)
+        {
+            ownerTaskbar = Win32.FindWindow("Shell_TrayWnd", null);
+        }
+
         if (ownerTaskbar != IntPtr.Zero)
         {
             Win32.SetWindowLongPtr(_hwnd, Win32.GWL_HWNDPARENT, ownerTaskbar);
         }
+    }
+
+    private (IntPtr hMonitor, IntPtr hTaskbar, Win32.MONITORINFO monInfo, double dpiScale) GetTargetMonitorInfo()
+    {
+        var cfg = _settings.Current;
+        IntPtr primaryTaskbar = Win32.FindWindow("Shell_TrayWnd", null);
+        IntPtr hMonitor = IntPtr.Zero;
+        IntPtr targetTaskbar = primaryTaskbar;
+
+        var allMonitors = Win32.GetAllMonitors();
+
+        switch (cfg.WidgetMonitor)
+        {
+            case WidgetMonitorTarget.FollowCursor:
+                if (Win32.GetCursorPos(out Win32.POINT pt))
+                {
+                    hMonitor = Win32.MonitorFromPoint(pt, Win32.MONITOR_DEFAULTTONEAREST);
+                }
+                break;
+
+            case WidgetMonitorTarget.Monitor1:
+                if (allMonitors.Count >= 1) hMonitor = allMonitors[0];
+                break;
+
+            case WidgetMonitorTarget.Monitor2:
+                if (allMonitors.Count >= 2) hMonitor = allMonitors[1];
+                break;
+
+            case WidgetMonitorTarget.Monitor3:
+                if (allMonitors.Count >= 3) hMonitor = allMonitors[2];
+                break;
+
+            case WidgetMonitorTarget.Primary:
+            default:
+                hMonitor = primaryTaskbar != IntPtr.Zero
+                    ? Win32.MonitorFromWindow(primaryTaskbar, Win32.MONITOR_DEFAULTTOPRIMARY)
+                    : Win32.MonitorFromWindow(_hwnd != IntPtr.Zero ? _hwnd : IntPtr.Zero, Win32.MONITOR_DEFAULTTOPRIMARY);
+                break;
+        }
+
+        if (hMonitor == IntPtr.Zero)
+        {
+            hMonitor = primaryTaskbar != IntPtr.Zero
+                ? Win32.MonitorFromWindow(primaryTaskbar, Win32.MONITOR_DEFAULTTOPRIMARY)
+                : Win32.MonitorFromWindow(_hwnd, Win32.MONITOR_DEFAULTTOPRIMARY);
+        }
+
+        if (hMonitor != IntPtr.Zero)
+        {
+            IntPtr primaryMon = primaryTaskbar != IntPtr.Zero
+                ? Win32.MonitorFromWindow(primaryTaskbar, Win32.MONITOR_DEFAULTTOPRIMARY)
+                : IntPtr.Zero;
+
+            if (primaryMon != IntPtr.Zero && hMonitor == primaryMon)
+            {
+                targetTaskbar = primaryTaskbar;
+            }
+            else
+            {
+                IntPtr secTray = IntPtr.Zero;
+                while ((secTray = Win32.FindWindowEx(IntPtr.Zero, secTray, "Shell_SecondaryTrayWnd", null)) != IntPtr.Zero)
+                {
+                    if (Win32.MonitorFromWindow(secTray, Win32.MONITOR_DEFAULTTONEAREST) == hMonitor)
+                    {
+                        targetTaskbar = secTray;
+                        break;
+                    }
+                }
+            }
+        }
+
+        var info = new Win32.MONITORINFO();
+        info.cbSize = Marshal.SizeOf<Win32.MONITORINFO>();
+        if (hMonitor == IntPtr.Zero || !Win32.GetMonitorInfo(hMonitor, ref info))
+        {
+            var work = SystemParameters.WorkArea;
+            info.rcWork = new Win32.RECT { Left = (int)work.Left, Top = (int)work.Top, Right = (int)work.Right, Bottom = (int)work.Bottom };
+            info.rcMonitor = new Win32.RECT { Left = 0, Top = 0, Right = (int)SystemParameters.PrimaryScreenWidth, Bottom = (int)SystemParameters.PrimaryScreenHeight };
+        }
+
+        double dpiScale = Win32.GetMonitorDpiScale(IntPtr.Zero, _hwnd);
+        return (hMonitor, targetTaskbar, info, dpiScale);
     }
 
     public void UpdatePosition()
@@ -179,84 +266,92 @@ public partial class TaskbarWidgetWindow : Window
             return;
         }
 
-        double workLeft;
-        double workTop;
-        double workRight;
-        double workBottom;
-        double screenWidth;
-        double screenHeight;
-
-        // Discover the taskbar's monitor and effective DPI scale
-        IntPtr ownerTaskbar = Win32.FindWindow("Shell_TrayWnd", null);
-        IntPtr hMonitor = ownerTaskbar != IntPtr.Zero
-            ? Win32.MonitorFromWindow(ownerTaskbar, Win32.MONITOR_DEFAULTTOPRIMARY)
-            : IntPtr.Zero;
-
-        var monitorInfo = new Win32.MONITORINFO();
-        monitorInfo.cbSize = Marshal.SizeOf<Win32.MONITORINFO>();
-
-        if (hMonitor != IntPtr.Zero && Win32.GetMonitorInfo(hMonitor, ref monitorInfo))
+        var (hMonitor, targetTaskbar, monitorInfo, dpiScale) = GetTargetMonitorInfo();
+        if (targetTaskbar != IntPtr.Zero)
         {
-            double dpiScale = Win32.GetMonitorDpiScale(hMonitor, _hwnd);
-            workLeft = monitorInfo.rcWork.Left / dpiScale;
-            workTop = monitorInfo.rcWork.Top / dpiScale;
-            workRight = monitorInfo.rcWork.Right / dpiScale;
-            workBottom = monitorInfo.rcWork.Bottom / dpiScale;
-            screenWidth = (monitorInfo.rcMonitor.Right - monitorInfo.rcMonitor.Left) / dpiScale;
-            screenHeight = (monitorInfo.rcMonitor.Bottom - monitorInfo.rcMonitor.Top) / dpiScale;
+            SetTaskbarOwner(targetTaskbar);
         }
-        else
-        {
-            var workArea = SystemParameters.WorkArea;
-            workLeft = workArea.Left;
-            workTop = workArea.Top;
-            workRight = workArea.Right;
-            workBottom = workArea.Bottom;
-            screenWidth = SystemParameters.PrimaryScreenWidth;
-            screenHeight = SystemParameters.PrimaryScreenHeight;
-        }
+
+        double workLeft = monitorInfo.rcWork.Left / dpiScale;
+        double workTop = monitorInfo.rcWork.Top / dpiScale;
+        double workRight = monitorInfo.rcWork.Right / dpiScale;
+        double workBottom = monitorInfo.rcWork.Bottom / dpiScale;
+        double monLeft = monitorInfo.rcMonitor.Left / dpiScale;
+        double monTop = monitorInfo.rcMonitor.Top / dpiScale;
+        double monRight = monitorInfo.rcMonitor.Right / dpiScale;
+        double monBottom = monitorInfo.rcMonitor.Bottom / dpiScale;
+        double screenWidth = monRight - monLeft;
+        double screenHeight = monBottom - monTop;
 
         var cfg = _settings.Current;
         double offset = cfg.WidgetOffsetX;
-        double left;
-        double top;
+        double left = 0;
+        double top = 0;
 
-        // Base vertical taskbar alignment (centered in taskbar strip if on bottom)
-        double taskbarBottomDock = screenHeight > workBottom
-            ? workBottom + (screenHeight - workBottom - Height) / 2.0
-            : workBottom - Height - 4;
-
-        switch (cfg.WidgetPosition)
+        // Base vertical taskbar alignment (centered in taskbar strip)
+        double tbTopDip;
+        double tbHeightDip;
+        if (targetTaskbar != IntPtr.Zero && Win32.GetWindowRect(targetTaskbar, out Win32.RECT tbRect))
         {
-            case WidgetPositionMode.CenterRight:
-                left = workLeft + (screenWidth / 2.0) + 120 + offset;
-                top = taskbarBottomDock;
-                break;
+            tbTopDip = tbRect.Top / dpiScale;
+            tbHeightDip = (tbRect.Bottom - tbRect.Top) / dpiScale;
+        }
+        else
+        {
+            tbTopDip = workBottom;
+            tbHeightDip = monBottom - workBottom;
+            if (tbHeightDip <= 0) tbHeightDip = 48;
+        }
+        double taskbarBottomDock = tbTopDip + (tbHeightDip - Height) / 2.0;
 
-            case WidgetPositionMode.CenterLeft:
-                left = workLeft + (screenWidth / 2.0) - Width - 120 + offset;
+        bool autoAligned = false;
+        if (cfg.WidgetAutoAlign && cfg.WidgetPosition == WidgetPositionMode.TrayLeft && targetTaskbar != IntPtr.Zero)
+        {
+            IntPtr trayNotifyWnd = Win32.FindWindowEx(targetTaskbar, IntPtr.Zero, "TrayNotifyWnd", null);
+            if (trayNotifyWnd != IntPtr.Zero && Win32.GetWindowRect(trayNotifyWnd, out Win32.RECT trRect))
+            {
+                double trayLeftDip = trRect.Left / dpiScale;
+                _lastKnownTrayLeft = trayLeftDip;
+                left = trayLeftDip - Width - 6 + offset;
                 top = taskbarBottomDock;
-                break;
-
-            case WidgetPositionMode.FarLeft:
-                left = workLeft + 180 + offset;
-                top = taskbarBottomDock;
-                break;
-
-            case WidgetPositionMode.AboveTaskbar:
-                left = workRight - Width - 16 + offset;
-                top = workBottom - Height - 8;
-                break;
-
-            case WidgetPositionMode.TrayLeft:
-            default:
-                left = workRight - Width - 16 + offset;
-                top = taskbarBottomDock;
-                break;
+                autoAligned = true;
+            }
         }
 
-        Left = Math.Clamp(left, workLeft + 8, workRight - Width - 8);
-        Top = Math.Clamp(top, workTop + 8, screenHeight - Height - 4);
+        if (!autoAligned)
+        {
+            switch (cfg.WidgetPosition)
+            {
+                case WidgetPositionMode.CenterRight:
+                    left = monLeft + (screenWidth / 2.0) + 120 + offset;
+                    top = taskbarBottomDock;
+                    break;
+
+                case WidgetPositionMode.CenterLeft:
+                    left = monLeft + (screenWidth / 2.0) - Width - 120 + offset;
+                    top = taskbarBottomDock;
+                    break;
+
+                case WidgetPositionMode.FarLeft:
+                    left = monLeft + 180 + offset;
+                    top = taskbarBottomDock;
+                    break;
+
+                case WidgetPositionMode.AboveTaskbar:
+                    left = workRight - Width - 16 + offset;
+                    top = workBottom - Height - 8;
+                    break;
+
+                case WidgetPositionMode.TrayLeft:
+                default:
+                    left = workRight - Width - 16 + offset;
+                    top = taskbarBottomDock;
+                    break;
+            }
+        }
+
+        Left = Math.Clamp(left, monLeft + 8, monRight - Width - 8);
+        Top = Math.Clamp(top, monTop + 8, monBottom - Height - 4);
 
         if (_hwnd != IntPtr.Zero)
         {
@@ -371,24 +466,47 @@ public partial class TaskbarWidgetWindow : Window
 
         _lastDetectedLightText = isLightText;
 
-        // Seamless overlay styling matching Windows 11 taskbar items
-        if (_isHovered)
+        bool isAboveTaskbar = _settings.Current.WidgetPosition == WidgetPositionMode.AboveTaskbar;
+
+        // Native Windows 11 styling: completely transparent when resting on taskbar,
+        // subtle highlight on hover matching system taskbar buttons.
+        if (isAboveTaskbar)
         {
-            RootPill.Background = isLightText
-                ? new SolidColorBrush(Color.FromArgb(50, 255, 255, 255))
-                : new SolidColorBrush(Color.FromArgb(38, 0, 0, 0));
-            RootPill.BorderBrush = isLightText
-                ? new SolidColorBrush(Color.FromArgb(65, 255, 255, 255))
-                : new SolidColorBrush(Color.FromArgb(45, 0, 0, 0));
+            if (_isHovered)
+            {
+                RootPill.Background = isLightText
+                    ? new SolidColorBrush(Color.FromArgb(50, 255, 255, 255))
+                    : new SolidColorBrush(Color.FromArgb(38, 0, 0, 0));
+                RootPill.BorderBrush = isLightText
+                    ? new SolidColorBrush(Color.FromArgb(65, 255, 255, 255))
+                    : new SolidColorBrush(Color.FromArgb(45, 0, 0, 0));
+            }
+            else
+            {
+                RootPill.Background = isLightText
+                    ? new SolidColorBrush(Color.FromArgb(24, 255, 255, 255))
+                    : new SolidColorBrush(Color.FromArgb(16, 0, 0, 0));
+                RootPill.BorderBrush = isLightText
+                    ? new SolidColorBrush(Color.FromArgb(35, 255, 255, 255))
+                    : new SolidColorBrush(Color.FromArgb(25, 0, 0, 0));
+            }
         }
         else
         {
-            RootPill.Background = isLightText
-                ? new SolidColorBrush(Color.FromArgb(24, 255, 255, 255))
-                : new SolidColorBrush(Color.FromArgb(16, 0, 0, 0));
-            RootPill.BorderBrush = isLightText
-                ? new SolidColorBrush(Color.FromArgb(35, 255, 255, 255))
-                : new SolidColorBrush(Color.FromArgb(25, 0, 0, 0));
+            if (_isHovered)
+            {
+                RootPill.Background = isLightText
+                    ? new SolidColorBrush(Color.FromArgb(22, 255, 255, 255))
+                    : new SolidColorBrush(Color.FromArgb(16, 0, 0, 0));
+                RootPill.BorderBrush = isLightText
+                    ? new SolidColorBrush(Color.FromArgb(30, 255, 255, 255))
+                    : new SolidColorBrush(Color.FromArgb(20, 0, 0, 0));
+            }
+            else
+            {
+                RootPill.Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0));
+                RootPill.BorderBrush = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0));
+            }
         }
 
         var fg = isLightText
@@ -399,11 +517,11 @@ public partial class TaskbarWidgetWindow : Window
         FluentClipboardIcon.Foreground = fg;
         IconBadgeText.Foreground = fg;
 
-        // Apply contrast drop-shadow to guarantee legibility regardless of desktop background
+        // Apply contrast drop-shadow only when floating above taskbar. On taskbar, crisp text without shadow.
         if (ClipPreviewShadow != null)
         {
             ClipPreviewShadow.Color = isLightText ? Colors.Black : Colors.White;
-            ClipPreviewShadow.Opacity = isLightText ? 0.75 : 0.85;
+            ClipPreviewShadow.Opacity = isAboveTaskbar ? (isLightText ? 0.75 : 0.85) : 0.0;
             ClipPreviewShadow.BlurRadius = 3;
             ClipPreviewShadow.ShadowDepth = 0.5;
         }
@@ -411,7 +529,7 @@ public partial class TaskbarWidgetWindow : Window
         if (IconBadgeShadow != null)
         {
             IconBadgeShadow.Color = isLightText ? Colors.Black : Colors.White;
-            IconBadgeShadow.Opacity = isLightText ? 0.75 : 0.85;
+            IconBadgeShadow.Opacity = isAboveTaskbar ? (isLightText ? 0.75 : 0.85) : 0.0;
             IconBadgeShadow.BlurRadius = 3;
             IconBadgeShadow.ShadowDepth = 0.5;
         }
@@ -431,6 +549,26 @@ public partial class TaskbarWidgetWindow : Window
         ApplyTheme();
     }
 
+    private void RootPill_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.Left)
+        {
+            bool isLightText = _lastDetectedLightText;
+            RootPill.Background = isLightText
+                ? new SolidColorBrush(Color.FromArgb(40, 255, 255, 255))
+                : new SolidColorBrush(Color.FromArgb(28, 0, 0, 0));
+        }
+    }
+
+    private void RootPill_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        ApplyTheme();
+        if (_currentResult != null)
+        {
+            FlyoutRequested?.Invoke(_currentResult);
+        }
+    }
+
     public void ApplyLocalization()
     {
         MenuOpenFlyout.Header = _loc.Get("Tray_Settings_Flyout") != "Tray_Settings_Flyout" ? _loc.Get("Tray_Settings_Flyout") : "フライアウトを開く";
@@ -443,6 +581,15 @@ public partial class TaskbarWidgetWindow : Window
         MenuPosCenterLeft.Header = _loc.Get("Widget_Pos_CenterLeft");
         MenuPosFarLeft.Header = _loc.Get("Widget_Pos_FarLeft");
         MenuPosAboveTaskbar.Header = _loc.Get("Widget_Pos_AboveTaskbar");
+
+        MenuAutoAlign.Header = _loc.Get("Setting_WidgetAutoAlign");
+
+        MenuMonitor.Header = _loc.Get("Setting_WidgetMonitor");
+        MenuMonPrimary.Header = _loc.Get("Widget_Monitor_Primary");
+        MenuMonCursor.Header = _loc.Get("Widget_Monitor_Cursor");
+        MenuMonDisplay1.Header = _loc.Get("Widget_Monitor_Display1");
+        MenuMonDisplay2.Header = _loc.Get("Widget_Monitor_Display2");
+        MenuMonDisplay3.Header = _loc.Get("Widget_Monitor_Display3");
 
         MenuTextColor.Header = _loc.Get("Setting_WidgetTextColor");
         MenuTextColorAuto.Header = _loc.Get("Widget_TextColor_Auto");
@@ -466,6 +613,15 @@ public partial class TaskbarWidgetWindow : Window
         MenuPosFarLeft.IsChecked = pos == WidgetPositionMode.FarLeft;
         MenuPosAboveTaskbar.IsChecked = pos == WidgetPositionMode.AboveTaskbar;
 
+        MenuAutoAlign.IsChecked = _settings.Current.WidgetAutoAlign;
+
+        var targetMon = _settings.Current.WidgetMonitor;
+        MenuMonPrimary.IsChecked = targetMon == WidgetMonitorTarget.Primary;
+        MenuMonCursor.IsChecked = targetMon == WidgetMonitorTarget.FollowCursor;
+        MenuMonDisplay1.IsChecked = targetMon == WidgetMonitorTarget.Monitor1;
+        MenuMonDisplay2.IsChecked = targetMon == WidgetMonitorTarget.Monitor2;
+        MenuMonDisplay3.IsChecked = targetMon == WidgetMonitorTarget.Monitor3;
+
         var textColorMode = _settings.Current.WidgetTextColor;
         MenuTextColorAuto.IsChecked = textColorMode == WidgetTextColorMode.Auto;
         MenuTextColorLight.IsChecked = textColorMode == WidgetTextColorMode.Light;
@@ -479,6 +635,24 @@ public partial class TaskbarWidgetWindow : Window
             if (Enum.TryParse<WidgetPositionMode>(tagStr, out var mode))
             {
                 _settings.UpdateSettings(s => s.WidgetPosition = mode);
+                UpdatePosition();
+            }
+        }
+    }
+
+    private void MenuAutoAlign_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.UpdateSettings(s => s.WidgetAutoAlign = MenuAutoAlign.IsChecked);
+        UpdatePosition();
+    }
+
+    private void MenuMonitor_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem item && item.Tag is string tagStr)
+        {
+            if (Enum.TryParse<WidgetMonitorTarget>(tagStr, out var target))
+            {
+                _settings.UpdateSettings(s => s.WidgetMonitor = target);
                 UpdatePosition();
             }
         }
@@ -515,14 +689,6 @@ public partial class TaskbarWidgetWindow : Window
         });
     }
 
-    private void RootPill_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        if (_currentResult != null)
-        {
-            FlyoutRequested?.Invoke(_currentResult);
-        }
-    }
-
     private void MenuOpenFlyout_Click(object sender, RoutedEventArgs e)
     {
         if (_currentResult != null)
@@ -543,10 +709,7 @@ public partial class TaskbarWidgetWindow : Window
 
     private bool DetectIsLightText()
     {
-        IntPtr hMonitor = _hwnd != IntPtr.Zero
-            ? Win32.MonitorFromWindow(_hwnd, Win32.MONITOR_DEFAULTTOPRIMARY)
-            : IntPtr.Zero;
-        double dpiScale = Win32.GetMonitorDpiScale(hMonitor, _hwnd);
+        var (hMonitor, targetTaskbar, monInfo, dpiScale) = GetTargetMonitorInfo();
         bool isAboveTaskbar = _settings.Current.WidgetPosition == WidgetPositionMode.AboveTaskbar;
 
         bool isTaskbarLight = TaskbarColorDetector.IsTaskbarLight(
@@ -555,7 +718,8 @@ public partial class TaskbarWidgetWindow : Window
             ActualWidth > 0 ? ActualWidth : Width,
             ActualHeight > 0 ? ActualHeight : Height,
             dpiScale,
-            isAboveTaskbar);
+            isAboveTaskbar,
+            targetTaskbar);
 
         return !isTaskbarLight;
     }
@@ -571,6 +735,7 @@ public partial class TaskbarWidgetWindow : Window
             if (isFullScreen)
             {
                 Visibility = Visibility.Collapsed;
+                return;
             }
             else
             {
@@ -585,12 +750,75 @@ public partial class TaskbarWidgetWindow : Window
 
         if (_isFullScreenSuppressed) return;
 
+        // FollowCursor monitor tracking: if cursor moved to a different monitor, realign widget
+        if (_settings.Current.WidgetMonitor == WidgetMonitorTarget.FollowCursor && Win32.GetCursorPos(out Win32.POINT cursorPt))
+        {
+            IntPtr cursorMon = Win32.MonitorFromPoint(cursorPt, Win32.MONITOR_DEFAULTTONEAREST);
+            IntPtr currentWidgetMon = Win32.MonitorFromWindow(_hwnd, Win32.MONITOR_DEFAULTTONEAREST);
+            if (cursorMon != IntPtr.Zero && currentWidgetMon != IntPtr.Zero && cursorMon != currentWidgetMon)
+            {
+                UpdatePosition();
+            }
+        }
+
+        // Taskbar autohide detection: hide widget if taskbar has slid offscreen
+        var (hMonitor, targetTaskbar, monInfo, dpiScale) = GetTargetMonitorInfo();
+        if (targetTaskbar != IntPtr.Zero && Win32.GetWindowRect(targetTaskbar, out Win32.RECT tbRect))
+        {
+            bool isTaskbarHidden =
+                tbRect.Top >= monInfo.rcMonitor.Bottom - 2 ||
+                tbRect.Bottom <= monInfo.rcMonitor.Top + 2 ||
+                tbRect.Right <= monInfo.rcMonitor.Left + 2 ||
+                tbRect.Left >= monInfo.rcMonitor.Right - 2;
+
+            if (isTaskbarHidden)
+            {
+                if (Visibility != Visibility.Collapsed)
+                {
+                    Visibility = Visibility.Collapsed;
+                }
+                return;
+            }
+            else if (_settings.Current.ShowTaskbarWidget && Visibility != Visibility.Visible)
+            {
+                Visibility = Visibility.Visible;
+                UpdatePosition();
+            }
+
+            // Sync position with taskbar sliding animations (autohide show/hide)
+            if (tbRect.Top != _lastTaskbarRect.Top || tbRect.Bottom != _lastTaskbarRect.Bottom ||
+                tbRect.Left != _lastTaskbarRect.Left || tbRect.Right != _lastTaskbarRect.Right)
+            {
+                _lastTaskbarRect = tbRect;
+                UpdatePosition();
+            }
+
+            // Auto-align tracking: if tray icons shifted (e.g. icons added/hidden chevron moved), realign
+            if (_settings.Current.WidgetAutoAlign && _settings.Current.WidgetPosition == WidgetPositionMode.TrayLeft)
+            {
+                IntPtr trayNotifyWnd = Win32.FindWindowEx(targetTaskbar, IntPtr.Zero, "TrayNotifyWnd", null);
+                if (trayNotifyWnd != IntPtr.Zero && Win32.GetWindowRect(trayNotifyWnd, out Win32.RECT trRect))
+                {
+                    double trayLeftDip = trRect.Left / dpiScale;
+                    if (Math.Abs(trayLeftDip - _lastKnownTrayLeft) > 2.0)
+                    {
+                        UpdatePosition();
+                    }
+                }
+            }
+        }
+
         if (_settings.Current.WidgetTextColor == WidgetTextColorMode.Auto && IsVisible)
         {
-            bool currentIsLight = DetectIsLightText();
-            if (currentIsLight != _lastDetectedLightText)
+            _colorCheckTickCount++;
+            if (_colorCheckTickCount >= 15) // ~450ms
             {
-                ApplyTheme();
+                _colorCheckTickCount = 0;
+                bool currentIsLight = DetectIsLightText();
+                if (currentIsLight != _lastDetectedLightText)
+                {
+                    ApplyTheme();
+                }
             }
         }
 
@@ -670,7 +898,7 @@ public partial class TaskbarWidgetWindow : Window
             }
 
             IntPtr widgetMonitor = widgetHwnd != IntPtr.Zero
-                ? Win32.MonitorFromWindow(widgetHwnd, Win32.MONITOR_DEFAULTTOPRIMARY)
+                ? Win32.MonitorFromWindow(widgetHwnd, Win32.MONITOR_DEFAULTTONEAREST)
                 : IntPtr.Zero;
 
             IntPtr fgMonitor = Win32.MonitorFromWindow(fg, Win32.MONITOR_DEFAULTTONEAREST);
@@ -724,7 +952,7 @@ public partial class TaskbarWidgetWindow : Window
             _hwnd,
             Win32.HWND_TOPMOST,
             0, 0, 0, 0,
-            Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE | Win32.SWP_NOREDRAW
+            Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE
         );
     }
 
@@ -734,6 +962,7 @@ public partial class TaskbarWidgetWindow : Window
         {
             // Explorer restarted, re-attach to the new taskbar
             SetTaskbarOwner();
+            UpdatePosition();
             EnsureTopmost();
             return IntPtr.Zero;
         }

@@ -4,7 +4,7 @@
         Title="ClipFlyout Taskbar Widget"
         Icon="pack://application:,,,/assets/app.ico"
         Width="260"
-        Height="38"
+        Height="40"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -16,12 +16,13 @@
         FontFamily="Segoe UI Variable Text, Segoe UI, sans-serif">
 
     <Border x:Name="RootPill"
-            CornerRadius="6"
+            CornerRadius="4"
             BorderThickness="1"
-            Background="Transparent"
+            Background="#01000000"
             Cursor="Hand"
             MouseEnter="RootPill_MouseEnter"
             MouseLeave="RootPill_MouseLeave"
+            MouseLeftButtonDown="RootPill_MouseLeftButtonDown"
             MouseLeftButtonUp="RootPill_MouseLeftButtonUp">
         <Border.ContextMenu>
             <ContextMenu x:Name="WidgetContextMenu">
@@ -32,6 +33,14 @@
                     <MenuItem x:Name="MenuPosCenterLeft" Header="タスクバー中央・左寄り" Click="MenuPos_Click" Tag="CenterLeft"/>
                     <MenuItem x:Name="MenuPosFarLeft" Header="タスクバー左端" Click="MenuPos_Click" Tag="FarLeft"/>
                     <MenuItem x:Name="MenuPosAboveTaskbar" Header="画面右下 (タスクバー直上)" Click="MenuPos_Click" Tag="AboveTaskbar"/>
+                </MenuItem>
+                <MenuItem x:Name="MenuAutoAlign" Header="トレイの隠しアイコン (^) 左隣に自動吸着" IsCheckable="True" Click="MenuAutoAlign_Click"/>
+                <MenuItem x:Name="MenuMonitor" Header="表示モニター">
+                    <MenuItem x:Name="MenuMonPrimary" Header="メインモニター [既定]" Click="MenuMonitor_Click" Tag="Primary"/>
+                    <MenuItem x:Name="MenuMonCursor" Header="マウスカーソルのあるモニター" Click="MenuMonitor_Click" Tag="FollowCursor"/>
+                    <MenuItem x:Name="MenuMonDisplay1" Header="ディスプレイ 1" Click="MenuMonitor_Click" Tag="Monitor1"/>
+                    <MenuItem x:Name="MenuMonDisplay2" Header="ディスプレイ 2" Click="MenuMonitor_Click" Tag="Monitor2"/>
+                    <MenuItem x:Name="MenuMonDisplay3" Header="ディスプレイ 3" Click="MenuMonitor_Click" Tag="Monitor3"/>
                 </MenuItem>
                 <MenuItem x:Name="MenuTextColor" Header="文字色">
                     <MenuItem x:Name="MenuTextColorAuto" Header="自動検知 (タスクバー色に最適化) [既定]" Click="MenuTextColor_Click" Tag="Auto"/>
@@ -95,8 +104,8 @@
             <TextBlock x:Name="ClipPreviewText"
                        Grid.Column="1"
                        Text="（クリップボード空）"
-                       FontSize="13.5"
-                       FontWeight="SemiBold"
+                       FontSize="12.5"
+                       FontWeight="Medium"
                        Foreground="#F1F5F9"
                        HorizontalAlignment="Left"
                        TextTrimming="CharacterEllipsis"

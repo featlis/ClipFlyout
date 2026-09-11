@@ -35,6 +35,15 @@ public enum WidgetTextColorMode
     Dark
 }
 
+public enum WidgetMonitorTarget
+{
+    Primary,
+    FollowCursor,
+    Monitor1,
+    Monitor2,
+    Monitor3
+}
+
 /// <summary>
 /// User settings model with persistence support.
 /// </summary>
@@ -47,6 +56,8 @@ public class AppSettings
     public AppLanguage Language { get; set; } = AppLanguage.Auto;
     public bool ShowTaskbarWidget { get; set; } = true;
     public WidgetPositionMode WidgetPosition { get; set; } = WidgetPositionMode.TrayLeft;
+    public bool WidgetAutoAlign { get; set; } = true;
+    public WidgetMonitorTarget WidgetMonitor { get; set; } = WidgetMonitorTarget.Primary;
     public double WidgetOffsetX { get; set; } = 0.0;
     public WidgetTextColorMode WidgetTextColor { get; set; } = WidgetTextColorMode.Auto;
     public bool IgnorePasswordManagers { get; set; } = true;
@@ -112,6 +123,11 @@ public class AppSettings
         if (!Enum.IsDefined(normalized.WidgetPosition))
         {
             normalized.WidgetPosition = WidgetPositionMode.TrayLeft;
+        }
+
+        if (!Enum.IsDefined(normalized.WidgetMonitor))
+        {
+            normalized.WidgetMonitor = WidgetMonitorTarget.Primary;
         }
 
         normalized.WidgetOffsetX = Math.Clamp(normalized.WidgetOffsetX, -800.0, 800.0);

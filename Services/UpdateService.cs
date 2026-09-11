@@ -4,6 +4,7 @@ using System.IO;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace ClipFlyout.Services;
@@ -63,7 +64,7 @@ public sealed class UpdateService
         return installerUrl is null ? null : new UpdateRelease(latestVersion, installerUrl, checksumsUrl, releaseNotesUrl);
     }
 
-    public async Task DownloadAndStartInstallerAsync(UpdateRelease release)
+    public async Task DownloadAndStartInstallerAsync(UpdateRelease release, CancellationToken cancellationToken = default)
     {
         string tempDirectory = Path.Combine(Path.GetTempPath(), "ClipFlyout", "updates", release.Version.ToString());
         Directory.CreateDirectory(tempDirectory);
@@ -75,9 +76,13 @@ public sealed class UpdateService
         {
             try
             {
-                string checksums = await Client.GetStringAsync(release.ChecksumsUrl).ConfigureAwait(false);
+                string checksums = await Client.GetStringAsync(release.ChecksumsUrl, cancellationToken).ConfigureAwait(false);
                 expectedHash = FindSha256(checksums, Path.GetFileName(installerPath))
                     ?? FindSha256(checksums, Path.GetFileName(release.InstallerUrl));
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch
             {
@@ -86,12 +91,12 @@ public sealed class UpdateService
         }
 
         if (File.Exists(partialInstallerPath)) File.Delete(partialInstallerPath);
-        using var downloadResponse = await Client.GetAsync(release.InstallerUrl, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+        using var downloadResponse = await Client.GetAsync(release.InstallerUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         downloadResponse.EnsureSuccessStatusCode();
-        await using (var source = await downloadResponse.Content.ReadAsStreamAsync().ConfigureAwait(false))
+        await using (var source = await downloadResponse.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
         await using (var destination = File.Create(partialInstallerPath))
         {
-            await source.CopyToAsync(destination).ConfigureAwait(false);
+            await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
         }
 
         File.Move(partialInstallerPath, installerPath, true);
@@ -101,7 +106,7 @@ public sealed class UpdateService
             string actualHash;
             await using (var file = File.OpenRead(installerPath))
             {
-                actualHash = Convert.ToHexString(await SHA256.HashDataAsync(file).ConfigureAwait(false));
+                actualHash = Convert.ToHexString(await SHA256.HashDataAsync(file, cancellationToken).ConfigureAwait(false));
             }
             if (!actualHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
             {

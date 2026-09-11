@@ -156,6 +156,14 @@ public partial class SettingsWindow : Window
         ComboWidgetTextColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_TextColor_Light"), Tag = WidgetTextColorMode.Light });
         ComboWidgetTextColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_TextColor_Dark"), Tag = WidgetTextColorMode.Dark });
 
+        // Widget Monitor dropdown
+        ComboWidgetMonitor.Items.Clear();
+        ComboWidgetMonitor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_Monitor_Primary"), Tag = WidgetMonitorTarget.Primary });
+        ComboWidgetMonitor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_Monitor_Cursor"), Tag = WidgetMonitorTarget.FollowCursor });
+        ComboWidgetMonitor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_Monitor_Display1"), Tag = WidgetMonitorTarget.Monitor1 });
+        ComboWidgetMonitor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_Monitor_Display2"), Tag = WidgetMonitorTarget.Monitor2 });
+        ComboWidgetMonitor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_Monitor_Display3"), Tag = WidgetMonitorTarget.Monitor3 });
+
         // Placement dropdown
         ComboPlacement.Items.Clear();
         ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_BottomRight"), Tag = FlyoutPlacement.BottomRight });
@@ -177,6 +185,8 @@ public partial class SettingsWindow : Window
         SelectComboByTag(ComboLanguage, cfg.Language);
         SelectComboByTag(ComboWidgetPos, cfg.WidgetPosition);
         SelectComboByTag(ComboWidgetTextColor, cfg.WidgetTextColor);
+        SelectComboByTag(ComboWidgetMonitor, cfg.WidgetMonitor);
+        ToggleWidgetAutoAlign.IsOn = cfg.WidgetAutoAlign;
         SelectComboByTag(ComboPlacement, cfg.Placement);
 
         InitColorPicker(cfg.AccentColor);
@@ -220,6 +230,7 @@ public partial class SettingsWindow : Window
         ToggleAutoUpdate.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.AutomaticallyInstallUpdates = val); };
 
         ToggleShowWidget.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.ShowTaskbarWidget = val); };
+        ToggleWidgetAutoAlign.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.WidgetAutoAlign = val); };
         ToggleIgnorePasswords.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.IgnorePasswordManagers = val); };
         ToggleRecallHotkey.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.EnableRecallHotkey = val); };
 
@@ -418,6 +429,15 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void ComboWidgetMonitor_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isInitializing) return;
+        if (ComboWidgetMonitor.SelectedItem is ComboBoxItem { Tag: WidgetMonitorTarget target })
+        {
+            _settings.UpdateSettings(s => s.WidgetMonitor = target);
+        }
+    }
+
     private void SliderWidgetOffset_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (TextWidgetOffsetVal != null)
@@ -513,6 +533,7 @@ public partial class SettingsWindow : Window
             SetComboStyle(ComboLanguage, darkComboBg, darkComboBorder, darkComboFg);
             SetComboStyle(ComboWidgetPos, darkComboBg, darkComboBorder, darkComboFg);
             SetComboStyle(ComboWidgetTextColor, darkComboBg, darkComboBorder, darkComboFg);
+            SetComboStyle(ComboWidgetMonitor, darkComboBg, darkComboBorder, darkComboFg);
             SetComboStyle(ComboPlacement, darkComboBg, darkComboBorder, darkComboFg);
 
             TextHexCode.Background = darkComboBg;
@@ -574,6 +595,7 @@ public partial class SettingsWindow : Window
             SetComboStyle(ComboLanguage, lightComboBg, lightComboBorder, lightComboFg);
             SetComboStyle(ComboWidgetPos, lightComboBg, lightComboBorder, lightComboFg);
             SetComboStyle(ComboWidgetTextColor, lightComboBg, lightComboBorder, lightComboFg);
+            SetComboStyle(ComboWidgetMonitor, lightComboBg, lightComboBorder, lightComboFg);
             SetComboStyle(ComboPlacement, lightComboBg, lightComboBorder, lightComboFg);
 
             TextHexCode.Background = lightComboBg;
@@ -640,6 +662,8 @@ public partial class SettingsWindow : Window
         Sep3a.Background = sepBrush;
         Sep3b.Background = sepBrush;
         Sep3c.Background = sepBrush;
+        Sep3AutoAlign.Background = sepBrush;
+        Sep3Monitor.Background = sepBrush;
         Sep3d.Background = sepBrush;
         Sep3e.Background = sepBrush;
         Sep4.Background = sepBrush;
@@ -684,6 +708,10 @@ public partial class SettingsWindow : Window
         DescShowWidget.Text = _loc.Get("Setting_ShowTaskbarWidget_Desc");
         LblWidgetPos.Text = _loc.Get("Setting_WidgetPosition");
         DescWidgetPos.Text = _loc.Get("Setting_WidgetPosition_Desc");
+        LblWidgetAutoAlign.Text = _loc.Get("Setting_WidgetAutoAlign");
+        DescWidgetAutoAlign.Text = _loc.Get("Setting_WidgetAutoAlign_Desc");
+        LblWidgetMonitor.Text = _loc.Get("Setting_WidgetMonitor");
+        DescWidgetMonitor.Text = _loc.Get("Setting_WidgetMonitor_Desc");
         LblWidgetOffset.Text = _loc.Get("Setting_WidgetOffsetX");
         DescWidgetOffset.Text = _loc.Get("Setting_WidgetOffsetX_Desc");
         LblWidgetTextColor.Text = _loc.Get("Setting_WidgetTextColor");
@@ -766,6 +794,7 @@ public partial class SettingsWindow : Window
         int langIdx = ComboLanguage.SelectedIndex;
         int widgetPosIdx = ComboWidgetPos.SelectedIndex;
         int widgetTextColorIdx = ComboWidgetTextColor.SelectedIndex;
+        int widgetMonitorIdx = ComboWidgetMonitor.SelectedIndex;
         int placementIdx = ComboPlacement.SelectedIndex;
 
         PopulateDropdowns();
@@ -774,6 +803,7 @@ public partial class SettingsWindow : Window
         ComboLanguage.SelectedIndex = langIdx;
         ComboWidgetPos.SelectedIndex = widgetPosIdx;
         ComboWidgetTextColor.SelectedIndex = widgetTextColorIdx;
+        ComboWidgetMonitor.SelectedIndex = widgetMonitorIdx;
         ComboPlacement.SelectedIndex = placementIdx;
     }
 

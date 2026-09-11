@@ -136,7 +136,7 @@ public class FlyoutWindowManager : IDisposable
         if (Win32.GetMonitorInfo(hMonitor, ref monitorInfo))
         {
             IntPtr hwnd = new WindowInteropHelper(_window).Handle;
-            double dpiScale = Win32.GetMonitorDpiScale(hMonitor, hwnd);
+            double dpiScale = Win32.GetMonitorDpiScale(IntPtr.Zero, hwnd);
 
             double workLeft = monitorInfo.rcWork.Left / dpiScale;
             double workTop = monitorInfo.rcWork.Top / dpiScale;

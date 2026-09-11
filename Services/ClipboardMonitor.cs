@@ -238,7 +238,16 @@ public class ClipboardMonitor : IClipboardMonitor
                         }
                     }
 
-                    if (WpfClipboard.ContainsImage())
+                    if (WpfClipboard.ContainsText())
+                    {
+                        string text = WpfClipboard.GetText();
+                        if (!string.IsNullOrWhiteSpace(text))
+                        {
+                            extractedData = text;
+                        }
+                    }
+
+                    if (extractedData == null && WpfClipboard.ContainsImage())
                     {
                         var img = WpfClipboard.GetImage();
                         if (img != null)
@@ -247,14 +256,6 @@ public class ClipboardMonitor : IClipboardMonitor
                             // worker thread.
                             if (img.CanFreeze) img.Freeze();
                             extractedData = img;
-                        }
-                    }
-                    else if (WpfClipboard.ContainsText())
-                    {
-                        string text = WpfClipboard.GetText();
-                        if (!string.IsNullOrWhiteSpace(text))
-                        {
-                            extractedData = text;
                         }
                     }
                     if (extractedData != null && generation == Volatile.Read(ref _clipboardReadGeneration) && _isEnabled)

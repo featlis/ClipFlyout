@@ -50,6 +50,15 @@ public static class Win32
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
     public static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
 
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern IntPtr FindWindowEx(IntPtr hwndParent, IntPtr hwndChildAfter, string? lpszClass, string? lpszWindow);
+
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
     [DllImport("user32.dll")]
     public static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
 
@@ -283,6 +292,31 @@ public static class Win32
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 
+    public delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumProc lpfnEnum, IntPtr dwData);
+
+    public static System.Collections.Generic.List<IntPtr> GetAllMonitors()
+    {
+        var monitorsWithRect = new System.Collections.Generic.List<(IntPtr hMon, int left)>();
+        EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (IntPtr hMon, IntPtr hdc, ref RECT rc, IntPtr data) =>
+        {
+            monitorsWithRect.Add((hMon, rc.Left));
+            return true;
+        }, IntPtr.Zero);
+
+        monitorsWithRect.Sort((a, b) => a.left.CompareTo(b.left));
+
+        var list = new System.Collections.Generic.List<IntPtr>(monitorsWithRect.Count);
+        foreach (var item in monitorsWithRect)
+        {
+            list.Add(item.hMon);
+        }
+        return list;
+    }
+
     [DllImport("user32.dll")]
     public static extern uint GetDpiForWindow(IntPtr hwnd);
 
@@ -348,20 +382,21 @@ public static class Win32
 
     /// <summary>
     /// Accurately retrieves the DPI scaling factor for the given monitor and window.
+    /// For SystemAware WPF applications, window DPI (system DPI) must be used for layout calculations.
     /// </summary>
     public static double GetMonitorDpiScale(IntPtr hMonitor, IntPtr hwnd)
     {
         try
         {
-            if (hMonitor != IntPtr.Zero && GetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, out uint dpiX, out _) == 0 && dpiX > 0)
-            {
-                return dpiX / 96.0;
-            }
-
             if (hwnd != IntPtr.Zero)
             {
                 uint dpi = GetDpiForWindow(hwnd);
                 if (dpi > 0) return dpi / 96.0;
+            }
+
+            if (hMonitor != IntPtr.Zero && GetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, out uint dpiX, out _) == 0 && dpiX > 0)
+            {
+                return dpiX / 96.0;
             }
         }
         catch { }

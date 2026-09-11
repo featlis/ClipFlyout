@@ -13,6 +13,7 @@ public class SettingsService
 
     private readonly string _settingsFilePath;
     private readonly bool _syncStartupRegistry;
+    private readonly object _lock = new();
     private volatile AppSettings _currentSettings;
 
     public event Action<AppSettings>? SettingsChanged;
@@ -102,32 +103,38 @@ public class SettingsService
 
     public void SaveSettings(AppSettings settings)
     {
-        try
+        lock (_lock)
         {
-            _currentSettings = settings.Normalize();
-            string json = JsonSerializer.Serialize(_currentSettings, new JsonSerializerOptions { WriteIndented = true });
-            string temporaryFilePath = _settingsFilePath + ".tmp";
-            File.WriteAllText(temporaryFilePath, json);
-            File.Move(temporaryFilePath, _settingsFilePath, true);
-
-            if (_syncStartupRegistry)
+            try
             {
-                SyncStartupRegistry(_currentSettings.LaunchOnStartup);
-            }
+                _currentSettings = settings.Normalize();
+                string json = JsonSerializer.Serialize(_currentSettings, new JsonSerializerOptions { WriteIndented = true });
+                string temporaryFilePath = _settingsFilePath + ".tmp";
+                File.WriteAllText(temporaryFilePath, json);
+                File.Move(temporaryFilePath, _settingsFilePath, true);
 
-            SettingsChanged?.Invoke(_currentSettings.Clone());
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Failed to save settings: {ex.Message}");
+                if (_syncStartupRegistry)
+                {
+                    SyncStartupRegistry(_currentSettings.LaunchOnStartup);
+                }
+
+                SettingsChanged?.Invoke(_currentSettings.Clone());
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to save settings: {ex.Message}");
+            }
         }
     }
 
     public void UpdateSettings(Action<AppSettings> updateAction)
     {
-        var copy = _currentSettings.Clone();
-        updateAction(copy);
-        SaveSettings(copy);
+        lock (_lock)
+        {
+            var copy = _currentSettings.Clone();
+            updateAction(copy);
+            SaveSettings(copy);
+        }
     }
 
     private void SyncStartupRegistry(bool enable)

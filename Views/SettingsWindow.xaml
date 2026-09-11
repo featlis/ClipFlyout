@@ -299,6 +299,49 @@
 
                         <Separator x:Name="Sep3c" Margin="16,0"/>
 
+                        <!-- Widget Auto-Align / Avoid Overlaps -->
+                        <Border Padding="16,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="34" Height="34" CornerRadius="8" Background="#2010B981" Margin="0,0,14,0" VerticalAlignment="Center">
+                                    <TextBlock Text="🧲" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblWidgetAutoAlign" Text="トレイの隠しアイコン (^) 左隣に自動吸着" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescWidgetAutoAlign" Text="トレイアイコンの増減に合わせて被らないよう自動で追従します" FontSize="11.5" Margin="0,1.5,0,0"/>
+                                </StackPanel>
+                                <controls:ToggleSwitch Grid.Column="2" x:Name="ToggleWidgetAutoAlign" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <Separator x:Name="Sep3AutoAlign" Margin="16,0"/>
+
+                        <!-- Widget Monitor Selector -->
+                        <Border Padding="16,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="34" Height="34" CornerRadius="8" Background="#2010B981" Margin="0,0,14,0" VerticalAlignment="Center">
+                                    <TextBlock Text="🖥️" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LblWidgetMonitor" Text="ウィジェットを表示するモニター" FontSize="13" FontWeight="Medium"/>
+                                    <TextBlock x:Name="DescWidgetMonitor" Text="マルチモニター環境でウィジェットを配置するディスプレイを選択します" FontSize="11.5" Margin="0,1.5,0,0"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="2" x:Name="ComboWidgetMonitor" Width="200" Height="32" VerticalAlignment="Center"
+                                          SelectionChanged="ComboWidgetMonitor_SelectionChanged"/>
+                            </Grid>
+                        </Border>
+
+                        <Separator x:Name="Sep3Monitor" Margin="16,0"/>
+
                         <!-- Widget Offset X Slider -->
                         <Border Padding="16,12">
                             <Grid>

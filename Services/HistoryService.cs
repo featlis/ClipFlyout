@@ -92,11 +92,32 @@ public class HistoryService
             {
                 int stride = (bmpA.PixelWidth * bmpA.Format.BitsPerPixel + 7) / 8;
                 int totalBytes = stride * bmpA.PixelHeight;
-                byte[] bytesA = new byte[totalBytes];
-                byte[] bytesB = new byte[totalBytes];
-                bmpA.CopyPixels(bytesA, stride, 0);
-                bmpB.CopyPixels(bytesB, stride, 0);
-                return bytesA.AsSpan().SequenceEqual(bytesB.AsSpan());
+
+                if (totalBytes <= 64 * 1024)
+                {
+                    byte[] bytesA = new byte[totalBytes];
+                    byte[] bytesB = new byte[totalBytes];
+                    bmpA.CopyPixels(bytesA, stride, 0);
+                    bmpB.CopyPixels(bytesB, stride, 0);
+                    return bytesA.AsSpan().SequenceEqual(bytesB.AsSpan());
+                }
+
+                // For large images, sample rows (top, 1/4, center, 3/4, bottom) to avoid allocating tens of megabytes
+                int[] sampleRows = { 0, bmpA.PixelHeight / 4, bmpA.PixelHeight / 2, (bmpA.PixelHeight * 3) / 4, bmpA.PixelHeight - 1 };
+                byte[] rowA = new byte[stride];
+                byte[] rowB = new byte[stride];
+
+                foreach (int y in sampleRows)
+                {
+                    var rect = new System.Windows.Int32Rect(0, y, bmpA.PixelWidth, 1);
+                    bmpA.CopyPixels(rect, rowA, stride, 0);
+                    bmpB.CopyPixels(rect, rowB, stride, 0);
+                    if (!rowA.AsSpan().SequenceEqual(rowB.AsSpan()))
+                    {
+                        return false;
+                    }
+                }
+                return true;
             }
             catch
             {

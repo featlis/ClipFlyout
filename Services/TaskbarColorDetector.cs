@@ -53,9 +53,10 @@ public static class TaskbarColorDetector
         double widgetDipWidth,
         double widgetDipHeight,
         double dpiScale,
-        bool isAboveTaskbar)
+        bool isAboveTaskbar,
+        IntPtr targetTaskbar = default)
     {
-        if (TrySampleOutsideWidgetLuminance(widgetDipLeft, widgetDipTop, widgetDipWidth, widgetDipHeight, dpiScale, isAboveTaskbar, out double luminance))
+        if (TrySampleOutsideWidgetLuminance(widgetDipLeft, widgetDipTop, widgetDipWidth, widgetDipHeight, dpiScale, isAboveTaskbar, out double luminance, targetTaskbar))
         {
             return IsLuminanceLight(luminance);
         }
@@ -73,7 +74,8 @@ public static class TaskbarColorDetector
         double widgetDipHeight,
         double dpiScale,
         bool isAboveTaskbar,
-        out double averageLuminance)
+        out double averageLuminance,
+        IntPtr targetTaskbar = default)
     {
         averageLuminance = 0;
         if (dpiScale <= 0) dpiScale = 1.0;
@@ -126,7 +128,7 @@ public static class TaskbarColorDetector
             else
             {
                 // Widget is on taskbar: sample taskbar strip outside widget bounds
-                IntPtr taskbarHwnd = Win32.FindWindow("Shell_TrayWnd", null);
+                IntPtr taskbarHwnd = targetTaskbar != IntPtr.Zero ? targetTaskbar : Win32.FindWindow("Shell_TrayWnd", null);
                 if (taskbarHwnd == IntPtr.Zero || !Win32.GetWindowRect(taskbarHwnd, out Win32.RECT tbRect))
                 {
                     return false;
