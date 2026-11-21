@@ -76,7 +76,7 @@ ClipFlyout は、クリップボードにコピーしたテキストや画像の
 ### 4. インストール方法
 
 #### インストーラー版（推奨）
-1. [GitHub Releases](https://github.com/featlis/ClipFlyout/releases/latest) から `ClipFlyout-Setup-v2.0.0.exe` をダウンロードします。
+1. [GitHub Releases](https://github.com/featlis/ClipFlyout/releases/latest) から [`ClipFlyout-Setup-v2.0.0.exe`](https://github.com/featlis/ClipFlyout/releases/download/v2.0.0/ClipFlyout-Setup-v2.0.0.exe) をダウンロードします。
 2. インストーラーを実行します（標準ユーザー権限でインストール可能です）。
 3. インストール完了後、初回セットアップ画面が表示されます。
 
