@@ -14,19 +14,21 @@ public static class CaseConverter
     {
         if (string.IsNullOrWhiteSpace(input)) return false;
         string trimmed = input.Trim();
-        if (trimmed.Length < 2 || trimmed.Length > 80) return false;
+        if (trimmed.Length < 3 || trimmed.Length > 80) return false;
         if (trimmed.Contains('\n') || trimmed.Contains('\r')) return false;
         if (!ValidCharsRegex.IsMatch(trimmed)) return false;
 
         var words = SplitWords(trimmed);
-        return words.Count >= 1 && words.Count <= 8 && words.Any(w => w.Any(char.IsLetter));
+        // Require at least 2 words (e.g. camelCase, snake_case, kebab-case, or multi-word phrase)
+        // so single ordinary words like "hello" don't spam 5 redundant case conversion buttons.
+        return words.Count >= 2 && words.Count <= 8 && words.Any(w => w.Any(char.IsLetter));
     }
 
     public static List<string> SplitWords(string input)
     {
         if (string.IsNullOrWhiteSpace(input)) return [];
         var matches = WordRegex.Matches(input.Trim());
-        var words = new List<string>();
+        var words = new List<string>(matches.Count);
         foreach (Match m in matches)
         {
             if (!string.IsNullOrEmpty(m.Value))

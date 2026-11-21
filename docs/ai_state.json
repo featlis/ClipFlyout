@@ -1,120 +1,19 @@
 {
   "project": "ClipFlyout",
-  "version": "1.1.0",
-  "target_framework": "net9.0-windows",
+  "version": "2.0.0",
+  "target_framework": "net10.0-windows",
+  "dpi_awareness": "PerMonitorV2 (app.manifest)",
   "architecture": {
-    "ui": "WPF + PowerToys-inspired settings cards (Windows 11 transient DWM acrylic with Accent Policy fallback, 20%-100% opacity, FluentControls ComboBox/Slider/ScrollBar, Mica for Settings, Taskbar Widget, Welcome Wizard, rich WinUI 3 stretch toggle switch)",
-    "native_interop": {
-      "clipboard_listener": "user32.dll AddClipboardFormatListener / RemoveClipboardFormatListener (WM_CLIPBOARDUPDATE 0x031D)",
-      "window_styles": "WS_EX_NOACTIVATE (0x08000000) | WS_EX_TOOLWINDOW (0x00000080) | WS_EX_TOPMOST (0x00000008)",
-      "dpi_scaling": "user32.dll GetDpiForWindow + shcore.dll GetDpiForMonitor (accurate multi-monitor scaling, avoids null PresentationSource bug)",
-      "monitor_positioning": "GetCursorPos -> MonitorFromPoint -> GetMonitorInfo (BottomRight, TopRight, TopLeft, BottomLeft, NearCursor; with strict screen-edge 12px clamping)",
-      "acrylic_blur": "dwmapi.dll transient window backdrop (DWMSBT_TRANSIENTWINDOW) plus user32.dll Accent Policy fallback; flyout remains non-layered so DWM can compose real acrylic",
-      "mica_backdrop": "dwmapi.dll DwmSetWindowAttribute (DWMWA_SYSTEMBACKDROP_TYPE=2, DWMWA_WINDOW_CORNER_PREFERENCE=2)",
-      "theme_detection": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\\AppsUseLightTheme + SystemEvents.UserPreferenceChanged",
-      "startup_sync": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\ClipFlyout"
-    },
-    "subsystems": {
-      "ClipboardMonitor": "Services/ClipboardMonitor.cs (HwndSource message hook, async 5x lock retry, monotonically ordered reads, GetClipboardSequenceNumber-based suppression for internal writes)",
-      "DataTypeDetector": "Services/DataTypeDetector.cs (Configurable filters: HexColor, UnixTimestamp, Json, Url, Base64, quoted CSV/TSV TableData, Code, Image, PlainText, CleanUrl, CaseConverter, Jwt; bounds structured parsing to 1 MB)",
-      "ActionExecutor": "Services/ActionExecutor.cs (CopyText, CopyImage, CopyBase64Image, OpenBrowser, GenerateAndCopyQrCode, SaveImageToFile, CleanUrl, CaseConvert, JwtDecode)",
-      "FlyoutWindowManager": "Services/FlyoutWindowManager.cs (Placement: BottomRight, TopRight, TopLeft, BottomLeft, NearCursor; strict screen boundary clamp, accurate DPI, primary/secondary action styling)",
-      "TaskbarWidgetWindow": "Views/TaskbarWidgetWindow.xaml (Borderless docked taskbar widget displaying snippet preview with position modes and horizontal offset)",
-      "WelcomeWindow": "Views/WelcomeWindow.xaml (Initial first-run setup wizard with quick defaults and customize buttons)",
-      "AppIconHelper": "Services/AppIconHelper.cs (High-resolution multi-size vector icon generator and resource provider)",
-      "SettingsService": "Services/SettingsService.cs (Persistence in %LocalAppData%\\ClipFlyout\\settings.json, Windows startup sync)",
-      "ThemeService": "Services/ThemeService.cs (System, Light, Dark dynamic theme switching)",
-      "TrayIconService": "Services/TrayIconService.cs (H.NotifyIcon.Wpf with native Icon, Settings menu, theme & language submenu)",
-      "LocalizationService": "Services/LocalizationService.cs (Auto/Ja/En full i18n dictionary for flyout, settings, widget, and welcome)",
-      "FluentControls": "Themes/FluentControls.xaml (Windows 11 Fluent ComboBox with vector chevron, Slide popup, 4px track Slider, 6px minimal ScrollBar)",
-      "ToggleSwitch": "Controls/ToggleSwitch.xaml (Windows 11 pixel-perfect animated toggle switch with fluid thumb stretch animation)",
-      "SettingsWindow": "Views/SettingsWindow.xaml (PowerToys-inspired SettingsCard layout with Mica, visible icon plates, inline updater UI without popups, author credits & GPLv3 license card)",
-      "UpdateService": "Services/UpdateService.cs (GitHub Releases latest check, SHA-256 manifest verification, silent Inno Setup handoff; automatic checks can be disabled)"
-    }
+    "ui": "WPF (.NET 10) + WinUI 3 semantic token dictionaries (Tokens.Dark.xaml / Tokens.Light.xaml), PowerToys-style Left NavigationView + real Mica + reusable SettingsCard, genuine Win11 8px Acrylic Flyout (no conflicting Win10 AccentPolicy on Win11 22H2+), FluentDialog, WinUI 3 ToggleSwitch, zero-emoji Segoe Fluent Icons",
+    "security": "Fail-closed mandatory SHA-256 update verification, single-instance Mutex, strict http/https & mailto validation, Windows Cloud Clipboard DWORD metadata evaluation",
+    "performance": "Eliminated 30ms polling and 450ms GetPixel GPU stalls in TaskbarWidget; 150ms debounced slider saves; lazy Tray ContextMenu; frozen brushes; downscaled history thumbnails; O(1) bounded large-text detection",
+    "features": [
+      "Keyboard-first Flyout (Esc, Up/Down, Enter, 1-9 shortcuts) + Click-outside dismiss",
+      "Fullscreen app automatic flyout suppression",
+      "Pin/Favorite, Search, Clear, relative timestamps, optional JSON history persistence",
+      "New detectors: Explorer FileDropList, CSS rgb()/hsl() colors, ISO 8601 DateTime, JWT exp status",
+      "Windows System Accent sync + WCAG 2.1 contrasting foreground computation"
+    ]
   },
-  "distribution": {
-    "installer": "installer/ClipFlyout.iss (Inno Setup 6, self-contained single-file win-x64, multi-language EN/JA)",
-    "package_script": "scripts/build-installer.ps1 (requires a 0.x.x version, publishes with matching assembly metadata and a locked NuGet graph)",
-    "github_actions": ".github/workflows/release.yml (auto-publish on tag v*)"
-  },
-  "detection_rules": {
-    "HexColor": {
-      "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
-      "actions": ["Copy RGB", "Copy HSL", "Copy RGBA"],
-      "preview": "Color swatch + Hex + RGB + HSL"
-    },
-    "UnixTimestamp": {
-      "pattern": "10-digit (seconds) or 13-digit (ms) number, years 1990-2100",
-      "actions": ["Copy Local Time", "Copy ISO 8601", "Copy Current Epoch"],
-      "preview": "Local time string + UTC offset"
-    },
-    "Json": {
-      "pattern": "Trimmed starts with { or [ and ends with } or ], validated via JsonDocument.Parse",
-      "actions": ["Format & Copy (Indented)", "Minify & Copy"],
-      "preview": "Element / property count + snippet"
-    },
-    "Url": {
-      "pattern": "Uri.TryCreate http/https scheme",
-      "actions": ["Open in Browser", "Generate & Copy QR Image (QRCoder)", "Copy Domain"],
-      "preview": "Host + path preview"
-    },
-    "Base64": {
-      "pattern": "data:image/... or valid Base64 encoded string",
-      "actions": ["Decode to Text", "Copy as Image"],
-      "preview": "Decoded summary / byte length"
-    },
-    "TableData": {
-      "pattern": "Multi-line TSV (tabs) or CSV (commas) with uniform columns",
-      "actions": ["To Markdown Table", "To JSON Array"],
-      "preview": "Row x Col count + snippet"
-    },
-    "Code": {
-      "pattern": "Code keywords regex / braces / semicolons / indentation heuristics",
-      "actions": ["Adjust Indent (2 spaces)", "Escape HTML entities (&lt; &gt; &amp; &quot;)"],
-      "preview": "Line count + char count + snippet"
-    },
-    "Image": {
-      "pattern": "Clipboard.ContainsImage / BitmapSource",
-      "actions": ["Save PNG File (SaveFileDialog)", "Copy Image Info (Dimensions + Aspect Ratio)"],
-      "preview": "Thumbnail preview + resolution"
-    },
-    "PlainText": {
-      "pattern": "Fallback for all other string content",
-      "actions": ["Trim Whitespace", "Copy Text Stats (chars, words, lines)", "UPPERCASE", "lowercase"],
-      "preview": "Snippet + char/word count"
-    }
-  },
-  "resolved_issues": [
-    "Fixed ClipToBounds exception on Window by removing illegal ClipToBounds property from transparent Window root in FlyoutWindow.xaml",
-    "Fixed screen right-edge overflow: constrained MaxWidth, forced word wrapping, added strict 12px screen boundary clamping",
-    "Fixed high-DPI scaling bug: added native GetDpiForWindow / GetDpiForMonitor APIs",
-    "Fixed double-tint opacity bug: separated OS hardware blur activation from WPF single-layer tint, expanded opacity slider range to 20%~100%",
-    "Fixed JSON action closures referencing a disposed JsonDocument by cloning JsonElement before registering actions",
-    "Prevented stale clipboard reads and old hide-animation callbacks from replacing or hiding newer flyouts",
-    "Replaced timing-based internal clipboard suppression with Windows clipboard sequence numbers",
-    "Added settings validation, atomic saves, and isolated test settings from LocalAppData and the startup registry",
-    "Replaced naive CSV splitting with quoted-field CSV/TSV parsing, Markdown escaping, and duplicate-header handling",
-    "Removed emoji-led settings decoration, introduced a clear primary flyout action, and rewrote privacy copy as a neutral local-processing note",
-    "Updated to v0.3.0 and pinned the tray icon dependency to H.NotifyIcon.Wpf 2.3.0, which supplies compatible modern .NET Windows assets",
-    "v0.4.0: replaced layered-window pseudo acrylic with DWM transient acrylic, defined high-contrast dark tray-menu hover states, added secure GitHub Releases automatic updates and visible update controls",
-    "v0.4.1: rate-limited automatic update checks, atomically staged downloads, restored post-update launch for silent installs, locked dependencies, and updated QRCoder to 1.8.0",
-    "v0.5.0: acrylic opacity is now applied by the Windows compositor, submenu palettes are explicit in dark mode, light flyouts use a light compositor tint, accent presets were added, and email addresses are detected",
-    "v0.5.2: refined light mode color palette and secondary button styling, pinned tray icon context menu to light palette even in dark mode, and extended DWM frame with DwmExtendFrameIntoClientArea (-1) to guarantee real Windows Acrylic backdrop rendering",
-    "v0.5.4: fixed acrylic transparency — WPF RootCard background alpha reduced to 5-60 range (was 30-240/100-240) so DWM compositor blur is always visible; AccentPolicy tint alpha remapped to 20-120 (was 64-230 which caused near-opaque look); light mode tint changed from blue-grey RGB(249,250,252) to pure white RGB(255,255,255) eliminating the grey cast",
-    "v0.5.5: ROOT CAUSE FIX — added HwndSource.CompositionTarget.BackgroundColor = Colors.Transparent in OnSourceInitialized; without this the WPF back-buffer was opaque and completely occluded the DWM acrylic blur regardless of any other setting; AccentPolicy alpha remapped to 30-180; RootCard bgAlpha remapped to 20-160 for proper tint-over-blur; ref MS Learn Fluent Design acrylic material docs",
-    "v0.5.6: Acrylic transparency perfection ref MS Learn Fluent Acrylic guidelines — eliminated double-tinting between AccentPolicy and WPF RootCard by unifying tint control in WPF with clean 30-230 alpha scaling (20%-100% slider); removed unwanted native top border line by resetting AccentFlags to 0; reduced light mode preview panels background alpha from 120 (47% white) to 40 so acrylic frosted blur transmits through card content; integrated Windows system Transparency Effects (EnableTransparency) registry detection in ThemeService with solid opaque fallback when disabled; ensured FlyoutWindow.Present executes ApplyTheme on every presentation.",
-    "v0.6.0: added taskbar clipboard widget, transform paste action, and extended productivity tools (Clean URL, Case Converter, JWT Decoder).",
-    "v0.7.1: enhanced taskbar widget (frameless taskbar integration, position docking modes), animated WinUI 3 stretch toggle switch, full RGB slider & hex color picker, system theme default, tabbed settings with author info & GPLv3 license card, initial setup wizard (WelcomeWindow), high-res vector icon helper.",
-    "v0.7.2: added TaskbarColorDetector for automatic taskbar color/luminance detection, adaptive high-contrast widget text color modes (Auto/Light/Dark) with drop shadows.",
-    "v0.7.3: supported left-click tray menu activation, uninstaller and setup auto-termination of running ClipFlyout instances via taskkill, widget preview anchored to start of content (18 chars), eliminated cross-process GWL_HWNDPARENT Explorer focus contention.",
-    "v0.7.4: fixed widget continuous topmost persistence using 250ms DispatcherTimer + Win32.GetWindow(GW_HWNDPREV) + WM_WINDOWPOSCHANGING (protected during context menu active); fixed setup wizard display so it runs on clean installer install only (IsUpgrade registry detection in Inno Setup) and is suppressed on update; ensured user's preferred tray icon is permanently displayed on taskbar widget (removed emoji overrides); generated Win32 GDI / Inno Setup compliant BMP/PNG multi-res ICO asset.",
-    "v0.7.4-refinement: setup wizard (WelcomeWindow) permanently fixed to Light Mode with custom ControlTemplate buttons and ForceLightMode ToggleSwitch; restricted setup launch strictly to installer --welcome flag (suppressed on upgrades and normal runs); coordinated widget topmost timer with FlyoutWindow.IsFlyoutOpen and TrayIconService.IsContextMenuActive; prevented GDI icon handle leaks via Win32.DestroyIcon; enabled tray icon left-click menu toggle.",
-    "v0.7.5: added language selection (Auto / Japanese / English) directly inside the initial setup wizard (WelcomeWindow) with real-time UI text update; resolved startup synchronization inconsistency between Inno Setup {userstartup} shortcuts and HKCU Run registry; registered missing Tray_Settings_Flyout localization key; enhanced CleanUrlHelper with YouTube (si, feature), Amazon (ref_), and share tracking parameter stripping; added WM_SETTINGCHANGE handling and DisplaySettingsChanged event unsubscribe to TaskbarWidgetWindow; cleaned redundant Icon attribute from SettingsWindow.xaml.",
-    "v0.7.6: resolved all 11 bug audit issues: eliminated duplicate Theme validation and added WidgetTextColor validation in AppSettings.Normalize; tightened future update check limit to 1h; unsubscribed theme, history, and language events across TrayIconService, SettingsWindow, TaskbarWidgetWindow, and WelcomeWindow on close/dispose to eliminate memory leaks; removed over-aggressive ref/source stripping from CleanUrlHelper while preserving ref_ and utm_* trackers; implemented full pixel-data equality comparison in HistoryService for robust image deduplication; separated FlyoutWindow layout preparation from display animation to guarantee correct position before show; localized widget image preview label [Image].",
-    "v0.7.7: stopped flyout auto-hide countdown while hovering buttons (action buttons / close button) or remaining within flyout bounds via ButtonMouseEntered/Left events and Win32 cursor tracking.",
-    "v0.7.8: fixed widget Z-order flicker during taskbar interactions by assigning Shell_TrayWnd as its owner and eliminating unnecessary polling delays.",
-    "v1.0.0: official stable release; automated release packaging and verification via GitHub Actions; enabled semver versioning in build scripts; added TaskbarCreated broadcast message handling on Explorer restart; cleaned Win32 P/Invoke declarations; verified full test suite.",
-    "v1.0.1: resolved widget fullscreen suppression and auto text color reliability: implemented Win32 SHQueryUserNotificationState + foreground window rcMonitor coverage check to cleanly collapse and restore widget during fullscreen apps; overhauled TaskbarColorDetector to sample outside widget physical bounds with DPI scaling, avoiding self-text sampling loops; added periodic 300ms luminance checking and multi-stage debounce timers (250ms/600ms/1200ms) for Windows 11 theme transition animation completion.",
-    "v1.1.0: major UI polish and taskbar sync: responsive taskbar auto-hide tracking (smooth sliding sync at 30ms polling without frame lag), eliminated hover flickering by removing SWP_NOREDRAW and ensuring full background hit-testing (Alpha=1 transparent brush), rich Fluent UI overhaul across Flyout and Taskbar Widget."
-  ]
+  "test_suite": "114 passing xUnit tests on net10.0-windows"
 }

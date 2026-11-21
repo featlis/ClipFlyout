@@ -1,8 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
+using ClipFlyout.Controls;
 using ClipFlyout.Models;
 using ClipFlyout.Services;
 using ClipFlyout.Views;
@@ -12,6 +16,11 @@ namespace ClipFlyout;
 
 public partial class App : WpfApplication
 {
+    private const string SingleInstanceMutexName = @"Local\ClipFlyout_SingleInstance_Mutex_v2";
+    private const string SingleInstanceSignalName = @"Local\ClipFlyout_SingleInstance_Wake_v2";
+
+    private Mutex? _singleInstanceMutex;
+    private EventWaitHandle? _wakeSignal;
     private ClipboardMonitor? _clipboardMonitor;
     private ActionExecutor? _actionExecutor;
     private DataTypeDetector? _detector;
@@ -21,15 +30,45 @@ public partial class App : WpfApplication
     private ThemeService? _themeService;
     private TaskbarWidgetWindow? _taskbarWidget;
     private HotkeyService? _hotkeyService;
+    private DispatcherTimer? _periodicUpdateTimer;
     private readonly CancellationTokenSource _appLifetimeCts = new();
     private long _detectionGeneration;
 
-    [System.Runtime.InteropServices.DllImport("shell32.dll", SetLastError = true)]
-    private static extern void SetCurrentProcessExplicitAppUserModelID([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string AppID);
+    [DllImport("shell32.dll", SetLastError = true)]
+    private static extern void SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string AppID);
 
     protected override void OnStartup(StartupEventArgs e)
     {
         try { SetCurrentProcessExplicitAppUserModelID("featlis.ClipFlyout"); } catch { }
+
+        // Global unhandled exception safety net
+        DispatcherUnhandledException += (_, args) =>
+        {
+            Debug.WriteLine($"Unhandled UI exception: {args.Exception}");
+            args.Handled = true;
+        };
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            Debug.WriteLine($"Unobserved task exception: {args.Exception}");
+            args.SetObserved();
+        };
+
+        // Single-instance guard: signal existing instance and exit cleanly if already running
+        _singleInstanceMutex = new Mutex(true, SingleInstanceMutexName, out bool createdNew);
+        if (!createdNew)
+        {
+            try
+            {
+                using var existingWake = EventWaitHandle.OpenExisting(SingleInstanceSignalName);
+                existingWake.Set();
+            }
+            catch
+            {
+            }
+            Shutdown();
+            return;
+        }
+
         base.OnStartup(e);
 
         try
@@ -37,7 +76,6 @@ public partial class App : WpfApplication
             _settingsService = SettingsService.Instance;
             _themeService = ThemeService.Instance;
 
-            // Apply saved user settings for theme and language
             _themeService.Mode = _settingsService.Current.Theme;
             LocalizationService.Instance.CurrentLanguage = _settingsService.Current.Language;
 
@@ -48,26 +86,45 @@ public partial class App : WpfApplication
 
             _actionExecutor = new ActionExecutor(_clipboardMonitor);
             _detector = new DataTypeDetector(_actionExecutor);
+
+            // Restore persisted text/pinned history if user opted in
+            HistoryService.Instance.LoadPersistedItems(_detector);
+
             _windowManager = new FlyoutWindowManager(_actionExecutor);
             _windowManager.SettingsRequested += () => _trayIconService?.OpenSettings();
-            _trayIconService = new TrayIconService(_clipboardMonitor);
-
-            _taskbarWidget = new TaskbarWidgetWindow();
-            _taskbarWidget.FlyoutRequested += result => _windowManager?.ShowFlyout(result);
-            _taskbarWidget.SettingsRequested += () => _trayIconService?.OpenSettings();
-            if (_settingsService.Current.ShowTaskbarWidget)
+            _windowManager.SetCurrentClipboardFallbackProvider(() =>
             {
-                _taskbarWidget.Show();
-            }
+                object? currentPayload = _clipboardMonitor?.TryReadCurrentClipboard();
+                return currentPayload != null ? _detector?.Detect(currentPayload) : null;
+            });
 
             _hotkeyService = new HotkeyService();
-            _hotkeyService.HotkeyPressed += () => _windowManager?.RecallLastFlyout();
+            _hotkeyService.HotkeyPressed += () => _windowManager?.ToggleOrRecallFlyout();
             if (_settingsService.Current.EnableRecallHotkey)
             {
                 _hotkeyService.Start();
             }
 
-            _trayIconService.HistoryItemSelected += result => _windowManager?.ShowFlyout(result);
+            _trayIconService = new TrayIconService(_clipboardMonitor, () => _hotkeyService?.RegistrationFailed == true);
+            _trayIconService.HistoryItemSelected += result => _windowManager?.ShowFlyout(result, recordHistory: false, interactive: true);
+            _trayIconService.RecallRequested += () => _windowManager?.ToggleOrRecallFlyout();
+
+            _taskbarWidget = new TaskbarWidgetWindow();
+            _taskbarWidget.FlyoutRequested += result => _windowManager?.ShowFlyout(result, recordHistory: false, interactive: true);
+            _taskbarWidget.RecallRequested += () => _windowManager?.ToggleOrRecallFlyout();
+            _taskbarWidget.SettingsRequested += () => _trayIconService?.OpenSettings();
+            _windowManager.SetTaskbarWidgetHwndProvider(() => _taskbarWidget?.Handle ?? IntPtr.Zero);
+
+            if (_settingsService.Current.ShowTaskbarWidget)
+            {
+                _taskbarWidget.Show();
+            }
+
+            // Silently hydrate taskbar widget with current clipboard content on startup
+            HydrateInitialWidgetContent();
+
+            // Listen for secondary-instance launch signals -> open Settings
+            StartSingleInstanceSignalListener();
 
             bool isWelcomeArg = false;
             foreach (var arg in e.Args)
@@ -82,8 +139,6 @@ public partial class App : WpfApplication
                 }
             }
 
-            // Setup wizard is shown strictly on new install from the installer via --welcome.
-            // When started directly without the flag on first launch, silently mark first run completed.
             if (isWelcomeArg)
             {
                 var welcome = new WelcomeWindow();
@@ -100,6 +155,17 @@ public partial class App : WpfApplication
             {
                 _ = CheckForAutomaticUpdateAsync(_appLifetimeCts.Token);
             }
+
+            // Re-check updates periodically for long-running desktop sessions
+            _periodicUpdateTimer = new DispatcherTimer { Interval = TimeSpan.FromHours(12) };
+            _periodicUpdateTimer.Tick += (_, _) =>
+            {
+                if (_settingsService != null && ShouldCheckForUpdates(_settingsService.Current))
+                {
+                    _ = CheckForAutomaticUpdateAsync(_appLifetimeCts.Token);
+                }
+            };
+            _periodicUpdateTimer.Start();
 
             _settingsService.SettingsChanged += cfg =>
             {
@@ -125,8 +191,62 @@ public partial class App : WpfApplication
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Initialization error: {ex.Message}", "ClipFlyout Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            FluentDialog.ShowInfo(null, "ClipFlyout Error", $"Initialization error: {ex.Message}", "OK", "\uE7BA");
             Shutdown();
+        }
+    }
+
+    private void HydrateInitialWidgetContent()
+    {
+        try
+        {
+            object? payload = _clipboardMonitor?.TryReadCurrentClipboard();
+            if (payload != null && _detector != null)
+            {
+                var initial = _detector.Detect(payload);
+                if (initial != null)
+                {
+                    _taskbarWidget?.UpdateClipContent(initial);
+                    return;
+                }
+            }
+
+            var latestHistory = HistoryService.Instance.GetItems();
+            if (latestHistory.Count > 0)
+            {
+                _taskbarWidget?.UpdateClipContent(latestHistory[0].Result);
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private void StartSingleInstanceSignalListener()
+    {
+        try
+        {
+            _wakeSignal = new EventWaitHandle(false, EventResetMode.AutoReset, SingleInstanceSignalName);
+            var token = _appLifetimeCts.Token;
+            _ = Task.Run(() =>
+            {
+                var handles = new WaitHandle[] { _wakeSignal, token.WaitHandle };
+                while (!token.IsCancellationRequested)
+                {
+                    int signaled = WaitHandle.WaitAny(handles);
+                    if (signaled == 0 && !token.IsCancellationRequested)
+                    {
+                        Dispatcher.BeginInvoke(() => _trayIconService?.OpenSettings());
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }, token);
+        }
+        catch
+        {
         }
     }
 
@@ -134,80 +254,81 @@ public partial class App : WpfApplication
     {
         try
         {
-            // Let startup and clipboard monitoring become responsive first.
             await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
             if (_settingsService?.Current.AutomaticallyInstallUpdates != true) return;
-            _settingsService?.UpdateSettings(s => s.LastUpdateCheckUtc = DateTimeOffset.UtcNow);
+            _settingsService.UpdateSettings(s => s.LastUpdateCheckUtc = DateTimeOffset.UtcNow);
+
             var update = await UpdateService.Instance.CheckForUpdateAsync(cancellationToken);
             if (update is not null && _windowManager != null)
             {
-                Dispatcher.Invoke(() =>
+                await Dispatcher.InvokeAsync(() =>
                 {
                     var loc = LocalizationService.Instance;
                     var actions = new List<ActionItem>
                     {
                         new(
                             "Action_UpdateNow",
-                            loc.Get("Update_Now") != "Update_Now" ? loc.Get("Update_Now") : "今すぐ更新",
+                            loc.Get("Update_Now"),
                             "ArrowDownload24",
-                            loc.Get("Update_Now_Desc") != "Update_Now_Desc" ? loc.Get("Update_Now_Desc") : "更新を適用して再起動します",
-                            async () =>
-                            {
-                                _windowManager.HideFlyout();
-                                try
-                                {
-                                    await UpdateService.Instance.DownloadAndStartInstallerAsync(update);
-                                    Shutdown();
-                                }
-                                catch (Exception ex)
-                                {
-                                    MessageBox.Show($"更新のインストールに失敗しました: {ex.Message}", "ClipFlyout Update", MessageBoxButton.OK, MessageBoxImage.Warning);
-                                }
-                            },
-                            IsPrimary: true
+                            loc.Get("Update_Now_Desc"),
+                            () => _ = InstallUpdateFromFlyoutAsync(update),
+                            IsPrimary: true,
+                            Subtitle: $"v{update.Version}"
                         ),
                         new(
                             "Action_UpdateDetails",
-                            loc.Get("Update_Details") != "Update_Details" ? loc.Get("Update_Details") : "詳細",
+                            loc.Get("Update_Details"),
                             "Globe24",
-                            loc.Get("Update_Details_Desc") != "Update_Details_Desc" ? loc.Get("Update_Details_Desc") : "リリースノートを開きます",
+                            loc.Get("Update_Details_Desc"),
                             () =>
                             {
                                 _windowManager.HideFlyout();
                                 string url = update.ReleaseNotesUrl ?? "https://github.com/featlis/ClipFlyout/releases";
-                                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = url, UseShellExecute = true }); } catch { }
+                                try { using var _ = Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true }); } catch { }
                             }
                         )
                     };
 
-                    string title = loc.Get("Update_Available_Title") != "Update_Available_Title" ? loc.Get("Update_Available_Title") : "アップデートが利用可能です";
-                    string body = $"ClipFlyout v{update.Version} が利用可能です。今すぐ更新できます。";
-
                     var updateNotification = new DetectionResult(
                         Type: ClipDataType.PlainText,
                         RawData: $"ClipFlyout v{update.Version}",
-                        PreviewTitle: title,
+                        PreviewTitle: loc.Get("Update_Available_Title"),
                         PreviewSubtitle: $"v{update.Version}",
-                        PreviewBody: body,
+                        PreviewBody: loc.Get("Update_Available_Body", update.Version),
                         AvailableActions: actions,
                         BadgeText: "UPDATE"
                     );
 
-                    _windowManager.ShowFlyout(updateNotification);
+                    // Never pollute user's clipboard history with update notices!
+                    _windowManager.ShowFlyout(updateNotification, recordHistory: false, interactive: true);
                 });
             }
         }
         catch (OperationCanceledException)
         {
-            // Application is shutting down, ignore cancellation
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Automatic update check failed: {ex.Message}");
+            Debug.WriteLine($"Automatic update check failed: {ex.Message}");
         }
     }
 
-    private static bool ShouldCheckForUpdates(Models.AppSettings settings)
+    private async Task InstallUpdateFromFlyoutAsync(UpdateRelease update)
+    {
+        var loc = LocalizationService.Instance;
+        _windowManager?.HideFlyout();
+        try
+        {
+            await UpdateService.Instance.DownloadAndStartInstallerAsync(update, _appLifetimeCts.Token);
+            Shutdown();
+        }
+        catch (Exception ex)
+        {
+            FluentDialog.ShowInfo(null, "ClipFlyout Update", loc.Get("Update_Error_Dialog", ex.Message), loc.Get("Dialog_OK"), "\uE7BA");
+        }
+    }
+
+    private static bool ShouldCheckForUpdates(AppSettings settings)
     {
         return settings.AutomaticallyInstallUpdates &&
                (!settings.LastUpdateCheckUtc.HasValue ||
@@ -219,8 +340,6 @@ public partial class App : WpfApplication
         if (_detector == null || _windowManager == null || _settingsService == null) return;
         if (!_settingsService.Current.IsMonitoringEnabled) return;
 
-        // Detection may parse JSON, Base64, or large table data. Keep that work
-        // off the dispatcher and only present the newest clipboard result.
         long generation = Interlocked.Increment(ref _detectionGeneration);
         var detector = _detector;
         var windowManager = _windowManager;
@@ -233,7 +352,7 @@ public partial class App : WpfApplication
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error processing clipboard data: {ex}");
+                Debug.WriteLine($"Error processing clipboard data: {ex}");
                 return null;
             }
         }).ContinueWith(task =>
@@ -242,7 +361,7 @@ public partial class App : WpfApplication
                 generation == Volatile.Read(ref _detectionGeneration) &&
                 _settingsService?.Current.IsMonitoringEnabled == true)
             {
-                windowManager.ShowFlyout(task.Result);
+                windowManager.ShowFlyout(task.Result, recordHistory: true, interactive: false);
                 _taskbarWidget?.UpdateClipContent(task.Result);
             }
         }, TaskScheduler.FromCurrentSynchronizationContext());
@@ -250,6 +369,7 @@ public partial class App : WpfApplication
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _periodicUpdateTimer?.Stop();
         _appLifetimeCts.Cancel();
         _appLifetimeCts.Dispose();
         _hotkeyService?.Dispose();
@@ -258,6 +378,9 @@ public partial class App : WpfApplication
         _windowManager?.Dispose();
         _trayIconService?.Dispose();
         _themeService?.Dispose();
+        _wakeSignal?.Dispose();
+        try { _singleInstanceMutex?.ReleaseMutex(); } catch { }
+        _singleInstanceMutex?.Dispose();
 
         base.OnExit(e);
     }

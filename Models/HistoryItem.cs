@@ -6,5 +6,6 @@ public record HistoryItem(
     DateTime Timestamp,
     DetectionResult Result,
     string DisplayTitle,
-    string DisplaySnippet
+    string DisplaySnippet,
+    bool IsPinned = false
 );

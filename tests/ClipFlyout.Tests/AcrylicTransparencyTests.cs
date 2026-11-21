@@ -1,5 +1,6 @@
 using System;
-using System.Runtime.InteropServices;
+using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Windows;
 using System.Windows.Interop;
@@ -12,12 +13,33 @@ using Xunit;
 
 namespace ClipFlyout.Tests;
 
+[Collection("SequentialSingleton")]
 public class AcrylicTransparencyTests
 {
+    private static void RunOnSta(Action action, int timeoutSeconds = 15)
+    {
+        Exception? captured = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                captured = ex;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(timeoutSeconds)), "STA test thread timed out.");
+        if (captured != null) throw new AggregateException("Exception thrown on STA thread", captured);
+    }
+
     [Fact]
     public void TestWindowAcrylicInitialization()
     {
-        var thread = new Thread(() =>
+        RunOnSta(() =>
         {
             var window = new FlyoutWindow();
             var helper = new WindowInteropHelper(window);
@@ -33,31 +55,35 @@ public class AcrylicTransparencyTests
 
             window.Close();
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(5)));
     }
 
     [Fact]
     public void TestThemeServiceTransparencyProperty()
     {
         var theme = ThemeService.Instance;
-        // On Windows 11 with transparency enabled, this should be true
-        Assert.True(theme.IsTransparencyEnabled || !theme.IsTransparencyEnabled); // Doesn't throw
+        Assert.True(theme.IsTransparencyEnabled || !theme.IsTransparencyEnabled);
     }
 
     [Fact]
     public void TestVersionConsistency()
     {
-        Assert.Equal("v1.1.0", AppInfo.DisplayVersion);
-        Assert.Equal("1.1.0", AppInfo.VersionString);
+        Assert.Equal("v2.0.0", AppInfo.DisplayVersion);
+        Assert.Equal("2.0.0", AppInfo.VersionString);
 
         var loc = LocalizationService.Instance;
-        loc.CurrentLanguage = AppLanguage.Japanese;
-        Assert.Equal("バージョン: v1.1.0", loc.Get("About_Version", AppInfo.DisplayVersion));
+        var origLang = loc.CurrentLanguage;
+        try
+        {
+            loc.CurrentLanguage = AppLanguage.Japanese;
+            Assert.Equal("バージョン: v2.0.0", loc.Get("About_Version", AppInfo.DisplayVersion));
 
-        loc.CurrentLanguage = AppLanguage.English;
-        Assert.Equal("Version: v1.1.0", loc.Get("About_Version", AppInfo.DisplayVersion));
+            loc.CurrentLanguage = AppLanguage.English;
+            Assert.Equal("Version: v2.0.0", loc.Get("About_Version", AppInfo.DisplayVersion));
+        }
+        finally
+        {
+            loc.CurrentLanguage = origLang;
+        }
     }
 
     [Theory]
@@ -70,7 +96,7 @@ public class AcrylicTransparencyTests
     [InlineData(85.0, false, false)]
     public void TestEnableAcrylicBlurModes(double opacity, bool isDark, bool enableTransparency)
     {
-        var thread = new Thread(() =>
+        RunOnSta(() =>
         {
             var window = new Window
             {
@@ -83,81 +109,77 @@ public class AcrylicTransparencyTests
             var hwnd = helper.Handle;
 
             Win32.EnableAcrylicBlur(hwnd, isDark, opacity, enableTransparency);
-
             window.Close();
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(5)));
     }
 
     [Fact]
-    public void TestFlyoutThemeAndPreviewOpacity()
+    public void TestFlyoutThemeAndRootOpacity()
     {
-        var thread = new Thread(() =>
+        string settingsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClipFlyout", "settings.json");
+        string? backupJson = File.Exists(settingsPath) ? File.ReadAllText(settingsPath) : null;
+
+        try
         {
-            var window = new FlyoutWindow();
-            var helper = new WindowInteropHelper(window);
-            helper.EnsureHandle();
-
-            // Check light theme preview panel background alpha
-            SettingsService.Instance.UpdateSettings(s =>
+            RunOnSta(() =>
             {
-                s.Theme = AppThemeMode.Light;
-                s.OpacityPercent = 85.0;
+                var window = new FlyoutWindow();
+                var helper = new WindowInteropHelper(window);
+                helper.EnsureHandle();
+
+                SettingsService.Instance.UpdateSettings(s =>
+                {
+                    s.Theme = AppThemeMode.Light;
+                    s.OpacityPercent = 85.0;
+                });
+                window.ApplyTheme();
+
+                var lightRootBrush = window.RootCard.Background as SolidColorBrush;
+                Assert.NotNull(lightRootBrush);
+                Assert.True(lightRootBrush.Color.A > 30 && lightRootBrush.Color.A < 240);
+                Assert.True(lightRootBrush.IsFrozen);
+
+                SettingsService.Instance.UpdateSettings(s =>
+                {
+                    s.Theme = AppThemeMode.Dark;
+                    s.OpacityPercent = 20.0;
+                });
+                window.ApplyTheme();
+
+                var darkRootBrush = window.RootCard.Background as SolidColorBrush;
+                Assert.NotNull(darkRootBrush);
+                Assert.Equal(30, darkRootBrush.Color.A);
+                Assert.True(darkRootBrush.IsFrozen);
+
+                window.Close();
             });
-            window.ApplyTheme();
-
-            var lightPreviewBrush = window.TextPreviewPanel.Background as SolidColorBrush;
-            Assert.NotNull(lightPreviewBrush);
-            // Must be subtle (alpha 40) to let acrylic blur show through
-            Assert.Equal(40, lightPreviewBrush.Color.A);
-
-            var lightRootBrush = window.RootCard.Background as SolidColorBrush;
-            Assert.NotNull(lightRootBrush);
-            Assert.True(lightRootBrush.Color.A > 30 && lightRootBrush.Color.A < 240);
-
-            // Check dark theme preview panel background alpha
-            SettingsService.Instance.UpdateSettings(s =>
+        }
+        finally
+        {
+            if (backupJson != null)
             {
-                s.Theme = AppThemeMode.Dark;
-                s.OpacityPercent = 20.0;
-            });
-            window.ApplyTheme();
-
-            var darkPreviewBrush = window.TextPreviewPanel.Background as SolidColorBrush;
-            Assert.NotNull(darkPreviewBrush);
-            Assert.Equal(25, darkPreviewBrush.Color.A);
-
-            var darkRootBrush = window.RootCard.Background as SolidColorBrush;
-            Assert.NotNull(darkRootBrush);
-            // At 20% opacity, root alpha should be low (30) for maximum frosted glass visibility
-            Assert.Equal(30, darkRootBrush.Color.A);
-
-            window.Close();
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(5)));
+                File.WriteAllText(settingsPath, backupJson);
+            }
+        }
     }
 
     [Fact]
     public void TestFlyoutWindowPresentAndMeasurement()
     {
-        var thread = new Thread(() =>
+        RunOnSta(() =>
         {
             var window = new FlyoutWindow();
             var actions2 = new List<ActionItem>
             {
                 new("Action_Copy", "HEXをコピー", "Copy24", "クリップボードにコピー", () => { }, IsPrimary: true, Subtitle: "#3882F6"),
-                new("Action_Convert", "形式を変換", "Convert24", "RGB, HSLへ変換", () => { }, IsPrimary: false, Subtitle: "RGB, HSL, RGBA")
+                new("Action_CopyRgb", "RGBをコピー", "Color24", "RGBへ変換", () => { }, IsPrimary: false, Subtitle: "rgb(56, 130, 246)")
             };
             var result2 = new DetectionResult(
                 ClipDataType.HexColor,
                 "#3882F6",
                 "#3882F6",
-                "カラー HEX コード",
-                "RGB(56, 130, 246)",
+                "カラーコード",
+                "rgb(56, 130, 246)",
                 actions2
             );
 
@@ -174,8 +196,8 @@ public class AcrylicTransparencyTests
                 ClipDataType.HexColor,
                 "#3882F6",
                 "#3882F6",
-                "カラー HEX コード",
-                "RGB(56, 130, 246)",
+                "カラーコード",
+                "rgb(56, 130, 246)",
                 actions5
             );
             window.Present(result5);
@@ -186,9 +208,6 @@ public class AcrylicTransparencyTests
 
             window.Close();
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(5)));
     }
 
     [Fact]

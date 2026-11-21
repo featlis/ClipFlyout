@@ -3,24 +3,37 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Cursor="Hand"
              Focusable="True"
-             Height="24" Width="44">
-    <Grid Background="Transparent"
+             Height="24" Width="44"
+             SnapsToDevicePixels="True"
+             UseLayoutRounding="True">
+    <Grid x:Name="RootGrid"
+          Background="Transparent"
           PreviewMouseLeftButtonDown="OnPreviewMouseLeftButtonDown"
           PreviewMouseLeftButtonUp="OnPreviewMouseLeftButtonUp"
           MouseEnter="OnMouseEnter"
           MouseLeave="OnMouseLeave">
-        <!-- Switch Track -->
+        <!-- Keyboard Focus Ring -->
+        <Border x:Name="FocusRing"
+                Width="44" Height="24"
+                CornerRadius="12"
+                BorderThickness="1.5"
+                BorderBrush="{DynamicResource TextPrimaryBrush}"
+                Opacity="0"
+                IsHitTestVisible="False"/>
+
+        <!-- WinUI 3 Switch Track (40x20) -->
         <Border x:Name="TrackBorder"
-                Width="42" Height="22"
-                CornerRadius="11"
-                BorderThickness="1">
-            <!-- Thumb Container -->
-            <Canvas Width="40" Height="20" ClipToBounds="False">
+                Width="40" Height="20"
+                CornerRadius="10"
+                BorderThickness="1"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+            <Canvas Width="38" Height="18" ClipToBounds="False">
                 <Border x:Name="ThumbBorder"
                         Width="12" Height="12"
                         CornerRadius="6"
-                        Canvas.Top="4"
-                        Canvas.Left="4">
+                        Canvas.Top="3"
+                        Canvas.Left="3">
                     <Border.RenderTransform>
                         <TranslateTransform x:Name="ThumbTransform" X="0"/>
                     </Border.RenderTransform>

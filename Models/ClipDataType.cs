@@ -14,5 +14,7 @@ public enum ClipDataType
     Image,
     UnixTimestamp,
     Base64,
-    TableData
+    TableData,
+    FileDrop,
+    IsoDateTime
 }

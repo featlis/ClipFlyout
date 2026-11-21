@@ -13,16 +13,24 @@ using ClipFlyout.Services;
 
 namespace ClipFlyout.Views;
 
-public record RecentHistoryEntry(string IconGlyph, string DisplayText, DetectionResult Result);
+public record RecentHistoryEntry(string IconGlyph, string DisplayText, DetectionResult Result, bool IsPinned)
+{
+    public Visibility PinVisibility => IsPinned ? Visibility.Visible : Visibility.Collapsed;
+}
 
 public partial class FlyoutWindow : Window
 {
     private DetectionResult? _currentResult;
-    private Storyboard? _showStoryboard;
-    private Storyboard? _hideStoryboard;
+    private List<ActionItem> _currentActions = [];
+    private int _selectedActionIndex = -1;
     private bool _isClosing;
     private IntPtr _hwnd = IntPtr.Zero;
     private long _presentationGeneration;
+
+    // Cache last DWM backdrop parameters so Present() never redundantly re-applies Win32 acrylic
+    private bool? _lastDwmDark;
+    private double _lastDwmOpacity = -1;
+    private bool? _lastDwmTransparency;
 
     public static bool IsFlyoutOpen { get; private set; }
 
@@ -42,11 +50,7 @@ public partial class FlyoutWindow : Window
         InitializeComponent();
         try { Icon = AppIconHelper.GetAppIconBitmapSource(32); } catch { }
 
-        _showStoryboard = TryFindResource("ShowStoryboard") as Storyboard;
-        _hideStoryboard = TryFindResource("HideStoryboard") as Storyboard;
-
         RootCard.Opacity = 0;
-
         SourceInitialized += OnSourceInitialized;
 
         MouseEnter += (_, _) => MouseEntered?.Invoke();
@@ -56,6 +60,8 @@ public partial class FlyoutWindow : Window
         CloseButton.MouseLeave += (_, _) => ButtonMouseLeft?.Invoke();
         SettingsButton.MouseEnter += (_, _) => ButtonMouseEntered?.Invoke();
         SettingsButton.MouseLeave += (_, _) => ButtonMouseLeft?.Invoke();
+        PinButton.MouseEnter += (_, _) => ButtonMouseEntered?.Invoke();
+        PinButton.MouseLeave += (_, _) => ButtonMouseLeft?.Invoke();
 
         _themeChangedHandler = () =>
         {
@@ -81,9 +87,7 @@ public partial class FlyoutWindow : Window
             SettingsService.Instance.SettingsChanged -= _settingsChangedHandler;
         };
 
-        // Ensure HWND is created upfront so DWM acrylic and Win32 styles are initialized immediately
         new WindowInteropHelper(this).EnsureHandle();
-
         ApplyTheme();
     }
 
@@ -102,16 +106,27 @@ public partial class FlyoutWindow : Window
         exStyle |= Win32.WS_EX_NOACTIVATE | Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_TOPMOST;
         Win32.SetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE, (IntPtr)exStyle);
 
-        ApplyHardwareAcrylic();
+        ApplyHardwareAcrylic(force: true);
     }
 
-    private void ApplyHardwareAcrylic()
+    private void ApplyHardwareAcrylic(bool force = false)
     {
         if (_hwnd == IntPtr.Zero) return;
 
         bool isDark = ThemeService.Instance.IsDarkTheme;
         bool isTransparency = ThemeService.Instance.IsTransparencyEnabled;
-        Win32.EnableAcrylicBlur(_hwnd, isDark, SettingsService.Instance.Current.OpacityPercent, isTransparency);
+        double opacity = SettingsService.Instance.Current.OpacityPercent;
+
+        if (!force && _lastDwmDark == isDark && _lastDwmTransparency == isTransparency && Math.Abs(_lastDwmOpacity - opacity) < 0.5)
+        {
+            return;
+        }
+
+        _lastDwmDark = isDark;
+        _lastDwmTransparency = isTransparency;
+        _lastDwmOpacity = opacity;
+
+        Win32.EnableAcrylicBlur(_hwnd, isDark, opacity, isTransparency);
     }
 
     public void ApplyTheme()
@@ -126,118 +141,53 @@ public partial class FlyoutWindow : Window
             ? (byte)255
             : (byte)Math.Clamp((int)Math.Round((opacity - 20.0) * (200.0 / 80.0) + 30.0), 30, 230);
 
-        if (isDark)
-        {
-            RootCard.Background = new SolidColorBrush(Color.FromArgb(bgAlpha, 20, 20, 26));
-            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(90, 255, 255, 255));
-            InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255));
-
-            HeaderAppName.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
-            TimestampText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
-            SettingsButton.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
-            CloseButton.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
-
-            HeroCardBorder.Background = new SolidColorBrush(Color.FromArgb(26, 255, 255, 255));
-            HeroCardBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(32, 255, 255, 255));
-
-            ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
-            ColorDescText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
-            ColorValuesText.Foreground = new SolidColorBrush(Color.FromRgb(209, 213, 219));
-
-            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(25, 255, 255, 255));
-            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
-            BodyPreviewText.Foreground = new SolidColorBrush(Color.FromRgb(226, 232, 240));
-            HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
-            HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
-
-            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(25, 255, 255, 255));
-            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
-
-            RecentHeader.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
-
-            InlineFeedbackBar.Background = new SolidColorBrush(Color.FromArgb(110, 30, 41, 59));
-            InlineFeedbackBar.BorderBrush = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
-            InlineFeedbackText.Foreground = new SolidColorBrush(Color.FromRgb(241, 245, 249));
-        }
-        else
-        {
-            RootCard.Background = new SolidColorBrush(Color.FromArgb(bgAlpha, 255, 255, 255));
-            RootCard.BorderBrush = new SolidColorBrush(Color.FromArgb(120, 180, 190, 200));
-            InnerHighlightBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255));
-
-            HeaderAppName.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-            TimestampText.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
-            SettingsButton.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
-            CloseButton.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
-
-            HeroCardBorder.Background = new SolidColorBrush(Color.FromArgb(160, 255, 255, 255));
-            HeroCardBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(50, 148, 163, 184));
-
-            ColorHexText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-            ColorDescText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
-            ColorValuesText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
-
-            TextPreviewPanel.Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
-            TextPreviewPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 148, 163, 184));
-            BodyPreviewText.Foreground = new SolidColorBrush(Color.FromRgb(30, 41, 59));
-            HeaderTitleText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-            HeaderSubtitleText.Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105));
-
-            ImagePreviewBorder.Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
-            ImagePreviewBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(60, 148, 163, 184));
-
-            RecentHeader.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
-
-            InlineFeedbackBar.Background = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255));
-            InlineFeedbackBar.BorderBrush = new SolidColorBrush(Color.FromArgb(80, 148, 163, 184));
-            InlineFeedbackText.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-        }
+        // Authentic Win11 Acrylic surface tint (warm neutral dark #242424 / soft light #F9F9F9)
+        Color surfaceColor = isDark
+            ? Color.FromArgb(bgAlpha, 32, 32, 32)
+            : Color.FromArgb(bgAlpha, 249, 249, 249);
+        RootCard.Background = ThemeService.CreateFrozenBrush(surfaceColor);
 
         if (_currentResult != null)
         {
             ApplyTypeBadgeTheme(_currentResult.Type, isDark);
-            StyleActionButtons(isDark);
+            UpdatePinButtonVisual();
         }
     }
 
     private void ApplyTypeBadgeTheme(ClipDataType type, bool isDark)
     {
-        if (isDark)
-        {
-            var (bg, fg) = type switch
+        var (bg, fg) = isDark
+            ? type switch
             {
-                ClipDataType.HexColor => (Color.FromArgb(40, 139, 92, 246), Color.FromRgb(196, 181, 253)),
-                ClipDataType.Json => (Color.FromArgb(40, 59, 130, 246), Color.FromRgb(147, 197, 253)),
-                ClipDataType.Url => (Color.FromArgb(40, 16, 185, 129), Color.FromRgb(110, 231, 183)),
-                ClipDataType.Email => (Color.FromArgb(40, 14, 165, 233), Color.FromRgb(125, 211, 252)),
-                ClipDataType.Code => (Color.FromArgb(40, 245, 158, 11), Color.FromRgb(252, 211, 77)),
-                ClipDataType.Image => (Color.FromArgb(40, 236, 72, 153), Color.FromRgb(244, 114, 182)),
-                ClipDataType.UnixTimestamp => (Color.FromArgb(40, 6, 182, 212), Color.FromRgb(103, 232, 249)),
-                ClipDataType.Base64 => (Color.FromArgb(40, 99, 102, 241), Color.FromRgb(165, 180, 252)),
-                ClipDataType.TableData => (Color.FromArgb(40, 16, 185, 129), Color.FromRgb(110, 231, 183)),
-                _ => (Color.FromArgb(40, 107, 114, 128), Color.FromRgb(209, 213, 219))
-            };
-            TypeBadgeBorder.Background = new SolidColorBrush(bg);
-            TypeBadgeText.Foreground = new SolidColorBrush(fg);
-        }
-        else
-        {
-            var (bg, fg) = type switch
+                ClipDataType.HexColor => (Color.FromArgb(46, 139, 92, 246), Color.FromRgb(216, 180, 254)),
+                ClipDataType.Json => (Color.FromArgb(46, 59, 130, 246), Color.FromRgb(147, 197, 253)),
+                ClipDataType.Url => (Color.FromArgb(46, 16, 185, 129), Color.FromRgb(110, 231, 183)),
+                ClipDataType.Email => (Color.FromArgb(46, 14, 165, 233), Color.FromRgb(125, 211, 252)),
+                ClipDataType.Code => (Color.FromArgb(46, 245, 158, 11), Color.FromRgb(253, 224, 71)),
+                ClipDataType.Image => (Color.FromArgb(46, 236, 72, 153), Color.FromRgb(249, 168, 212)),
+                ClipDataType.UnixTimestamp or ClipDataType.IsoDateTime => (Color.FromArgb(46, 6, 182, 212), Color.FromRgb(103, 232, 249)),
+                ClipDataType.Base64 => (Color.FromArgb(46, 99, 102, 241), Color.FromRgb(165, 180, 252)),
+                ClipDataType.TableData => (Color.FromArgb(46, 16, 185, 129), Color.FromRgb(110, 231, 183)),
+                ClipDataType.FileDrop => (Color.FromArgb(46, 234, 179, 8), Color.FromRgb(253, 224, 71)),
+                _ => (Color.FromArgb(42, 160, 160, 160), Color.FromRgb(220, 220, 220))
+            }
+            : type switch
             {
-                ClipDataType.HexColor => (Color.FromRgb(243, 232, 255), Color.FromRgb(126, 34, 206)),
-                ClipDataType.Json => (Color.FromRgb(239, 246, 255), Color.FromRgb(37, 99, 235)),
-                ClipDataType.Url => (Color.FromRgb(236, 253, 245), Color.FromRgb(5, 150, 105)),
-                ClipDataType.Email => (Color.FromRgb(240, 249, 255), Color.FromRgb(3, 105, 161)),
-                ClipDataType.Code => (Color.FromRgb(255, 251, 235), Color.FromRgb(217, 119, 6)),
-                ClipDataType.Image => (Color.FromRgb(253, 242, 248), Color.FromRgb(219, 39, 119)),
-                ClipDataType.UnixTimestamp => (Color.FromRgb(236, 254, 255), Color.FromRgb(8, 145, 178)),
-                ClipDataType.Base64 => (Color.FromRgb(238, 242, 255), Color.FromRgb(79, 70, 229)),
-                ClipDataType.TableData => (Color.FromRgb(236, 253, 245), Color.FromRgb(5, 150, 105)),
-                _ => (Color.FromRgb(241, 245, 249), Color.FromRgb(71, 85, 105))
+                ClipDataType.HexColor => (Color.FromRgb(243, 232, 255), Color.FromRgb(107, 33, 168)),
+                ClipDataType.Json => (Color.FromRgb(235, 245, 255), Color.FromRgb(29, 78, 216)),
+                ClipDataType.Url => (Color.FromRgb(230, 250, 241), Color.FromRgb(4, 120, 87)),
+                ClipDataType.Email => (Color.FromRgb(236, 248, 255), Color.FromRgb(3, 105, 161)),
+                ClipDataType.Code => (Color.FromRgb(254, 246, 225), Color.FromRgb(180, 83, 9)),
+                ClipDataType.Image => (Color.FromRgb(253, 240, 247), Color.FromRgb(190, 24, 93)),
+                ClipDataType.UnixTimestamp or ClipDataType.IsoDateTime => (Color.FromRgb(232, 251, 254), Color.FromRgb(14, 116, 144)),
+                ClipDataType.Base64 => (Color.FromRgb(238, 242, 255), Color.FromRgb(67, 56, 202)),
+                ClipDataType.TableData => (Color.FromRgb(230, 250, 241), Color.FromRgb(4, 120, 87)),
+                ClipDataType.FileDrop => (Color.FromRgb(254, 249, 225), Color.FromRgb(161, 98, 7)),
+                _ => (Color.FromRgb(238, 238, 238), Color.FromRgb(68, 68, 68))
             };
-            TypeBadgeBorder.Background = new SolidColorBrush(bg);
-            TypeBadgeText.Foreground = new SolidColorBrush(fg);
-        }
+
+        TypeBadgeBorder.Background = ThemeService.CreateFrozenBrush(bg);
+        TypeBadgeText.Foreground = ThemeService.CreateFrozenBrush(fg);
     }
 
     private void ActionButton_Loaded(object sender, RoutedEventArgs e)
@@ -248,113 +198,72 @@ public partial class FlyoutWindow : Window
             btn.MouseEnter += ActionButton_MouseEnter;
             btn.MouseLeave -= ActionButton_MouseLeave;
             btn.MouseLeave += ActionButton_MouseLeave;
-
-            if (btn.DataContext is ActionItem action)
-            {
-                ApplySingleButtonStyle(btn, action);
-            }
         }
     }
 
     private void ActionButton_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e) => ButtonMouseEntered?.Invoke();
     private void ActionButton_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e) => ButtonMouseLeft?.Invoke();
 
-    private void ApplySingleButtonStyle(Button btn, ActionItem action)
-    {
-        bool isDark = ThemeService.Instance.IsDarkTheme;
-        bool isPrimary = action.IsPrimary;
-
-        if (isPrimary)
-        {
-            var accent = ThemeService.Instance.AccentColor;
-            btn.Background = new SolidColorBrush(accent);
-            btn.BorderBrush = new SolidColorBrush(Color.FromRgb(
-                (byte)Math.Min(255, accent.R + 25),
-                (byte)Math.Min(255, accent.G + 25),
-                (byte)Math.Min(255, accent.B + 25)));
-            btn.Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 255));
-        }
-        else if (isDark)
-        {
-            btn.Background = new SolidColorBrush(Color.FromArgb(32, 255, 255, 255));
-            btn.BorderBrush = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255));
-            btn.Foreground = new SolidColorBrush(Color.FromRgb(243, 244, 246));
-        }
-        else
-        {
-            btn.Background = new SolidColorBrush(Color.FromArgb(170, 255, 255, 255));
-            btn.BorderBrush = new SolidColorBrush(Color.FromArgb(50, 148, 163, 184));
-            btn.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-        }
-    }
-
-    private void StyleActionButtons(bool isDark)
-    {
-        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(ActionsItemsControl); i++)
-        {
-            var child = VisualTreeHelper.GetChild(ActionsItemsControl, i);
-            ApplyButtonStylesRecursive(child);
-        }
-    }
-
-    private void ApplyButtonStylesRecursive(DependencyObject parent)
-    {
-        int count = VisualTreeHelper.GetChildrenCount(parent);
-        for (int i = 0; i < count; i++)
-        {
-            var child = VisualTreeHelper.GetChild(parent, i);
-            if (child is Button btn && btn.DataContext is ActionItem action)
-            {
-                ApplySingleButtonStyle(btn, action);
-            }
-            ApplyButtonStylesRecursive(child);
-        }
-    }
-
     public void Present(DetectionResult result)
     {
         _presentationGeneration++;
         _currentResult = result;
+        _selectedActionIndex = -1;
         _isClosing = false;
         IsFlyoutOpen = true;
 
         ApplyTheme();
 
-        _hideStoryboard?.Remove(this);
+        // Cancel any in-flight animations cleanly without snapping
         RootCard.BeginAnimation(OpacityProperty, null);
-        RootTransform.BeginAnimation(TranslateTransform.YProperty, null);
+        RootScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        RootScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         RootCard.Opacity = 0;
-        RootTransform.Y = 12;
+        RootScale.ScaleX = 0.975;
+        RootScale.ScaleY = 0.975;
 
         ColorPreviewPanel.Visibility = Visibility.Collapsed;
         ImagePreviewPanel.Visibility = Visibility.Collapsed;
         TextPreviewPanel.Visibility = Visibility.Collapsed;
 
-        ActionsItemsControl.Visibility = Visibility.Visible;
+        ActionsScrollViewer.Visibility = Visibility.Visible;
         InlineFeedbackBar.Visibility = Visibility.Collapsed;
+        HistorySearchBox.Visibility = Visibility.Collapsed;
+        HistorySearchBox.Text = string.Empty;
 
-        // Header info
-        TimestampText.Text = LocalizationService.Instance.Get("Flyout_Time_JustNow");
-        SettingsButton.ToolTip = LocalizationService.Instance.Get("Flyout_Settings_Tooltip");
-        CloseButton.ToolTip = LocalizationService.Instance.Get("Flyout_Close_Tooltip");
-        RecentHeader.Text = LocalizationService.Instance.Get("Flyout_Recent_Header");
+        var loc = LocalizationService.Instance;
+        HeaderIconGlyph.Text = GetTypeGlyph(result.Type);
+        HeaderAppName.Text = GetHeaderTypeTitle(result);
 
-        bool isDark = ThemeService.Instance.IsDarkTheme;
-        ApplyTypeBadgeTheme(result.Type, isDark);
+        DateTime? recordedAt = HistoryService.Instance.GetTimestamp(result);
+        TimestampText.Text = recordedAt.HasValue
+            ? loc.FormatRelativeTime(recordedAt.Value)
+            : loc.Get("Flyout_Time_JustNow");
+
+        PinButton.ToolTip = loc.Get("Flyout_Pin_Tooltip");
+        SearchToggleButton.ToolTip = loc.Get("Flyout_Search_Tooltip");
+        SettingsButton.ToolTip = loc.Get("Flyout_Settings_Tooltip");
+        CloseButton.ToolTip = loc.Get("Flyout_Close_Tooltip");
+        RecentHeader.Text = loc.Get("Flyout_Recent_Header");
+        ClearHistoryButton.Content = loc.Get("Flyout_ClearHistory");
+        UpdatePinButtonVisual();
+
+        ApplyTypeBadgeTheme(result.Type, ThemeService.Instance.IsDarkTheme);
 
         switch (result.Type)
         {
             case ClipDataType.HexColor when result.ColorValue.HasValue:
                 ColorPreviewPanel.Visibility = Visibility.Visible;
-                ColorSwatch.Background = new SolidColorBrush(result.ColorValue.Value);
+                ColorSwatch.Background = ThemeService.CreateFrozenBrush(result.ColorValue.Value);
                 ColorHexText.Text = result.HexColorCode ?? result.PreviewTitle;
-                ColorDescText.Text = result.PreviewSubtitle ?? LocalizationService.Instance.Get("Type_HexColor_Desc");
+                ColorDescText.Text = result.PreviewSubtitle ?? loc.Get("Type_HexColor_Desc");
                 ColorValuesText.Text = result.PreviewBody;
                 break;
 
             case ClipDataType.Image when result.ImagePreview != null:
                 ImagePreviewPanel.Visibility = Visibility.Visible;
                 ImageThumbnail.Source = result.ImagePreview;
+                ImageMetaBadge.Text = result.BadgeText ?? result.PreviewSubtitle;
                 break;
 
             default:
@@ -366,24 +275,41 @@ public partial class FlyoutWindow : Window
                 break;
         }
 
-        ActionsItemsControl.ItemsSource = result.AvailableActions;
+        // Attach numeric keyboard shortcut hints (1..9) to actions cleanly
+        _currentActions = result.AvailableActions
+            .Select((a, idx) => idx < 9 ? a with { ShortcutHint = (idx + 1).ToString() } : a)
+            .ToList();
+        ActionsItemsControl.ItemsSource = _currentActions;
+        ActionsScrollViewer.ScrollToTop();
 
-        // Populate Recent History (excluding current result)
+        RefreshHistoryList(null);
+    }
+
+    private void RefreshHistoryList(string? query)
+    {
         try
         {
-            var history = HistoryService.Instance.GetItems()
-                .Where(h => !AreResultsEqual(h.Result, result))
-                .Take(2)
+            var items = string.IsNullOrWhiteSpace(query)
+                ? HistoryService.Instance.GetItems()
+                : HistoryService.Instance.Search(query);
+
+            bool hasAnyHistory = HistoryService.Instance.Count > 1;
+            SearchToggleButton.Visibility = hasAnyHistory ? Visibility.Visible : Visibility.Collapsed;
+
+            var entries = items
+                .Where(h => _currentResult == null || !HistoryService.AreResultsEqual(h.Result, _currentResult))
+                .Take(string.IsNullOrWhiteSpace(query) ? 4 : 8)
                 .Select(h => new RecentHistoryEntry(
-                    GetRecentGlyph(h.Result.Type),
-                    $"{h.DisplayTitle}: {h.DisplaySnippet}",
-                    h.Result
+                    GetTypeGlyph(h.Result.Type),
+                    string.IsNullOrWhiteSpace(h.DisplaySnippet) ? h.DisplayTitle : h.DisplaySnippet,
+                    h.Result,
+                    h.IsPinned
                 ))
                 .ToList();
 
-            if (history.Count > 0)
+            if (entries.Count > 0 || !string.IsNullOrWhiteSpace(query))
             {
-                RecentHistoryItemsControl.ItemsSource = history;
+                RecentHistoryItemsControl.ItemsSource = entries;
                 RecentHistoryPanel.Visibility = Visibility.Visible;
             }
             else
@@ -397,7 +323,36 @@ public partial class FlyoutWindow : Window
         }
     }
 
-    private static string GetRecentGlyph(ClipDataType type) => type switch
+    private void UpdatePinButtonVisual()
+    {
+        bool pinned = HistoryService.Instance.IsPinned(_currentResult);
+        PinButtonGlyph.Text = pinned ? "\uE840" : "\uE718"; // Pinned solid vs Pin outline
+        PinButtonGlyph.Foreground = pinned
+            ? (TryFindResource("FluentAccentBrush") as Brush ?? Brushes.DodgerBlue)
+            : (TryFindResource("TextSecondaryBrush") as Brush ?? Brushes.Gray);
+    }
+
+    private static string GetHeaderTypeTitle(DetectionResult result)
+    {
+        var loc = LocalizationService.Instance;
+        return result.Type switch
+        {
+            ClipDataType.HexColor => loc.Get("Type_HexColor"),
+            ClipDataType.Json => result.BadgeText == "JWT" ? loc.Get("Type_Jwt") : loc.Get("Type_Json"),
+            ClipDataType.Url => loc.Get("Type_Url"),
+            ClipDataType.Email => loc.Get("Type_Email"),
+            ClipDataType.Code => loc.Get("Type_Code"),
+            ClipDataType.Image => loc.Get("Type_Image"),
+            ClipDataType.UnixTimestamp => loc.Get("Type_Timestamp"),
+            ClipDataType.IsoDateTime => loc.Get("Type_IsoDateTime"),
+            ClipDataType.Base64 => loc.Get("Type_Base64"),
+            ClipDataType.TableData => loc.Get("Type_TableData"),
+            ClipDataType.FileDrop => loc.Get("Type_FileDrop"),
+            _ => loc.Get("Type_PlainText")
+        };
+    }
+
+    public static string GetTypeGlyph(ClipDataType type) => type switch
     {
         ClipDataType.HexColor => "\uE790",
         ClipDataType.Image => "\uEB9F",
@@ -406,23 +361,16 @@ public partial class FlyoutWindow : Window
         ClipDataType.Code => "\uE943",
         ClipDataType.Json => "\uE943",
         ClipDataType.UnixTimestamp => "\uE823",
-        _ => "\uE8A5"
+        ClipDataType.IsoDateTime => "\uE787",
+        ClipDataType.Base64 => "\uE785",
+        ClipDataType.TableData => "\uE8FD",
+        ClipDataType.FileDrop => "\uE8B7",
+        _ => "\uE8C8"
     };
 
-    private static bool AreResultsEqual(DetectionResult a, DetectionResult b)
-    {
-        if (ReferenceEquals(a, b)) return true;
-        if (a.Type != b.Type) return false;
-        return Equals(a.RawData, b.RawData);
-    }
-
-    /// <summary>
-    /// Measures the exact rendered height of the entire card content,
-    /// forcing layout on children so ItemsControl generates and sizes all action buttons.
-    /// </summary>
     public double MeasureContentHeight()
     {
-        double width = Width > 0 ? Width : 360;
+        double width = Width > 0 ? Width : 356;
         RootCard.Measure(new Size(width, double.PositiveInfinity));
         RootCard.Arrange(new Rect(0, 0, width, Math.Max(1, RootCard.DesiredSize.Height)));
         UpdateLayout();
@@ -433,10 +381,13 @@ public partial class FlyoutWindow : Window
     public void ShowFlyout()
     {
         Show();
-        _showStoryboard?.Begin(this);
 
-        bool isDark = ThemeService.Instance.IsDarkTheme;
-        Dispatcher.BeginInvoke(() => StyleActionButtons(isDark));
+        var dur = TimeSpan.FromMilliseconds(150);
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+
+        RootCard.BeginAnimation(OpacityProperty, new DoubleAnimation(0.0, 1.0, dur) { EasingFunction = ease });
+        RootScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.975, 1.0, dur) { EasingFunction = ease });
+        RootScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.975, 1.0, dur) { EasingFunction = ease });
     }
 
     public void AnimateHide(Action onCompleted)
@@ -445,30 +396,84 @@ public partial class FlyoutWindow : Window
         _isClosing = true;
         long generation = _presentationGeneration;
 
-        if (_hideStoryboard != null)
+        var dur = TimeSpan.FromMilliseconds(120);
+        var ease = new CubicEase { EasingMode = EasingMode.EaseIn };
+
+        // Animate from current opacity (no upward snap if interrupted mid-entrance!)
+        var opacityAnim = new DoubleAnimation(RootCard.Opacity, 0.0, dur) { EasingFunction = ease };
+        var scaleXAnim = new DoubleAnimation(RootScale.ScaleX, 0.98, dur) { EasingFunction = ease };
+        var scaleYAnim = new DoubleAnimation(RootScale.ScaleY, 0.98, dur) { EasingFunction = ease };
+
+        opacityAnim.Completed += (_, _) =>
         {
-            EventHandler? handler = null;
-            handler = (_, _) =>
-            {
-                _hideStoryboard.Completed -= handler;
-                if (generation != _presentationGeneration)
-                {
-                    return;
-                }
-                Hide();
-                IsFlyoutOpen = false;
-                _isClosing = false;
-                onCompleted();
-            };
-            _hideStoryboard.Completed += handler;
-            _hideStoryboard.Begin(this);
-        }
-        else
-        {
+            if (generation != _presentationGeneration) return;
             Hide();
             IsFlyoutOpen = false;
             _isClosing = false;
             onCompleted();
+        };
+
+        RootCard.BeginAnimation(OpacityProperty, opacityAnim);
+        RootScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXAnim);
+        RootScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleYAnim);
+    }
+
+    public void MoveSelection(int delta)
+    {
+        if (_currentActions.Count == 0) return;
+
+        if (_selectedActionIndex < 0)
+        {
+            _selectedActionIndex = delta > 0 ? 0 : _currentActions.Count - 1;
+        }
+        else
+        {
+            _selectedActionIndex = (_selectedActionIndex + delta + _currentActions.Count) % _currentActions.Count;
+        }
+
+        UpdateSelectedActionVisual();
+    }
+
+    public bool ExecuteSelectedAction()
+    {
+        if (_currentActions.Count == 0) return false;
+        int idx = _selectedActionIndex >= 0 && _selectedActionIndex < _currentActions.Count ? _selectedActionIndex : 0;
+        _currentActions[idx].ExecuteAction();
+        return true;
+    }
+
+    public bool ExecuteActionByIndex(int zeroBasedIndex)
+    {
+        if (zeroBasedIndex < 0 || zeroBasedIndex >= _currentActions.Count) return false;
+        _currentActions[zeroBasedIndex].ExecuteAction();
+        return true;
+    }
+
+    private void UpdateSelectedActionVisual()
+    {
+        var accentBrush = TryFindResource("FluentAccentBrush") as Brush ?? Brushes.DodgerBlue;
+        var defaultBorder = TryFindResource("ControlStrokeDefaultBrush") as Brush ?? Brushes.Transparent;
+
+        for (int i = 0; i < ActionsItemsControl.Items.Count; i++)
+        {
+            if (ActionsItemsControl.ItemContainerGenerator.ContainerFromIndex(i) is ContentPresenter cp &&
+                VisualTreeHelper.GetChildrenCount(cp) > 0 &&
+                VisualTreeHelper.GetChild(cp, 0) is Button btn)
+            {
+                bool isSelected = i == _selectedActionIndex;
+                btn.BorderThickness = new Thickness(isSelected ? 1.5 : 1);
+                if (isSelected)
+                {
+                    btn.BorderBrush = accentBrush;
+                    btn.BringIntoView();
+                }
+                else
+                {
+                    btn.ClearValue(BorderBrushProperty);
+                    if (_currentActions[i].IsPrimary) btn.BorderBrush = Brushes.Transparent;
+                    else btn.BorderBrush = defaultBorder;
+                }
+            }
         }
     }
 
@@ -477,19 +482,21 @@ public partial class FlyoutWindow : Window
         long generation = _presentationGeneration;
         InlineFeedbackText.Text = message;
 
-        ActionsItemsControl.Visibility = Visibility.Collapsed;
+        // Keep Visibility.Hidden (NOT Collapsed) so window height NEVER jumps!
+        ActionsScrollViewer.Visibility = Visibility.Hidden;
         InlineFeedbackBar.Opacity = 0;
         InlineFeedbackBar.Visibility = Visibility.Visible;
 
-        var anim = new DoubleAnimation(0.0, 1.0, TimeSpan.FromMilliseconds(160))
+        var anim = new DoubleAnimation(0.0, 1.0, TimeSpan.FromMilliseconds(140))
         {
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
         };
         InlineFeedbackBar.BeginAnimation(UIElement.OpacityProperty, anim);
 
-        Task.Delay(950).ContinueWith(_ =>
+        _ = Task.Delay(900).ContinueWith(_ =>
         {
-            Dispatcher.Invoke(() =>
+            if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
+            Dispatcher.BeginInvoke(() =>
             {
                 if (generation == _presentationGeneration && IsVisible)
                 {
@@ -505,6 +512,39 @@ public partial class FlyoutWindow : Window
         {
             actionItem.ExecuteAction();
         }
+    }
+
+    private void PinButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentResult == null) return;
+        HistoryService.Instance.TogglePin(_currentResult);
+        UpdatePinButtonVisual();
+        RefreshHistoryList(HistorySearchBox.Text);
+    }
+
+    private void SearchToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (HistorySearchBox.Visibility == Visibility.Visible)
+        {
+            HistorySearchBox.Text = string.Empty;
+            HistorySearchBox.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            HistorySearchBox.Visibility = Visibility.Visible;
+            HistorySearchBox.Focus();
+        }
+    }
+
+    private void HistorySearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        RefreshHistoryList(HistorySearchBox.Text);
+    }
+
+    private void ClearHistoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        HistoryService.Instance.Clear(includePinned: false);
+        RefreshHistoryList(HistorySearchBox.Text);
     }
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)

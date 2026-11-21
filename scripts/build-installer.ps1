@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "1.0.0"
+    [string]$Version = "2.0.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,7 +32,7 @@ $dotnet = if (Test-Path $localDotnet) {
 } elseif (Get-Command dotnet -ErrorAction SilentlyContinue) {
     (Get-Command dotnet).Source
 } else {
-    throw "dotnet SDK was not found. Install the .NET 9 SDK first."
+    throw "dotnet SDK was not found. Install the .NET 10 SDK first."
 }
 $numericVersion = ($Version -split '-')[0]
 & $dotnet publish (Join-Path $ProjectRoot "ClipFlyout.csproj") -c Release -r win-x64 --self-contained true -p:RestoreLockedMode=false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:Version=$Version -p:AssemblyVersion="$numericVersion.0" -p:FileVersion="$numericVersion.0" -o $PublishDir

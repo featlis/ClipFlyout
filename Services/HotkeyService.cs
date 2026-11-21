@@ -10,23 +10,28 @@ public class HotkeyService : IDisposable
     private const int HotkeyId = 9001;
     private HwndSource? _hwndSource;
     private bool _isRegistered;
+    private bool _registrationFailed;
     private readonly object _lock = new();
 
     public event Action? HotkeyPressed;
 
     public bool IsRegistered => _isRegistered;
+    public bool RegistrationFailed => _registrationFailed;
 
     public void Start()
     {
-        if (!WpfApplication.Current.Dispatcher.CheckAccess())
+        var app = WpfApplication.Current;
+        if (app != null && !app.Dispatcher.CheckAccess())
         {
-            WpfApplication.Current.Dispatcher.Invoke(Start);
+            app.Dispatcher.Invoke(Start);
             return;
         }
 
         lock (_lock)
         {
             if (_isRegistered) return;
+
+            CleanupHwndLocked();
 
             var parameters = new HwndSourceParameters("ClipFlyoutHotkeyListener")
             {
@@ -46,27 +51,47 @@ public class HotkeyService : IDisposable
             if (Win32.RegisterHotKey(_hwndSource.Handle, HotkeyId, modifiers, (uint)'C'))
             {
                 _isRegistered = true;
+                _registrationFailed = false;
+            }
+            else
+            {
+                // Clean up HWND immediately on failure so repeated Start() calls never leak HWNDs
+                CleanupHwndLocked();
+                _isRegistered = false;
+                _registrationFailed = true;
             }
         }
     }
 
     public void Stop()
     {
-        if (!WpfApplication.Current.Dispatcher.CheckAccess())
+        var app = WpfApplication.Current;
+        if (app != null && !app.Dispatcher.CheckAccess())
         {
-            WpfApplication.Current.Dispatcher.Invoke(Stop);
+            if (app.Dispatcher.HasShutdownStarted) return;
+            app.Dispatcher.Invoke(Stop);
             return;
         }
 
         lock (_lock)
         {
-            if (!_isRegistered || _hwndSource == null) return;
+            if (_isRegistered && _hwndSource != null)
+            {
+                Win32.UnregisterHotKey(_hwndSource.Handle, HotkeyId);
+            }
+            CleanupHwndLocked();
+            _isRegistered = false;
+            _registrationFailed = false;
+        }
+    }
 
-            Win32.UnregisterHotKey(_hwndSource.Handle, HotkeyId);
+    private void CleanupHwndLocked()
+    {
+        if (_hwndSource != null)
+        {
             _hwndSource.RemoveHook(HwndHook);
             _hwndSource.Dispose();
             _hwndSource = null;
-            _isRegistered = false;
         }
     }
 

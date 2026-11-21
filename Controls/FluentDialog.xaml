@@ -1,0 +1,81 @@
+<Window x:Class="ClipFlyout.Controls.FluentDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="False"
+        Background="Transparent"
+        SizeToContent="Height"
+        Width="420"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
+        FontFamily="Segoe UI Variable Text, Segoe UI, sans-serif">
+    <Border Background="{DynamicResource AppSurfaceBrush}"
+            BorderBrush="{DynamicResource FlyoutStrokeBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Content Body -->
+            <StackPanel Grid.Row="0" Margin="24,22,24,20">
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                    <TextBlock x:Name="IconGlyphText"
+                               Text="&#xE946;"
+                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                               FontSize="18"
+                               Foreground="{DynamicResource FluentAccentBrush}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0"/>
+                    <TextBlock x:Name="TitleText"
+                               Text="ClipFlyout"
+                               FontSize="17"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               VerticalAlignment="Center"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+                <TextBlock x:Name="MessageText"
+                           Text=""
+                           FontSize="13.5"
+                           LineHeight="20"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <!-- Footer Buttons -->
+            <Border Grid.Row="1"
+                    Background="{DynamicResource CardBackgroundSecondaryBrush}"
+                    BorderBrush="{DynamicResource DividerStrokeBrush}"
+                    BorderThickness="0,1,0,0"
+                    Padding="24,14">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="PrimaryButton"
+                            Grid.Column="1"
+                            MinWidth="96"
+                            Style="{StaticResource FluentAccentButtonStyle}"
+                            Content="OK"
+                            Click="PrimaryButton_Click"/>
+                    <Button x:Name="SecondaryButton"
+                            Grid.Column="2"
+                            MinWidth="96"
+                            Margin="8,0,0,0"
+                            Style="{StaticResource FluentButtonStyle}"
+                            Content="Cancel"
+                            Visibility="Collapsed"
+                            Click="SecondaryButton_Click"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

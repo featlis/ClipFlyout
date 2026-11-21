@@ -21,12 +21,23 @@ public partial class DataTypeDetector : IDataTypeDetector
     private const int MaxTableRows = 5_000;
     private const int MaxTableColumns = 100;
 
+    private static readonly JsonSerializerOptions IndentedJsonOptions = new() { WriteIndented = true };
+
     private readonly ActionExecutor _executor;
     private readonly LocalizationService _loc = LocalizationService.Instance;
     private readonly SettingsService _settings;
 
     [GeneratedRegex(@"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")]
     private static partial Regex HexColorRegex();
+
+    [GeneratedRegex(@"^rgba?\(\s*(?<r>\d{1,3})\s*,\s*(?<g>\d{1,3})\s*,\s*(?<b>\d{1,3})(?:\s*,\s*(?<a>0|1|0?\.\d+))?\s*\)$", RegexOptions.IgnoreCase)]
+    private static partial Regex RgbColorRegex();
+
+    [GeneratedRegex(@"^hsla?\(\s*(?<h>\d{1,3}(?:\.\d+)?)(?:deg)?\s*,\s*(?<s>\d{1,3}(?:\.\d+)?)%\s*,\s*(?<l>\d{1,3}(?:\.\d+)?)%(?:\s*,\s*(?<a>0|1|0?\.\d+))?\s*\)$", RegexOptions.IgnoreCase)]
+    private static partial Regex HslColorRegex();
+
+    [GeneratedRegex(@"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,7})?)?(?:Z|[+-]\d{2}:?\d{2})?$", RegexOptions.IgnoreCase)]
+    private static partial Regex IsoDateTimeRegex();
 
     [GeneratedRegex(@"\b(class|function|def|import|export|const|let|var|public|private|protected|namespace|using|interface|struct|enum|async|await|return|SELECT|FROM|WHERE|INSERT|UPDATE|DELETE)\b")]
     private static partial Regex CodeKeywordsRegex();
@@ -47,7 +58,14 @@ public partial class DataTypeDetector : IDataTypeDetector
     {
         var cfg = _settings.Current;
 
-        // 1. Check Image
+        // 0. FileDropList (Explorer copied files/folders)
+        if (clipboardData is string[] filePaths && filePaths.Length > 0)
+        {
+            if (!cfg.DetectFileDrop) return null;
+            return DetectFileDrop(filePaths);
+        }
+
+        // 1. Image
         if (clipboardData is BitmapSource bitmap)
         {
             if (!cfg.DetectImage) return null;
@@ -57,22 +75,30 @@ public partial class DataTypeDetector : IDataTypeDetector
         // 2. Textual analysis
         if (clipboardData is string text)
         {
+            // Fast check for huge text (> 1 MB) without trimming/allocating the entire buffer
+            if (text.Length > MaxStructuredTextLength)
+            {
+                return cfg.DetectPlainText ? DetectLargePlainText(text) : null;
+            }
+
             string trimmed = text.Trim();
             if (string.IsNullOrEmpty(trimmed)) return null;
 
-            // Structured parsers can allocate heavily. Long text is still
-            // useful as plain text, but should not freeze the application by
-            // being parsed as JSON, Base64, or a table.
-            if (trimmed.Length > MaxStructuredTextLength)
+            // 2a. Color (HEX, rgb/rgba, hsl/hsla)
+            if (cfg.DetectHexColor)
             {
-                return cfg.DetectPlainText ? DetectPlainText(text) : null;
-            }
-
-            // 2a. HEX Color
-            if (cfg.DetectHexColor && HexColorRegex().IsMatch(trimmed))
-            {
-                var colorResult = TryDetectHexColor(trimmed);
-                if (colorResult != null) return colorResult;
+                if (HexColorRegex().IsMatch(trimmed))
+                {
+                    var colorResult = TryDetectHexColor(trimmed);
+                    if (colorResult != null) return colorResult;
+                }
+                else if (trimmed.Length <= 48 &&
+                         (trimmed.StartsWith("rgb", StringComparison.OrdinalIgnoreCase) ||
+                          trimmed.StartsWith("hsl", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var cssColor = TryDetectCssColor(trimmed);
+                    if (cssColor != null) return cssColor;
+                }
             }
 
             // 2b. Unix Timestamp
@@ -80,6 +106,13 @@ public partial class DataTypeDetector : IDataTypeDetector
             {
                 var tsResult = TryDetectTimestamp(trimmed);
                 if (tsResult != null) return tsResult;
+            }
+
+            // 2b-2. ISO 8601 DateTime
+            if (cfg.DetectIsoDateTime && trimmed.Length <= 40 && IsoDateTimeRegex().IsMatch(trimmed))
+            {
+                var isoResult = TryDetectIsoDateTime(trimmed);
+                if (isoResult != null) return isoResult;
             }
 
             // 2c. JSON
@@ -90,21 +123,27 @@ public partial class DataTypeDetector : IDataTypeDetector
                 if (jsonResult != null) return jsonResult;
             }
 
-            // 2d. URL
-            if (cfg.DetectUrl && Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) &&
-                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+            // 2d. URL (reject whitespace inside string and empty hosts)
+            if (cfg.DetectUrl &&
+                !ContainsWhitespace(trimmed) &&
+                Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
+                !string.IsNullOrWhiteSpace(uri.Host))
             {
                 return DetectUrl(uri, trimmed);
             }
 
             // 2e. Email address
-            if (cfg.DetectEmail && EmailRegex().Match(trimmed) is { Success: true } emailMatch)
+            if (cfg.DetectEmail && trimmed.Length <= 254 && EmailRegex().Match(trimmed) is { Success: true } emailMatch)
             {
                 return DetectEmail(trimmed, emailMatch.Groups["local"].Value, emailMatch.Groups["domain"].Value);
             }
 
             // 2e-2. JWT Token
-            if (cfg.EnableJwtDetector && trimmed.Length <= MaxBase64Length && trimmed.StartsWith("ey", StringComparison.Ordinal) && trimmed.Count(c => c == '.') == 2)
+            if (cfg.EnableJwtDetector && trimmed.Length <= MaxBase64Length &&
+                trimmed.StartsWith("ey", StringComparison.Ordinal) &&
+                !ContainsWhitespace(trimmed) &&
+                trimmed.Count(c => c == '.') == 2)
             {
                 var jwtResult = TryDetectJwt(trimmed);
                 if (jwtResult != null) return jwtResult;
@@ -112,26 +151,26 @@ public partial class DataTypeDetector : IDataTypeDetector
 
             // 2f. Base64
             if (cfg.DetectBase64 && trimmed.Length <= MaxBase64Length &&
-                (trimmed.StartsWith("data:", StringComparison.OrdinalIgnoreCase) || IsBase64String(trimmed)))
+                (trimmed.StartsWith("data:", StringComparison.OrdinalIgnoreCase) || LooksLikeBase64(trimmed)))
             {
                 var b64Result = TryDetectBase64(trimmed);
                 if (b64Result != null) return b64Result;
             }
 
-            // 2f. Table Data (CSV / TSV)
+            // 2g. Table Data (CSV / TSV)
             if (cfg.DetectTable)
             {
                 var tableResult = TryDetectTableData(trimmed);
                 if (tableResult != null) return tableResult;
             }
 
-            // 2g. Code Snippet
+            // 2h. Code Snippet
             if (cfg.DetectCode && IsCodeSnippet(text))
             {
                 return DetectCodeSnippet(text);
             }
 
-            // 2h. Fallback: Plain Text
+            // 2i. Fallback: Plain Text
             if (cfg.DetectPlainText)
             {
                 return DetectPlainText(text);
@@ -143,10 +182,109 @@ public partial class DataTypeDetector : IDataTypeDetector
         return null;
     }
 
+    private static bool ContainsWhitespace(string s)
+    {
+        for (int i = 0; i < s.Length; i++)
+        {
+            if (char.IsWhiteSpace(s[i])) return true;
+        }
+        return false;
+    }
+
+    private DetectionResult DetectFileDrop(string[] paths)
+    {
+        string joinedPaths = string.Join(Environment.NewLine, paths);
+        string quotedPaths = string.Join(Environment.NewLine, paths.Select(p => $"\"{p}\""));
+        string fileNames = string.Join(Environment.NewLine, paths.Select(p =>
+        {
+            string name = Path.GetFileName(p.TrimEnd('\\', '/'));
+            return string.IsNullOrEmpty(name) ? p : name;
+        }));
+
+        string firstPath = paths[0];
+        string firstName = Path.GetFileName(firstPath.TrimEnd('\\', '/'));
+        if (string.IsNullOrEmpty(firstName)) firstName = firstPath;
+
+        long totalBytes = 0;
+        int fileCount = 0;
+        int dirCount = 0;
+        foreach (var p in paths.Take(50))
+        {
+            try
+            {
+                if (Directory.Exists(p)) dirCount++;
+                else if (File.Exists(p))
+                {
+                    fileCount++;
+                    totalBytes += new FileInfo(p).Length;
+                }
+            }
+            catch { }
+        }
+
+        string sizePart = totalBytes > 0 ? $" • {FormatByteSize(totalBytes)}" : string.Empty;
+        string subtitle = paths.Length == 1
+            ? (Directory.Exists(firstPath) ? firstPath : $"{Path.GetDirectoryName(firstPath)}{sizePart}")
+            : $"{paths.Length} items{sizePart}";
+
+        string previewBody = string.Join(Environment.NewLine, paths.Take(4).Select(p =>
+        {
+            string name = Path.GetFileName(p.TrimEnd('\\', '/'));
+            return string.IsNullOrEmpty(name) ? p : name;
+        }));
+        if (paths.Length > 4) previewBody += $"{Environment.NewLine}+{paths.Length - 4} more";
+
+        var actions = new List<ActionItem>
+        {
+            new(
+                "Action_CopyFilePaths",
+                _loc.Get("Action_CopyFilePaths"),
+                "File24",
+                _loc.Get("Action_CopyFilePaths_Desc"),
+                () => _executor.CopyText(joinedPaths, "Toast_Copied"),
+                IsPrimary: true,
+                Subtitle: paths.Length == 1 ? firstPath : $"{paths.Length} paths"
+            ),
+            new(
+                "Action_CopyQuotedPaths",
+                _loc.Get("Action_CopyQuotedPaths"),
+                "Code24",
+                _loc.Get("Action_CopyQuotedPaths_Desc"),
+                () => _executor.CopyText(quotedPaths, "Toast_Copied"),
+                Subtitle: $"\"{firstName}\""
+            ),
+            new(
+                "Action_CopyFileNames",
+                _loc.Get("Action_CopyFileNames"),
+                "Copy24",
+                _loc.Get("Action_CopyFileNames_Desc"),
+                () => _executor.CopyText(fileNames, "Toast_Copied"),
+                Subtitle: firstName
+            ),
+            new(
+                "Action_OpenFolder",
+                _loc.Get("Action_OpenFolder"),
+                "Folder24",
+                _loc.Get("Action_OpenFolder_Desc"),
+                () => _executor.OpenContainingFolder(firstPath)
+            )
+        };
+
+        return new DetectionResult(
+            Type: ClipDataType.FileDrop,
+            RawData: paths,
+            PreviewTitle: paths.Length == 1 ? firstName : $"{firstName} (+{paths.Length - 1})",
+            PreviewSubtitle: subtitle,
+            PreviewBody: previewBody,
+            AvailableActions: actions,
+            BadgeText: paths.Length == 1 ? "File" : $"{paths.Length} Files"
+        );
+    }
+
     private DetectionResult DetectImage(BitmapSource bitmap)
     {
-        int width = (int)bitmap.PixelWidth;
-        int height = (int)bitmap.PixelHeight;
+        int width = bitmap.PixelWidth;
+        int height = bitmap.PixelHeight;
         string gcdRatio = GetAspectRatio(width, height);
 
         var actions = new List<ActionItem>
@@ -156,14 +294,17 @@ public partial class DataTypeDetector : IDataTypeDetector
                 _loc.Get("Action_SavePng"),
                 "Save24",
                 _loc.Get("Action_SavePng_Desc"),
-                () => _executor.SaveImageToFile(bitmap)
+                () => _executor.SaveImageToFile(bitmap),
+                IsPrimary: true,
+                Subtitle: "PNG / JPG / BMP"
             ),
             new(
                 "Action_CopyImageInfo",
                 _loc.Get("Action_CopyImageInfo"),
                 "Info24",
                 _loc.Get("Action_CopyImageInfo_Desc"),
-                () => _executor.CopyText($"{width}x{height} ({gcdRatio})", "Toast_Copied")
+                () => _executor.CopyText($"{width}x{height} ({gcdRatio})", "Toast_Copied"),
+                Subtitle: $"{width} × {height} ({gcdRatio})"
             )
         };
 
@@ -186,26 +327,26 @@ public partial class DataTypeDetector : IDataTypeDetector
             string clean = hex.TrimStart('#');
             byte a = 255, r = 0, g = 0, b = 0;
 
-            if (clean.Length == 3) // #RGB
+            if (clean.Length == 3)
             {
                 r = Convert.ToByte(new string(clean[0], 2), 16);
                 g = Convert.ToByte(new string(clean[1], 2), 16);
                 b = Convert.ToByte(new string(clean[2], 2), 16);
             }
-            else if (clean.Length == 4) // #RGBA
+            else if (clean.Length == 4)
             {
                 r = Convert.ToByte(new string(clean[0], 2), 16);
                 g = Convert.ToByte(new string(clean[1], 2), 16);
                 b = Convert.ToByte(new string(clean[2], 2), 16);
                 a = Convert.ToByte(new string(clean[3], 2), 16);
             }
-            else if (clean.Length == 6) // #RRGGBB
+            else if (clean.Length == 6)
             {
                 r = Convert.ToByte(clean[..2], 16);
                 g = Convert.ToByte(clean.Substring(2, 2), 16);
                 b = Convert.ToByte(clean.Substring(4, 2), 16);
             }
-            else if (clean.Length == 8) // #RRGGBBAA
+            else if (clean.Length == 8)
             {
                 r = Convert.ToByte(clean[..2], 16);
                 g = Convert.ToByte(clean.Substring(2, 2), 16);
@@ -213,77 +354,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                 a = Convert.ToByte(clean.Substring(6, 2), 16);
             }
 
-            var mediaColor = MediaColor.FromArgb(a, r, g, b);
-            string rgbStr = $"rgb({r}, {g}, {b})";
-            string rgbaStr = $"rgba({r}, {g}, {b}, {Math.Round(a / 255.0, 2).ToString(CultureInfo.InvariantCulture)})";
-            var (h, s, l) = RgbToHsl(r, g, b);
-            string hslStr = $"hsl({Math.Round(h)}, {Math.Round(s * 100)}%, {Math.Round(l * 100)}%)";
-
-            var actions = new List<ActionItem>
-            {
-                new(
-                    "Action_CopyHex",
-                    _loc.Get("Action_CopyHex"),
-                    "Copy24",
-                    hex.ToUpperInvariant(),
-                    () => _executor.CopyText(hex.ToUpperInvariant(), "Toast_Copied"),
-                    IsPrimary: true,
-                    Subtitle: hex.ToUpperInvariant(),
-                    IconGlyph: "\uE8C8"
-                ),
-                new(
-                    "Action_ConvertColor",
-                    _loc.Get("Action_ConvertColor"),
-                    "Dial24",
-                    _loc.Get("Action_ConvertColor_Desc"),
-                    () => _executor.CopyText(rgbStr, "Toast_Copied"),
-                    IsPrimary: false,
-                    Subtitle: "RGB, HSL, RGBA",
-                    IconGlyph: "\uE895"
-                ),
-                new(
-                    "Action_CopyRgb",
-                    _loc.Get("Action_CopyRgb"),
-                    "Color24",
-                    _loc.Get("Action_CopyRgb_Desc"),
-                    () => _executor.CopyText(rgbStr, "Toast_Copied"),
-                    IsPrimary: false,
-                    Subtitle: rgbStr,
-                    IconGlyph: "\uE790"
-                ),
-                new(
-                    "Action_CopyHsl",
-                    _loc.Get("Action_CopyHsl"),
-                    "Dial24",
-                    _loc.Get("Action_CopyHsl_Desc"),
-                    () => _executor.CopyText(hslStr, "Toast_Copied"),
-                    IsPrimary: false,
-                    Subtitle: hslStr,
-                    IconGlyph: "\uE895"
-                ),
-                new(
-                    "Action_CopyRgba",
-                    _loc.Get("Action_CopyRgba"),
-                    "Copy24",
-                    _loc.Get("Action_CopyRgba_Desc"),
-                    () => _executor.CopyText(rgbaStr, "Toast_Copied"),
-                    IsPrimary: false,
-                    Subtitle: rgbaStr,
-                    IconGlyph: "\uE8C8"
-                )
-            };
-
-            return new DetectionResult(
-                Type: ClipDataType.HexColor,
-                RawData: hex,
-                PreviewTitle: hex.ToUpperInvariant(),
-                PreviewSubtitle: _loc.Get("Type_HexColor_Desc"),
-                PreviewBody: $"{rgbStr}  •  {hslStr}",
-                AvailableActions: actions,
-                HexColorCode: hex.ToUpperInvariant(),
-                ColorValue: mediaColor,
-                BadgeText: "Color"
-            );
+            return BuildColorResult(hex, hex.ToUpperInvariant(), a, r, g, b);
         }
         catch
         {
@@ -291,33 +362,142 @@ public partial class DataTypeDetector : IDataTypeDetector
         }
     }
 
+    private DetectionResult? TryDetectCssColor(string raw)
+    {
+        try
+        {
+            var rgbMatch = RgbColorRegex().Match(raw);
+            if (rgbMatch.Success)
+            {
+                int ri = int.Parse(rgbMatch.Groups["r"].Value, CultureInfo.InvariantCulture);
+                int gi = int.Parse(rgbMatch.Groups["g"].Value, CultureInfo.InvariantCulture);
+                int bi = int.Parse(rgbMatch.Groups["b"].Value, CultureInfo.InvariantCulture);
+                if (ri > 255 || gi > 255 || bi > 255) return null;
+
+                byte a = 255;
+                if (rgbMatch.Groups["a"].Success)
+                {
+                    double alpha = double.Parse(rgbMatch.Groups["a"].Value, CultureInfo.InvariantCulture);
+                    if (alpha < 0 || alpha > 1) return null;
+                    a = (byte)Math.Round(alpha * 255);
+                }
+
+                string hex = a == 255 ? $"#{ri:X2}{gi:X2}{bi:X2}" : $"#{ri:X2}{gi:X2}{bi:X2}{a:X2}";
+                return BuildColorResult(raw, hex, a, (byte)ri, (byte)gi, (byte)bi);
+            }
+
+            var hslMatch = HslColorRegex().Match(raw);
+            if (hslMatch.Success)
+            {
+                double h = double.Parse(hslMatch.Groups["h"].Value, CultureInfo.InvariantCulture);
+                double s = double.Parse(hslMatch.Groups["s"].Value, CultureInfo.InvariantCulture);
+                double l = double.Parse(hslMatch.Groups["l"].Value, CultureInfo.InvariantCulture);
+                if (h > 360 || s > 100 || l > 100) return null;
+
+                byte a = 255;
+                if (hslMatch.Groups["a"].Success)
+                {
+                    double alpha = double.Parse(hslMatch.Groups["a"].Value, CultureInfo.InvariantCulture);
+                    if (alpha < 0 || alpha > 1) return null;
+                    a = (byte)Math.Round(alpha * 255);
+                }
+
+                var (r, g, b) = HslToRgb(h, s / 100.0, l / 100.0);
+                string hex = a == 255 ? $"#{r:X2}{g:X2}{b:X2}" : $"#{r:X2}{g:X2}{b:X2}{a:X2}";
+                return BuildColorResult(raw, hex, a, r, g, b);
+            }
+        }
+        catch
+        {
+        }
+        return null;
+    }
+
+    private DetectionResult BuildColorResult(string rawInput, string hexUpper, byte a, byte r, byte g, byte b)
+    {
+        var mediaColor = MediaColor.FromArgb(a, r, g, b);
+        string rgbStr = $"rgb({r}, {g}, {b})";
+        string rgbaStr = $"rgba({r}, {g}, {b}, {Math.Round(a / 255.0, 2).ToString(CultureInfo.InvariantCulture)})";
+        var (h, s, l) = RgbToHsl(r, g, b);
+        string hslStr = $"hsl({Math.Round(h)}, {Math.Round(s * 100)}%, {Math.Round(l * 100)}%)";
+
+        var actions = new List<ActionItem>
+        {
+            new(
+                "Action_CopyHex",
+                _loc.Get("Action_CopyHex"),
+                "Copy24",
+                _loc.Get("Action_CopyHex_Desc"),
+                () => _executor.CopyText(hexUpper, "Toast_Copied"),
+                IsPrimary: true,
+                Subtitle: hexUpper,
+                IconGlyph: "\uE8C8"
+            ),
+            new(
+                "Action_CopyRgb",
+                _loc.Get("Action_CopyRgb"),
+                "Color24",
+                _loc.Get("Action_CopyRgb_Desc"),
+                () => _executor.CopyText(rgbStr, "Toast_Copied"),
+                Subtitle: rgbStr,
+                IconGlyph: "\uE790"
+            ),
+            new(
+                "Action_CopyHsl",
+                _loc.Get("Action_CopyHsl"),
+                "Convert24",
+                _loc.Get("Action_CopyHsl_Desc"),
+                () => _executor.CopyText(hslStr, "Toast_Copied"),
+                Subtitle: hslStr,
+                IconGlyph: "\uE8AB"
+            ),
+            new(
+                "Action_CopyRgba",
+                _loc.Get("Action_CopyRgba"),
+                "Copy24",
+                _loc.Get("Action_CopyRgba_Desc"),
+                () => _executor.CopyText(rgbaStr, "Toast_Copied"),
+                Subtitle: rgbaStr,
+                IconGlyph: "\uE8C8"
+            )
+        };
+
+        return new DetectionResult(
+            Type: ClipDataType.HexColor,
+            RawData: rawInput,
+            PreviewTitle: hexUpper,
+            PreviewSubtitle: _loc.Get("Type_HexColor_Desc"),
+            PreviewBody: $"{rgbStr}  •  {hslStr}",
+            AvailableActions: actions,
+            HexColorCode: hexUpper,
+            ColorValue: mediaColor,
+            BadgeText: "Color"
+        );
+    }
+
     private DetectionResult? TryDetectTimestamp(string text)
     {
         try
         {
-            if (!long.TryParse(text, out long val)) return null;
-
-            DateTimeOffset dto;
-            if (text.Length == 10) // seconds
-            {
-                dto = DateTimeOffset.FromUnixTimeSeconds(val);
-            }
-            else if (text.Length == 13) // milliseconds
-            {
-                dto = DateTimeOffset.FromUnixTimeMilliseconds(val);
-            }
-            else
+            // Reject common ISBN-13 / EAN-13 / JAN barcodes (978/979/490-499 prefixes)
+            if (text.Length == 13 && (text.StartsWith("978") || text.StartsWith("979")))
             {
                 return null;
             }
 
-            // Reasonableness check: 1990 <= year <= 2100
-            if (dto.Year < 1990 || dto.Year > 2100) return null;
+            if (!long.TryParse(text, out long val)) return null;
+
+            DateTimeOffset dto = text.Length == 10
+                ? DateTimeOffset.FromUnixTimeSeconds(val)
+                : DateTimeOffset.FromUnixTimeMilliseconds(val);
+
+            // Narrow to realistic modern epoch range (1995-2100) to avoid matching arbitrary IDs
+            if (dto.Year < 1995 || dto.Year > 2100) return null;
 
             var local = dto.ToLocalTime();
             string localStr = local.ToString("yyyy-MM-dd HH:mm:ss");
             string isoStr = dto.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
-            string subtitle = $"UTC: {dto.ToUniversalTime():yyyy-MM-dd HH:mm:ss}Z ({local.ToString("zzz")})";
+            string subtitle = $"UTC: {dto.ToUniversalTime():yyyy-MM-dd HH:mm:ss}Z ({local:zzz})";
 
             var actions = new List<ActionItem>
             {
@@ -326,14 +506,17 @@ public partial class DataTypeDetector : IDataTypeDetector
                     _loc.Get("Action_CopyLocalDate"),
                     "Calendar24",
                     _loc.Get("Action_CopyLocalDate_Desc"),
-                    () => _executor.CopyText(localStr, "Toast_Copied")
+                    () => _executor.CopyText(localStr, "Toast_Copied"),
+                    IsPrimary: true,
+                    Subtitle: localStr
                 ),
                 new(
                     "Action_CopyIsoDate",
                     _loc.Get("Action_CopyIsoDate"),
                     "Globe24",
                     _loc.Get("Action_CopyIsoDate_Desc"),
-                    () => _executor.CopyText(isoStr, "Toast_Copied")
+                    () => _executor.CopyText(isoStr, "Toast_Copied"),
+                    Subtitle: isoStr
                 ),
                 new(
                     "Action_CopyCurrentTimestamp",
@@ -358,6 +541,58 @@ public partial class DataTypeDetector : IDataTypeDetector
         {
             return null;
         }
+    }
+
+    private DetectionResult? TryDetectIsoDateTime(string text)
+    {
+        if (!DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AllowWhiteSpaces, out var dto))
+        {
+            return null;
+        }
+
+        var local = dto.ToLocalTime();
+        string localStr = local.ToString("yyyy-MM-dd HH:mm:ss");
+        string unixSec = dto.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+        string unixMs = dto.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
+
+        var actions = new List<ActionItem>
+        {
+            new(
+                "Action_CopyLocalDate",
+                _loc.Get("Action_CopyLocalDate"),
+                "Calendar24",
+                _loc.Get("Action_CopyLocalDate_Desc"),
+                () => _executor.CopyText(localStr, "Toast_Copied"),
+                IsPrimary: true,
+                Subtitle: localStr
+            ),
+            new(
+                "Action_CopyUnixSeconds",
+                _loc.Get("Action_CopyUnixSeconds"),
+                "Clock24",
+                _loc.Get("Action_CopyUnixSeconds_Desc"),
+                () => _executor.CopyText(unixSec, "Toast_Copied"),
+                Subtitle: unixSec
+            ),
+            new(
+                "Action_CopyUnixMillis",
+                _loc.Get("Action_CopyUnixMillis"),
+                "Clock24",
+                _loc.Get("Action_CopyUnixMillis_Desc"),
+                () => _executor.CopyText(unixMs, "Toast_Copied"),
+                Subtitle: unixMs
+            )
+        };
+
+        return new DetectionResult(
+            Type: ClipDataType.IsoDateTime,
+            RawData: text,
+            PreviewTitle: localStr,
+            PreviewSubtitle: $"UTC: {dto.ToUniversalTime():yyyy-MM-dd HH:mm:ss}Z ({local:zzz})",
+            PreviewBody: text,
+            AvailableActions: actions,
+            BadgeText: "ISO Date"
+        );
     }
 
     private DetectionResult? TryDetectBase64(string text)
@@ -385,10 +620,21 @@ public partial class DataTypeDetector : IDataTypeDetector
 
             if (payload.Length > MaxBase64Length) return null;
 
-            byte[] bytes = Convert.FromBase64String(payload.Trim());
+            // Strip MIME line breaks and normalize URL-safe Base64
+            string normalized = payload.Replace("\r", "").Replace("\n", "").Trim();
+            if (normalized.Contains('-') || normalized.Contains('_'))
+            {
+                normalized = normalized.Replace('-', '+').Replace('_', '/');
+            }
+            int mod = normalized.Length % 4;
+            if (mod == 1) return null;
+            if (mod == 2) normalized += "==";
+            else if (mod == 3) normalized += "=";
+
+            byte[] bytes = Convert.FromBase64String(normalized);
             if (bytes.Length < 4) return null;
 
-            bool isImage = (mimeType != null && mimeType.StartsWith("image/")) || IsImageBytes(bytes);
+            bool isImage = (mimeType != null && mimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)) || IsImageBytes(bytes);
 
             var actions = new List<ActionItem>();
 
@@ -399,33 +645,47 @@ public partial class DataTypeDetector : IDataTypeDetector
                     _loc.Get("Action_CopyDecodedImage"),
                     "Image24",
                     _loc.Get("Action_CopyDecodedImage_Desc"),
-                    () => _executor.CopyBase64Image(bytes)
+                    () => _executor.CopyBase64Image(bytes),
+                    IsPrimary: true,
+                    Subtitle: FormatByteSize(bytes.Length)
                 ));
             }
 
-            // Also check if valid text
             string? decodedText = TryDecodeUtf8Text(bytes);
             bool isPrintableText = decodedText is { Length: > 0 } &&
                 decodedText.All(c => !char.IsControl(c) || c == '\n' || c == '\r' || c == '\t');
 
+            // For raw non-DataURI Base64 without padding or '+'/'/', avoid false-triggering on plain alphanumeric identifiers
+            if (!isDataUri && !isImage)
+            {
+                bool hasBase64Signals = payload.Contains('=') || payload.Contains('+') || payload.Contains('/') || payload.Contains('-') || payload.Contains('_');
+                if (!hasBase64Signals && decodedText != null && decodedText.All(c => c < 32 || c > 126))
+                {
+                    return null;
+                }
+            }
+
             if (isPrintableText && decodedText != null)
             {
+                string previewSub = decodedText.Length > 36 ? decodedText[..36].Replace('\n', ' ') + "…" : decodedText.Replace('\n', ' ');
                 actions.Add(new(
                     "Action_DecodeBase64",
                     _loc.Get("Action_DecodeBase64"),
-                    "DocumentText24",
+                    "Decode24",
                     _loc.Get("Action_DecodeBase64_Desc"),
-                    () => _executor.CopyText(decodedText, "Toast_Base64Decoded")
+                    () => _executor.CopyText(decodedText, "Toast_Base64Decoded"),
+                    IsPrimary: actions.Count == 0,
+                    Subtitle: previewSub
                 ));
             }
 
             if (actions.Count == 0) return null;
 
-            string title = isImage ? "Base64 Image" : "Base64 Text";
-            string subtitle = $"{bytes.Length} bytes decoded";
+            string title = isImage ? _loc.Get("Type_Base64Image") : _loc.Get("Type_Base64Text");
+            string subtitle = $"{FormatByteSize(bytes.Length)}";
             string snippet = isPrintableText && decodedText != null
-                ? (decodedText.Length > 120 ? decodedText[..120] + "..." : decodedText)
-                : $"Decoded binary data ({bytes.Length} bytes)";
+                ? (decodedText.Length > 140 ? decodedText[..140] + "…" : decodedText)
+                : $"{mimeType ?? "binary"} ({FormatByteSize(bytes.Length)})";
 
             return new DetectionResult(
                 Type: ClipDataType.Base64,
@@ -443,22 +703,21 @@ public partial class DataTypeDetector : IDataTypeDetector
         }
     }
 
-    private static bool IsBase64String(string s)
+    private static bool LooksLikeBase64(string s)
     {
-        if (s.Length < 16 || s.Length % 4 != 0) return false;
-        if (s.Contains(' ') || s.Contains('\n') || s.Contains('\r')) return false;
-
-        // Fast character validation
+        int effectiveLen = 0;
         for (int i = 0; i < s.Length; i++)
         {
             char c = s[i];
+            if (c == '\r' || c == '\n') continue;
             bool ok = (c >= 'A' && c <= 'Z') ||
                       (c >= 'a' && c <= 'z') ||
                       (c >= '0' && c <= '9') ||
-                      c == '+' || c == '/' || c == '=';
+                      c == '+' || c == '/' || c == '=' || c == '-' || c == '_';
             if (!ok) return false;
+            effectiveLen++;
         }
-        return true;
+        return effectiveLen >= 16 && (effectiveLen % 4 != 1);
     }
 
     private static string? TryDecodeUtf8Text(byte[] bytes)
@@ -476,16 +735,17 @@ public partial class DataTypeDetector : IDataTypeDetector
     private static bool IsImageBytes(byte[] bytes)
     {
         if (bytes.Length < 8) return false;
-        // PNG: 89 50 4E 47
+        // PNG
         if (bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) return true;
-        // JPEG: FF D8 FF
+        // JPEG
         if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) return true;
-        // GIF: 47 49 46
+        // GIF
         if (bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46) return true;
-        // BMP: 42 4D
+        // BMP
         if (bytes[0] == 0x42 && bytes[1] == 0x4D) return true;
-        // WebP: RIFF ... WEBP
-        if (bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 &&
+        // WebP: RIFF....WEBP (requires >= 12 bytes!)
+        if (bytes.Length >= 12 &&
+            bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 &&
             bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50) return true;
 
         return false;
@@ -505,37 +765,17 @@ public partial class DataTypeDetector : IDataTypeDetector
             if (rows == null || rows.Count < 2) return null;
             int colCount = rows[0].Length;
             if (colCount < 2 || colCount > MaxTableColumns || rows.Count > MaxTableRows) return null;
-
-            // A table with irregular rows is more likely prose or malformed
-            // source data than a conversion candidate.
             if (rows.Any(r => r.Length != colCount)) return null;
 
-            // Generate Markdown table
-            var mdSb = new StringBuilder();
-            mdSb.AppendLine("| " + string.Join(" | ", rows[0].Select(EscapeMarkdownCell)) + " |");
-            mdSb.AppendLine("| " + string.Join(" | ", Enumerable.Repeat("---", colCount)) + " |");
-            for (int i = 1; i < rows.Count; i++)
+            // Guard against 2-line English prose with a stray comma per line ("Dear Alice,\nThanks, Bob")
+            if (!isTsv && colCount == 2 && rows.Count == 2)
             {
-                var r = rows[i];
-                mdSb.AppendLine("| " + string.Join(" | ", r.Select(EscapeMarkdownCell)) + " |");
+                bool looksLikeProse = rows.Any(r => r.Any(cell => cell.Length == 0)) ||
+                                      rows[0][0].Contains(' ') && rows[0][1].Length == 0;
+                if (looksLikeProse) return null;
             }
-            string markdownTable = mdSb.ToString().TrimEnd();
 
-            // Generate JSON Array
-            var jsonList = new List<Dictionary<string, string>>();
-            var headers = MakeUniqueHeaders(rows[0]);
-            for (int i = 1; i < rows.Count; i++)
-            {
-                var dict = new Dictionary<string, string>();
-                for (int j = 0; j < headers.Length; j++)
-                {
-                    string val = j < rows[i].Length ? rows[i][j] : "";
-                    dict[headers[j]] = val;
-                }
-                jsonList.Add(dict);
-            }
-            string jsonArray = JsonSerializer.Serialize(jsonList, new JsonSerializerOptions { WriteIndented = true });
-
+            // Compute Markdown & JSON lazily only when user clicks the action!
             var actions = new List<ActionItem>
             {
                 new(
@@ -543,20 +783,23 @@ public partial class DataTypeDetector : IDataTypeDetector
                     _loc.Get("Action_ToMarkdownTable"),
                     "Table24",
                     _loc.Get("Action_ToMarkdownTable_Desc"),
-                    () => _executor.CopyText(markdownTable, "Toast_MarkdownTableCopied")
+                    () => _executor.CopyText(BuildMarkdownTable(rows, colCount), "Toast_MarkdownTableCopied"),
+                    IsPrimary: true,
+                    Subtitle: $"{rows.Count} × {colCount}"
                 ),
                 new(
                     "Action_ToJsonArray",
                     _loc.Get("Action_ToJsonArray"),
                     "Code24",
                     _loc.Get("Action_ToJsonArray_Desc"),
-                    () => _executor.CopyText(jsonArray, "Toast_JsonArrayCopied")
+                    () => _executor.CopyText(BuildJsonTableArray(rows), "Toast_JsonArrayCopied"),
+                    Subtitle: $"{rows.Count - 1} objects"
                 )
             };
 
-            string subtitle = $"{rows.Count} rows × {colCount} columns ({(isTsv ? "TSV" : "CSV")})";
-            string snippet = string.Join("\n", rows.Take(2).Select(row => string.Join(isTsv ? "\t" : ",", row)));
-            if (snippet.Length > 180) snippet = snippet[..180] + "...";
+            string subtitle = $"{rows.Count} rows × {colCount} cols ({(isTsv ? "TSV" : "CSV")})";
+            string snippet = string.Join("\n", rows.Take(3).Select(row => string.Join(isTsv ? "\t" : ", ", row)));
+            if (snippet.Length > 180) snippet = snippet[..180] + "…";
 
             return new DetectionResult(
                 Type: ClipDataType.TableData,
@@ -565,7 +808,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                 PreviewSubtitle: subtitle,
                 PreviewBody: snippet,
                 AvailableActions: actions,
-                BadgeText: isTsv ? "TSV Table" : "CSV Table"
+                BadgeText: isTsv ? "TSV" : "CSV"
             );
         }
         catch
@@ -574,9 +817,37 @@ public partial class DataTypeDetector : IDataTypeDetector
         }
     }
 
+    private static string BuildMarkdownTable(List<string[]> rows, int colCount)
+    {
+        var mdSb = new StringBuilder();
+        mdSb.AppendLine("| " + string.Join(" | ", rows[0].Select(EscapeMarkdownCell)) + " |");
+        mdSb.AppendLine("| " + string.Join(" | ", Enumerable.Repeat("---", colCount)) + " |");
+        for (int i = 1; i < rows.Count; i++)
+        {
+            mdSb.AppendLine("| " + string.Join(" | ", rows[i].Select(EscapeMarkdownCell)) + " |");
+        }
+        return mdSb.ToString().TrimEnd();
+    }
+
+    private static string BuildJsonTableArray(List<string[]> rows)
+    {
+        var jsonList = new List<Dictionary<string, string>>(Math.Max(0, rows.Count - 1));
+        var headers = MakeUniqueHeaders(rows[0]);
+        for (int i = 1; i < rows.Count; i++)
+        {
+            var dict = new Dictionary<string, string>(headers.Length);
+            for (int j = 0; j < headers.Length; j++)
+            {
+                dict[headers[j]] = j < rows[i].Length ? rows[i][j] : string.Empty;
+            }
+            jsonList.Add(dict);
+        }
+        return JsonSerializer.Serialize(jsonList, IndentedJsonOptions);
+    }
+
     private static bool LooksLikeTsv(string text)
     {
-        var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+        var lines = text.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries)
             .Where(line => !string.IsNullOrWhiteSpace(line))
             .Take(3)
             .ToList();
@@ -590,11 +861,12 @@ public partial class DataTypeDetector : IDataTypeDetector
         var row = new List<string>();
         var cell = new StringBuilder();
         bool insideQuotes = false;
+        bool atFieldStart = true;
 
         for (int i = 0; i < text.Length; i++)
         {
             char current = text[i];
-            if (current == '"')
+            if (current == '"' && (insideQuotes || atFieldStart))
             {
                 if (insideQuotes && i + 1 < text.Length && text[i + 1] == '"')
                 {
@@ -604,18 +876,21 @@ public partial class DataTypeDetector : IDataTypeDetector
                 else
                 {
                     insideQuotes = !insideQuotes;
+                    atFieldStart = false;
                 }
             }
             else if (!insideQuotes && current == separator)
             {
                 row.Add(cell.ToString().Trim());
                 cell.Clear();
+                atFieldStart = true;
             }
             else if (!insideQuotes && (current == '\r' || current == '\n'))
             {
                 if (current == '\r' && i + 1 < text.Length && text[i + 1] == '\n') i++;
                 row.Add(cell.ToString().Trim());
                 cell.Clear();
+                atFieldStart = true;
 
                 if (row.Any(value => value.Length > 0))
                 {
@@ -626,6 +901,7 @@ public partial class DataTypeDetector : IDataTypeDetector
             }
             else
             {
+                if (!char.IsWhiteSpace(current)) atFieldStart = false;
                 cell.Append(current);
             }
         }
@@ -669,19 +945,17 @@ public partial class DataTypeDetector : IDataTypeDetector
         try
         {
             using var doc = JsonDocument.Parse(trimmedJson);
-            // Action delegates run after this using scope exits, so clone the
-            // element into independent storage before keeping it in a closure.
             var root = doc.RootElement.Clone();
             string subtitle;
             if (root.ValueKind == JsonValueKind.Object)
             {
                 int count = root.EnumerateObject().Count();
-                subtitle = $"JSON Object ({count} {(count == 1 ? "property" : "properties")})";
+                subtitle = $"Object • {count} {(count == 1 ? "property" : "properties")}";
             }
             else if (root.ValueKind == JsonValueKind.Array)
             {
                 int count = root.EnumerateArray().Count();
-                subtitle = $"JSON Array ({count} {(count == 1 ? "item" : "items")})";
+                subtitle = $"Array • {count} {(count == 1 ? "item" : "items")}";
             }
             else
             {
@@ -697,10 +971,11 @@ public partial class DataTypeDetector : IDataTypeDetector
                     _loc.Get("Action_FormatJson_Desc"),
                     () =>
                     {
-                        var options = new JsonSerializerOptions { WriteIndented = true };
-                        string formatted = JsonSerializer.Serialize(root, options);
+                        string formatted = JsonSerializer.Serialize(root, IndentedJsonOptions);
                         _executor.CopyTransformedText(formatted, _loc.Get("Toast_FormattedJsonCopied"));
-                    }
+                    },
+                    IsPrimary: true,
+                    Subtitle: "Pretty (2-space)"
                 ),
                 new(
                     "Action_MinifyJson",
@@ -711,11 +986,12 @@ public partial class DataTypeDetector : IDataTypeDetector
                     {
                         string minified = JsonSerializer.Serialize(root);
                         _executor.CopyTransformedText(minified, _loc.Get("Toast_MinifiedJsonCopied"));
-                    }
+                    },
+                    Subtitle: "Single line"
                 )
             };
 
-            string previewSnippet = trimmedJson.Length > 180 ? trimmedJson[..180] + "..." : trimmedJson;
+            string previewSnippet = trimmedJson.Length > 180 ? trimmedJson[..180] + "…" : trimmedJson;
 
             return new DetectionResult(
                 Type: ClipDataType.Json,
@@ -742,7 +1018,9 @@ public partial class DataTypeDetector : IDataTypeDetector
                 _loc.Get("Action_OpenBrowser"),
                 "Globe24",
                 _loc.Get("Action_OpenBrowser_Desc"),
-                () => _executor.OpenBrowser(fullUrl)
+                () => _executor.OpenBrowser(fullUrl),
+                IsPrimary: true,
+                Subtitle: uri.Host
             ),
             new(
                 "Action_CopyQrCode",
@@ -756,7 +1034,8 @@ public partial class DataTypeDetector : IDataTypeDetector
                 _loc.Get("Action_CopyDomain"),
                 "Link24",
                 _loc.Get("Action_CopyDomain_Desc"),
-                () => _executor.CopyText(uri.Host, "Toast_Copied")
+                () => _executor.CopyText(uri.Host, "Toast_Copied"),
+                Subtitle: uri.Host
             )
         };
 
@@ -766,9 +1045,10 @@ public partial class DataTypeDetector : IDataTypeDetector
             actions.Insert(1, new(
                 "Action_CopyCleanUrl",
                 _loc.Get("Action_CopyCleanUrl"),
-                "Checkmark24",
+                "Clean24",
                 _loc.Get("Action_CopyCleanUrl_Desc"),
-                () => _executor.CopyTransformedText(cleanUrl, _loc.Get("Toast_CleanUrlCopied"))
+                () => _executor.CopyTransformedText(cleanUrl, _loc.Get("Toast_CleanUrlCopied")),
+                Subtitle: "Strip tracking params"
             ));
         }
 
@@ -780,7 +1060,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                 actions.Add(new(
                     "Action_DecodeUrl",
                     _loc.Get("Action_DecodeUrl"),
-                    "DocumentText24",
+                    "Decode24",
                     _loc.Get("Action_DecodeUrl_Desc"),
                     () => _executor.CopyTransformedText(decoded, _loc.Get("Toast_UrlDecoded"))
                 ));
@@ -792,7 +1072,7 @@ public partial class DataTypeDetector : IDataTypeDetector
             RawData: fullUrl,
             PreviewTitle: uri.Host,
             PreviewSubtitle: uri.AbsolutePath.Length > 1 ? uri.AbsolutePath : uri.Scheme + "://",
-            PreviewBody: fullUrl,
+            PreviewBody: fullUrl.Length > 160 ? fullUrl[..160] + "…" : fullUrl,
             AvailableActions: actions,
             BadgeText: "URL"
         );
@@ -802,9 +1082,9 @@ public partial class DataTypeDetector : IDataTypeDetector
     {
         var actions = new List<ActionItem>
         {
-            new("Action_OpenEmail", _loc.Get("Action_OpenEmail"), "Mail24", _loc.Get("Action_OpenEmail_Desc"), () => _executor.OpenEmail(emailAddress)),
-            new("Action_CopyEmailDomain", _loc.Get("Action_CopyEmailDomain"), "Link24", _loc.Get("Action_CopyEmailDomain_Desc"), () => _executor.CopyText(domain, "Toast_Copied")),
-            new("Action_CopyEmailUser", _loc.Get("Action_CopyEmailUser"), "Person24", _loc.Get("Action_CopyEmailUser_Desc"), () => _executor.CopyText(localPart, "Toast_Copied"))
+            new("Action_OpenEmail", _loc.Get("Action_OpenEmail"), "Mail24", _loc.Get("Action_OpenEmail_Desc"), () => _executor.OpenEmail(emailAddress), IsPrimary: true, Subtitle: emailAddress),
+            new("Action_CopyEmailDomain", _loc.Get("Action_CopyEmailDomain"), "Link24", _loc.Get("Action_CopyEmailDomain_Desc"), () => _executor.CopyText(domain, "Toast_Copied"), Subtitle: domain),
+            new("Action_CopyEmailUser", _loc.Get("Action_CopyEmailUser"), "Person24", _loc.Get("Action_CopyEmailUser_Desc"), () => _executor.CopyText(localPart, "Toast_Copied"), Subtitle: localPart)
         };
 
         return new DetectionResult(
@@ -821,18 +1101,23 @@ public partial class DataTypeDetector : IDataTypeDetector
     {
         if (string.IsNullOrWhiteSpace(text) || text.Length < 10) return false;
 
-        int lines = text.Split('\n').Length;
+        int lines = CountLines(text);
         int keywordMatches = CodeKeywordsRegex().Matches(text).Count;
         bool hasBraces = text.Contains('{') && text.Contains('}');
         bool hasSemicolons = text.Count(c => c == ';') >= 2;
-        bool hasIndentation = text.Contains("    ") || text.Contains("\t");
+        bool hasIndentation = text.Contains("    ") || text.Contains('\t');
+        bool hasCodeSymbols = text.Contains("=>") || text.Contains("()") || text.Contains("::") || text.Contains("!=") || text.Contains("==");
 
-        return (keywordMatches >= 2) || (keywordMatches >= 1 && (hasBraces || hasSemicolons || hasIndentation)) || (lines >= 3 && hasBraces);
+        // Require actual code structure (braces/semicolons/indentation/operators/multiline)
+        // so normal English prose containing "public" + "class" doesn't false-trigger.
+        return (keywordMatches >= 1 && (hasBraces || hasSemicolons || hasIndentation || hasCodeSymbols)) ||
+               (keywordMatches >= 3 && lines >= 2) ||
+               (lines >= 3 && hasBraces);
     }
 
     private DetectionResult DetectCodeSnippet(string codeText)
     {
-        int lineCount = codeText.Split('\n').Length;
+        int lineCount = CountLines(codeText);
         int charCount = codeText.Length;
 
         var actions = new List<ActionItem>
@@ -840,13 +1125,15 @@ public partial class DataTypeDetector : IDataTypeDetector
             new(
                 "Action_AdjustIndent",
                 _loc.Get("Action_AdjustIndent"),
-                "TextBulletListSquare24",
+                "Code24",
                 _loc.Get("Action_AdjustIndent_Desc"),
                 () =>
                 {
                     string normalized = NormalizeIndentation(codeText);
                     _executor.CopyTransformedText(normalized, _loc.Get("Toast_Copied"));
-                }
+                },
+                IsPrimary: true,
+                Subtitle: "2-space indent"
             ),
             new(
                 "Action_EscapeHtml",
@@ -857,11 +1144,12 @@ public partial class DataTypeDetector : IDataTypeDetector
                 {
                     string escaped = WebUtility.HtmlEncode(codeText);
                     _executor.CopyTransformedText(escaped, _loc.Get("Toast_Copied"));
-                }
+                },
+                Subtitle: "&lt; &gt; &amp;"
             )
         };
 
-        string snippet = codeText.Length > 180 ? codeText[..180] + "..." : codeText;
+        string snippet = codeText.Length > 180 ? codeText[..180] + "…" : codeText;
 
         return new DetectionResult(
             Type: ClipDataType.Code,
@@ -874,48 +1162,97 @@ public partial class DataTypeDetector : IDataTypeDetector
         );
     }
 
-    private DetectionResult DetectPlainText(string text)
+    private DetectionResult DetectLargePlainText(string text)
     {
-        string trimmed = text.Trim();
         int charCount = text.Length;
-        int wordCount = string.IsNullOrWhiteSpace(text) ? 0 : text.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Length;
-        int lineCount = text.Split('\n').Length;
+        int lineCount = CountLines(text);
+        string snippet = HistoryService.NormalizeSingleLine(text);
+        if (snippet.Length > 180) snippet = snippet[..180] + "…";
 
         var actions = new List<ActionItem>
         {
             new(
+                "Action_TextStats",
+                _loc.Get("Action_TextStats"),
+                "Info24",
+                _loc.Get("Action_TextStats_Desc"),
+                () => _executor.CopyText($"Chars: {charCount}, Lines: {lineCount}", "Toast_Copied"),
+                IsPrimary: true,
+                Subtitle: $"{charCount:N0} chars • {lineCount:N0} lines"
+            )
+        };
+
+        return new DetectionResult(
+            Type: ClipDataType.PlainText,
+            RawData: text,
+            PreviewTitle: _loc.Get("Type_PlainText"),
+            PreviewSubtitle: $"{charCount:N0} chars • {lineCount:N0} lines",
+            PreviewBody: snippet,
+            AvailableActions: actions,
+            BadgeText: "Text"
+        );
+    }
+
+    private DetectionResult DetectPlainText(string text)
+    {
+        string trimmed = text.Trim();
+        int charCount = text.Length;
+        int wordCount = CountWords(text);
+        int lineCount = CountLines(text);
+
+        var actions = new List<ActionItem>();
+
+        bool hasExtraWhitespace = trimmed.Length != text.Length;
+        if (hasExtraWhitespace)
+        {
+            actions.Add(new(
                 "Action_TrimWhitespace",
                 _loc.Get("Action_TrimWhitespace"),
                 "Cut24",
                 _loc.Get("Action_TrimWhitespace_Desc"),
-                () => _executor.CopyTransformedText(trimmed, _loc.Get("Toast_Copied"))
-            ),
-            new(
-                "Action_TextStats",
-                _loc.Get("Action_TextStats"),
-                "DocumentText24",
-                _loc.Get("Action_TextStats_Desc"),
-                () =>
-                {
-                    string stats = $"Chars: {charCount}, Words: {wordCount}, Lines: {lineCount}";
-                    _executor.CopyText(stats, "Toast_Copied");
-                }
-            ),
-            new(
+                () => _executor.CopyTransformedText(trimmed, _loc.Get("Toast_Copied")),
+                IsPrimary: true
+            ));
+        }
+
+        actions.Add(new(
+            "Action_TextStats",
+            _loc.Get("Action_TextStats"),
+            "Info24",
+            _loc.Get("Action_TextStats_Desc"),
+            () =>
+            {
+                string stats = $"Chars: {charCount}, Words: {wordCount}, Lines: {lineCount}";
+                _executor.CopyText(stats, "Toast_Copied");
+            },
+            IsPrimary: actions.Count == 0,
+            Subtitle: $"{charCount} chars • {wordCount} words • {lineCount} lines"
+        ));
+
+        bool hasLower = trimmed.Any(char.IsLower);
+        bool hasUpper = trimmed.Any(char.IsUpper);
+
+        if (hasLower)
+        {
+            actions.Add(new(
                 "Action_UpperCase",
                 _loc.Get("Action_UpperCase"),
                 "TextCaseUppercase24",
                 _loc.Get("Action_UpperCase_Desc"),
                 () => _executor.CopyTransformedText(text.ToUpperInvariant(), _loc.Get("Toast_Copied"))
-            ),
-            new(
+            ));
+        }
+
+        if (hasUpper)
+        {
+            actions.Add(new(
                 "Action_LowerCase",
                 _loc.Get("Action_LowerCase"),
                 "TextCaseLowercase24",
                 _loc.Get("Action_LowerCase_Desc"),
                 () => _executor.CopyTransformedText(text.ToLowerInvariant(), _loc.Get("Toast_Copied"))
-            )
-        };
+            ));
+        }
 
         var cfg = _settings.Current;
         if (cfg.EnableCaseConverter && CaseConverter.IsConvertible(trimmed))
@@ -928,29 +1265,19 @@ public partial class DataTypeDetector : IDataTypeDetector
             string constant = CaseConverter.ToConstantCase(words);
 
             if (!string.Equals(camel, trimmed, StringComparison.Ordinal))
-            {
-                actions.Add(new("Action_ToCamelCase", "camelCase", "Code24", _loc.Get("Action_ToCamelCase_Desc"), () => _executor.CopyTransformedText(camel, _loc.Get("Toast_Copied"))));
-            }
+                actions.Add(new("Action_ToCamelCase", "camelCase", "Case24", _loc.Get("Action_ToCamelCase_Desc"), () => _executor.CopyTransformedText(camel, _loc.Get("Toast_Copied")), Subtitle: camel));
             if (!string.Equals(snake, trimmed, StringComparison.Ordinal))
-            {
-                actions.Add(new("Action_ToSnakeCase", "snake_case", "Code24", _loc.Get("Action_ToSnakeCase_Desc"), () => _executor.CopyTransformedText(snake, _loc.Get("Toast_Copied"))));
-            }
+                actions.Add(new("Action_ToSnakeCase", "snake_case", "Case24", _loc.Get("Action_ToSnakeCase_Desc"), () => _executor.CopyTransformedText(snake, _loc.Get("Toast_Copied")), Subtitle: snake));
             if (!string.Equals(kebab, trimmed, StringComparison.Ordinal))
-            {
-                actions.Add(new("Action_ToKebabCase", "kebab-case", "Code24", _loc.Get("Action_ToKebabCase_Desc"), () => _executor.CopyTransformedText(kebab, _loc.Get("Toast_Copied"))));
-            }
+                actions.Add(new("Action_ToKebabCase", "kebab-case", "Case24", _loc.Get("Action_ToKebabCase_Desc"), () => _executor.CopyTransformedText(kebab, _loc.Get("Toast_Copied")), Subtitle: kebab));
             if (!string.Equals(pascal, trimmed, StringComparison.Ordinal))
-            {
-                actions.Add(new("Action_ToPascalCase", "PascalCase", "Code24", _loc.Get("Action_ToPascalCase_Desc"), () => _executor.CopyTransformedText(pascal, _loc.Get("Toast_Copied"))));
-            }
+                actions.Add(new("Action_ToPascalCase", "PascalCase", "Case24", _loc.Get("Action_ToPascalCase_Desc"), () => _executor.CopyTransformedText(pascal, _loc.Get("Toast_Copied")), Subtitle: pascal));
             if (!string.Equals(constant, trimmed, StringComparison.Ordinal))
-            {
-                actions.Add(new("Action_ToConstantCase", "CONSTANT_CASE", "Code24", _loc.Get("Action_ToConstantCase_Desc"), () => _executor.CopyTransformedText(constant, _loc.Get("Toast_Copied"))));
-            }
+                actions.Add(new("Action_ToConstantCase", "CONSTANT_CASE", "Case24", _loc.Get("Action_ToConstantCase_Desc"), () => _executor.CopyTransformedText(constant, _loc.Get("Toast_Copied")), Subtitle: constant));
         }
 
-        string cleanSnippet = Regex.Replace(trimmed, @"[\r\n\t]+", " ");
-        string snippet = cleanSnippet.Length > 180 ? cleanSnippet[..180] + "..." : cleanSnippet;
+        string cleanSnippet = HistoryService.NormalizeSingleLine(trimmed);
+        string snippet = cleanSnippet.Length > 180 ? cleanSnippet[..180] + "…" : cleanSnippet;
 
         return new DetectionResult(
             Type: ClipDataType.PlainText,
@@ -963,6 +1290,43 @@ public partial class DataTypeDetector : IDataTypeDetector
         );
     }
 
+    private static int CountLines(string text)
+    {
+        int lines = 1;
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\n') lines++;
+        }
+        return lines;
+    }
+
+    private static int CountWords(string text)
+    {
+        int words = 0;
+        bool inWord = false;
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (char.IsWhiteSpace(text[i]))
+            {
+                inWord = false;
+            }
+            else if (!inWord)
+            {
+                words++;
+                inWord = true;
+            }
+        }
+        return words;
+    }
+
+    private static string FormatByteSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+    }
+
     private static string NormalizeIndentation(string code)
     {
         var lines = code.Replace("\r\n", "\n").Split('\n');
@@ -971,22 +1335,14 @@ public partial class DataTypeDetector : IDataTypeDetector
             .Select(GetLeadingWhitespaceWidth)
             .ToList();
 
-        if (indentationWidths.Count == 0)
-        {
-            return code;
-        }
+        if (indentationWidths.Count == 0) return code;
 
         int baseIndent = indentationWidths.Min();
         var relativeIndents = indentationWidths
             .Select(width => width - baseIndent)
             .Where(width => width > 0)
             .ToList();
-        int indentUnit = relativeIndents.Count == 0
-            ? 2
-            : relativeIndents.Aggregate(GCD);
-
-        // Avoid treating alignment whitespace (for example 37 spaces in a
-        // pasted SQL query) as a logical indentation level.
+        int indentUnit = relativeIndents.Count == 0 ? 2 : relativeIndents.Aggregate(GCD);
         indentUnit = Math.Clamp(indentUnit, 1, 8);
 
         var resultLines = new List<string>(lines.Length);
@@ -1016,18 +1372,9 @@ public partial class DataTypeDetector : IDataTypeDetector
         int width = 0;
         foreach (char character in line)
         {
-            if (character == ' ')
-            {
-                width++;
-            }
-            else if (character == '\t')
-            {
-                width += 2;
-            }
-            else
-            {
-                break;
-            }
+            if (character == ' ') width++;
+            else if (character == '\t') width += 2;
+            else break;
         }
         return width;
     }
@@ -1048,17 +1395,35 @@ public partial class DataTypeDetector : IDataTypeDetector
         {
             s = l > 0.5 ? delta / (2.0 - max - min) : delta / (max + min);
 
-            if (max == rd)
-                h = ((gd - bd) / delta) + (gd < bd ? 6 : 0);
-            else if (max == gd)
-                h = ((bd - rd) / delta) + 2;
-            else
-                h = ((rd - gd) / delta) + 4;
+            if (max == rd) h = ((gd - bd) / delta) + (gd < bd ? 6 : 0);
+            else if (max == gd) h = ((bd - rd) / delta) + 2;
+            else h = ((rd - gd) / delta) + 4;
 
             h *= 60;
         }
 
         return (h, s, l);
+    }
+
+    private static (byte r, byte g, byte b) HslToRgb(double h, double s, double l)
+    {
+        double c = (1 - Math.Abs(2 * l - 1)) * s;
+        double x = c * (1 - Math.Abs((h / 60.0) % 2 - 1));
+        double m = l - c / 2.0;
+
+        double r1, g1, b1;
+        if (h < 60) (r1, g1, b1) = (c, x, 0);
+        else if (h < 120) (r1, g1, b1) = (x, c, 0);
+        else if (h < 180) (r1, g1, b1) = (0, c, x);
+        else if (h < 240) (r1, g1, b1) = (0, x, c);
+        else if (h < 300) (r1, g1, b1) = (x, 0, c);
+        else (r1, g1, b1) = (c, 0, x);
+
+        return (
+            (byte)Math.Clamp(Math.Round((r1 + m) * 255), 0, 255),
+            (byte)Math.Clamp(Math.Round((g1 + m) * 255), 0, 255),
+            (byte)Math.Clamp(Math.Round((b1 + m) * 255), 0, 255)
+        );
     }
 
     private static string GetAspectRatio(int w, int h)
@@ -1093,34 +1458,50 @@ public partial class DataTypeDetector : IDataTypeDetector
             using var payloadDoc = JsonDocument.Parse(payloadJson);
             using var headerDoc = JsonDocument.Parse(headerJson);
 
-            var options = new JsonSerializerOptions { WriteIndented = true };
-            string formattedPayload = JsonSerializer.Serialize(payloadDoc.RootElement, options);
+            string formattedPayload = JsonSerializer.Serialize(payloadDoc.RootElement, IndentedJsonOptions);
+            string formattedHeader = JsonSerializer.Serialize(headerDoc.RootElement, IndentedJsonOptions);
+
+            // Inspect exp / sub claims for immediate developer insight
+            string subtitle = _loc.Get("Jwt_DecodedClaims");
+            if (payloadDoc.RootElement.ValueKind == JsonValueKind.Object &&
+                payloadDoc.RootElement.TryGetProperty("exp", out var expProp) &&
+                expProp.ValueKind == JsonValueKind.Number &&
+                expProp.TryGetInt64(out long expSec))
+            {
+                var expDto = DateTimeOffset.FromUnixTimeSeconds(expSec).ToLocalTime();
+                string expFormatted = expDto.ToString("yyyy-MM-dd HH:mm");
+                subtitle = expDto < DateTimeOffset.Now
+                    ? _loc.Get("Jwt_Expired", expFormatted)
+                    : _loc.Get("Jwt_ValidUntil", expFormatted);
+            }
 
             var actions = new List<ActionItem>
             {
                 new(
                     "Action_CopyJwtPayload",
                     _loc.Get("Action_CopyJwtPayload"),
-                    "Code24",
+                    "Key24",
                     _loc.Get("Action_CopyJwtPayload_Desc"),
-                    () => _executor.CopyTransformedText(formattedPayload, _loc.Get("Toast_Copied"))
+                    () => _executor.CopyTransformedText(formattedPayload, _loc.Get("Toast_Copied")),
+                    IsPrimary: true,
+                    Subtitle: "JSON Claims"
                 ),
                 new(
                     "Action_CopyJwtHeader",
                     _loc.Get("Action_CopyJwtHeader"),
-                    "DocumentText24",
+                    "Code24",
                     _loc.Get("Action_CopyJwtHeader_Desc"),
-                    () => _executor.CopyTransformedText(headerJson, _loc.Get("Toast_Copied"))
+                    () => _executor.CopyTransformedText(formattedHeader, _loc.Get("Toast_Copied")),
+                    Subtitle: "Header JSON"
                 )
             };
 
-            string subtitle = "Decoded JWT Claims";
-            string snippet = formattedPayload.Length > 180 ? formattedPayload[..180] + "..." : formattedPayload;
+            string snippet = formattedPayload.Length > 180 ? formattedPayload[..180] + "…" : formattedPayload;
 
             return new DetectionResult(
                 Type: ClipDataType.Json,
                 RawData: text,
-                PreviewTitle: "JWT Token",
+                PreviewTitle: _loc.Get("Type_Jwt"),
                 PreviewSubtitle: subtitle,
                 PreviewBody: snippet,
                 AvailableActions: actions,

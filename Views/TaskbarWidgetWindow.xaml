@@ -2,9 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="ClipFlyout Taskbar Widget"
-        Icon="pack://application:,,,/assets/app.ico"
-        Width="260"
-        Height="40"
+        SizeToContent="Width"
+        MinWidth="108"
+        MaxWidth="228"
+        Height="38"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -16,109 +17,81 @@
         FontFamily="Segoe UI Variable Text, Segoe UI, sans-serif">
 
     <Border x:Name="RootPill"
-            CornerRadius="4"
+            CornerRadius="5"
             BorderThickness="1"
+            BorderBrush="Transparent"
             Background="#01000000"
+            Padding="10,0"
             Cursor="Hand"
             MouseEnter="RootPill_MouseEnter"
             MouseLeave="RootPill_MouseLeave"
             MouseLeftButtonDown="RootPill_MouseLeftButtonDown"
             MouseLeftButtonUp="RootPill_MouseLeftButtonUp">
         <Border.ContextMenu>
-            <ContextMenu x:Name="WidgetContextMenu">
-                <MenuItem x:Name="MenuOpenFlyout" Header="フライアウトを開く" Click="MenuOpenFlyout_Click"/>
-                <MenuItem x:Name="MenuPosition" Header="表示位置">
-                    <MenuItem x:Name="MenuPosTrayLeft" Header="タスクバー右 (トレイ左隣) [既定]" Click="MenuPos_Click" Tag="TrayLeft"/>
-                    <MenuItem x:Name="MenuPosCenterRight" Header="タスクバー中央・右寄り" Click="MenuPos_Click" Tag="CenterRight"/>
-                    <MenuItem x:Name="MenuPosCenterLeft" Header="タスクバー中央・左寄り" Click="MenuPos_Click" Tag="CenterLeft"/>
-                    <MenuItem x:Name="MenuPosFarLeft" Header="タスクバー左端" Click="MenuPos_Click" Tag="FarLeft"/>
-                    <MenuItem x:Name="MenuPosAboveTaskbar" Header="画面右下 (タスクバー直上)" Click="MenuPos_Click" Tag="AboveTaskbar"/>
+            <ContextMenu x:Name="WidgetContextMenu" Style="{StaticResource FluentContextMenuStyle}">
+                <MenuItem x:Name="MenuOpenFlyout" Style="{StaticResource FluentMenuItemStyle}" Header="フライアウトを開く" Click="MenuOpenFlyout_Click"/>
+                <MenuItem x:Name="MenuPosition" Style="{StaticResource FluentMenuItemStyle}" Header="配置位置">
+                    <MenuItem x:Name="MenuPosTrayLeft" Style="{StaticResource FluentMenuItemStyle}" Header="タスクバー右 (トレイ左隣)" Click="MenuPos_Click" Tag="TrayLeft"/>
+                    <MenuItem x:Name="MenuPosCenterRight" Style="{StaticResource FluentMenuItemStyle}" Header="タスクバー中央・右寄り" Click="MenuPos_Click" Tag="CenterRight"/>
+                    <MenuItem x:Name="MenuPosCenterLeft" Style="{StaticResource FluentMenuItemStyle}" Header="タスクバー中央・左寄り" Click="MenuPos_Click" Tag="CenterLeft"/>
+                    <MenuItem x:Name="MenuPosFarLeft" Style="{StaticResource FluentMenuItemStyle}" Header="タスクバー左端" Click="MenuPos_Click" Tag="FarLeft"/>
+                    <MenuItem x:Name="MenuPosAboveTaskbar" Style="{StaticResource FluentMenuItemStyle}" Header="画面右下 (タスクバー直上)" Click="MenuPos_Click" Tag="AboveTaskbar"/>
                 </MenuItem>
-                <MenuItem x:Name="MenuAutoAlign" Header="トレイの隠しアイコン (^) 左隣に自動吸着" IsCheckable="True" Click="MenuAutoAlign_Click"/>
-                <MenuItem x:Name="MenuMonitor" Header="表示モニター">
-                    <MenuItem x:Name="MenuMonPrimary" Header="メインモニター [既定]" Click="MenuMonitor_Click" Tag="Primary"/>
-                    <MenuItem x:Name="MenuMonCursor" Header="マウスカーソルのあるモニター" Click="MenuMonitor_Click" Tag="FollowCursor"/>
-                    <MenuItem x:Name="MenuMonDisplay1" Header="ディスプレイ 1" Click="MenuMonitor_Click" Tag="Monitor1"/>
-                    <MenuItem x:Name="MenuMonDisplay2" Header="ディスプレイ 2" Click="MenuMonitor_Click" Tag="Monitor2"/>
-                    <MenuItem x:Name="MenuMonDisplay3" Header="ディスプレイ 3" Click="MenuMonitor_Click" Tag="Monitor3"/>
+                <MenuItem x:Name="MenuAutoAlign" Style="{StaticResource FluentMenuItemStyle}" Header="トレイ (^) 左隣に自動吸着" IsCheckable="True" Click="MenuAutoAlign_Click"/>
+                <MenuItem x:Name="MenuMonitor" Style="{StaticResource FluentMenuItemStyle}" Header="表示モニター">
+                    <MenuItem x:Name="MenuMonPrimary" Style="{StaticResource FluentMenuItemStyle}" Header="メインモニター" Click="MenuMonitor_Click" Tag="Primary"/>
+                    <MenuItem x:Name="MenuMonCursor" Style="{StaticResource FluentMenuItemStyle}" Header="カーソルのあるモニター" Click="MenuMonitor_Click" Tag="FollowCursor"/>
+                    <MenuItem x:Name="MenuMonDisplay1" Style="{StaticResource FluentMenuItemStyle}" Header="ディスプレイ 1" Click="MenuMonitor_Click" Tag="Monitor1"/>
+                    <MenuItem x:Name="MenuMonDisplay2" Style="{StaticResource FluentMenuItemStyle}" Header="ディスプレイ 2" Click="MenuMonitor_Click" Tag="Monitor2"/>
+                    <MenuItem x:Name="MenuMonDisplay3" Style="{StaticResource FluentMenuItemStyle}" Header="ディスプレイ 3" Click="MenuMonitor_Click" Tag="Monitor3"/>
                 </MenuItem>
-                <MenuItem x:Name="MenuTextColor" Header="文字色">
-                    <MenuItem x:Name="MenuTextColorAuto" Header="自動検知 (タスクバー色に最適化) [既定]" Click="MenuTextColor_Click" Tag="Auto"/>
-                    <MenuItem x:Name="MenuTextColorLight" Header="常に白 (ダーク系タスクバー向け)" Click="MenuTextColor_Click" Tag="Light"/>
-                    <MenuItem x:Name="MenuTextColorDark" Header="常に黒 (ライト系タスクバー向け)" Click="MenuTextColor_Click" Tag="Dark"/>
+                <MenuItem x:Name="MenuTextColor" Style="{StaticResource FluentMenuItemStyle}" Header="文字色">
+                    <MenuItem x:Name="MenuTextColorAuto" Style="{StaticResource FluentMenuItemStyle}" Header="自動 (タスクバー連動)" Click="MenuTextColor_Click" Tag="Auto"/>
+                    <MenuItem x:Name="MenuTextColorLight" Style="{StaticResource FluentMenuItemStyle}" Header="常に白" Click="MenuTextColor_Click" Tag="Light"/>
+                    <MenuItem x:Name="MenuTextColorDark" Style="{StaticResource FluentMenuItemStyle}" Header="常に黒" Click="MenuTextColor_Click" Tag="Dark"/>
                 </MenuItem>
-                <Separator/>
-                <MenuItem x:Name="MenuOpenSettings" Header="設定" Click="MenuOpenSettings_Click"/>
-                <Separator/>
-                <MenuItem x:Name="MenuHideWidget" Header="タスクバーウィジェットを非表示" Click="MenuHideWidget_Click"/>
+                <Separator Style="{StaticResource FluentMenuSeparatorStyle}"/>
+                <MenuItem x:Name="MenuOpenSettings" Style="{StaticResource FluentMenuItemStyle}" Header="設定..." Click="MenuOpenSettings_Click"/>
+                <Separator Style="{StaticResource FluentMenuSeparatorStyle}"/>
+                <MenuItem x:Name="MenuHideWidget" Style="{StaticResource FluentMenuItemStyle}" Header="タスクバーウィジェットを非表示" Click="MenuHideWidget_Click"/>
             </ContextMenu>
         </Border.ContextMenu>
-        <Grid Margin="9,0,9,0" VerticalAlignment="Center">
+
+        <Grid VerticalAlignment="Center">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Fluent Clipboard Glyph Icon -->
-            <TextBlock x:Name="FluentClipboardIcon"
+            <!-- Data-Type Fluent Icon Glyph -->
+            <TextBlock x:Name="FluentTypeIcon"
+                       Grid.Column="0"
                        Text="&#xE8C8;"
                        FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                        FontSize="13.5"
                        VerticalAlignment="Center"
                        Margin="0,0,7,0"/>
 
-            <!-- App Icon Image (Fallback) -->
-            <Image x:Name="IconImage"
-                   Width="20" Height="20"
-                   Margin="0,0,7,0"
-                   VerticalAlignment="Center"
-                   Visibility="Collapsed"
-                   RenderOptions.BitmapScalingMode="HighQuality"/>
-
-            <!-- Fallback Emoji/Glyph Badge for special content types -->
-            <TextBlock x:Name="IconBadgeText"
-                       FontSize="14.5"
-                       VerticalAlignment="Center"
-                       Margin="0,0,7,0"
-                       Visibility="Collapsed">
-                <TextBlock.Effect>
-                    <DropShadowEffect x:Name="IconBadgeShadow"
-                                      Color="Black"
-                                      BlurRadius="3"
-                                      ShadowDepth="0.5"
-                                      Direction="270"
-                                      Opacity="0.6"/>
-                </TextBlock.Effect>
-            </TextBlock>
-
-            <!-- Color Swatch Badge when content is HexColor -->
+            <!-- Live Color Swatch (shown for Color items) -->
             <Border x:Name="ColorBox"
-                    Width="18" Height="18"
+                    Grid.Column="0"
+                    Width="15" Height="15"
                     CornerRadius="3.5"
                     BorderThickness="1"
-                    BorderBrush="#50808080"
+                    BorderBrush="#40808080"
                     Margin="0,0,7,0"
                     VerticalAlignment="Center"
                     Visibility="Collapsed"/>
 
+            <!-- Crisp Single-Line Snippet (No muddy Vista DropShadow!) -->
             <TextBlock x:Name="ClipPreviewText"
                        Grid.Column="1"
-                       Text="（クリップボード空）"
+                       Text="クリップボード空"
                        FontSize="12.5"
-                       FontWeight="Medium"
-                       Foreground="#F1F5F9"
+                       FontWeight="Normal"
                        HorizontalAlignment="Left"
                        TextTrimming="CharacterEllipsis"
-                       VerticalAlignment="Center">
-                <TextBlock.Effect>
-                    <DropShadowEffect x:Name="ClipPreviewShadow"
-                                      Color="Black"
-                                      BlurRadius="3"
-                                      ShadowDepth="0.5"
-                                      Direction="270"
-                                      Opacity="0.6"/>
-                </TextBlock.Effect>
-            </TextBlock>
+                       VerticalAlignment="Center"/>
         </Grid>
     </Border>
 </Window>

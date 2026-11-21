@@ -1,4 +1,5 @@
 using System;
+using System.Text.RegularExpressions;
 using ClipFlyout.Services;
 
 namespace ClipFlyout.Models;
@@ -49,6 +50,8 @@ public enum WidgetMonitorTarget
 /// </summary>
 public class AppSettings
 {
+    private static readonly Regex HexColorRegex = new("^#[0-9a-fA-F]{6}$", RegexOptions.Compiled);
+
     // General
     public bool IsMonitoringEnabled { get; set; } = true;
     public bool LaunchOnStartup { get; set; } = false;
@@ -66,10 +69,15 @@ public class AppSettings
 
     // Flyout Visuals & Behavior
     public FlyoutPlacement Placement { get; set; } = FlyoutPlacement.BottomRight;
-    public double DisplayDurationSeconds { get; set; } = 3.5;
+    public double DisplayDurationSeconds { get; set; } = 4.0;
     public double HoverLeaveDurationSeconds { get; set; } = 1.5;
     public double OpacityPercent { get; set; } = 85.0;
     public string AccentColor { get; set; } = "#0078D4";
+    public bool UseSystemAccentColor { get; set; } = false;
+    public bool SuppressInFullscreen { get; set; } = true;
+
+    // History
+    public bool PersistHistory { get; set; } = false;
 
     // Updates are downloaded only from this project's GitHub Releases and are
     // verified against the release SHA-256 manifest before they are started.
@@ -84,9 +92,11 @@ public class AppSettings
     public bool DetectImage { get; set; } = true;
     public bool DetectPlainText { get; set; } = true;
     public bool DetectTimestamp { get; set; } = true;
+    public bool DetectIsoDateTime { get; set; } = true;
     public bool DetectBase64 { get; set; } = true;
     public bool DetectTable { get; set; } = true;
     public bool DetectEmail { get; set; } = true;
+    public bool DetectFileDrop { get; set; } = true;
     public bool EnableCleanUrl { get; set; } = true;
     public bool EnableCaseConverter { get; set; } = true;
     public bool EnableJwtDetector { get; set; } = true;
@@ -94,6 +104,12 @@ public class AppSettings
     public AppSettings Clone()
     {
         return (AppSettings)MemberwiseClone();
+    }
+
+    private static double ClampFinite(double value, double min, double max, double fallback)
+    {
+        if (!double.IsFinite(value)) return fallback;
+        return Math.Clamp(value, min, max);
     }
 
     /// <summary>
@@ -130,17 +146,17 @@ public class AppSettings
             normalized.WidgetMonitor = WidgetMonitorTarget.Primary;
         }
 
-        normalized.WidgetOffsetX = Math.Clamp(normalized.WidgetOffsetX, -800.0, 800.0);
-        normalized.OpacityPercent = Math.Clamp(normalized.OpacityPercent, 20.0, 100.0);
-        normalized.DisplayDurationSeconds = Math.Clamp(normalized.DisplayDurationSeconds, 1.5, 10.0);
-        normalized.HoverLeaveDurationSeconds = Math.Clamp(normalized.HoverLeaveDurationSeconds, 0.5, 5.0);
+        normalized.WidgetOffsetX = ClampFinite(normalized.WidgetOffsetX, -800.0, 800.0, 0.0);
+        normalized.OpacityPercent = ClampFinite(normalized.OpacityPercent, 20.0, 100.0, 85.0);
+        normalized.DisplayDurationSeconds = ClampFinite(normalized.DisplayDurationSeconds, 1.5, 10.0, 4.0);
+        normalized.HoverLeaveDurationSeconds = ClampFinite(normalized.HoverLeaveDurationSeconds, 0.5, 5.0, 1.5);
+
         if (!Enum.IsDefined(normalized.WidgetTextColor))
         {
             normalized.WidgetTextColor = WidgetTextColorMode.Auto;
         }
 
-        if (string.IsNullOrWhiteSpace(normalized.AccentColor) ||
-            !System.Text.RegularExpressions.Regex.IsMatch(normalized.AccentColor, "^#[0-9a-fA-F]{6}$"))
+        if (string.IsNullOrWhiteSpace(normalized.AccentColor) || !HexColorRegex.IsMatch(normalized.AccentColor))
         {
             normalized.AccentColor = "#0078D4";
         }

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using ClipFlyout.Models;
@@ -37,9 +38,15 @@ public class ThemeService : IDisposable
     {
         get
         {
+            var current = SettingsService.Instance.Current;
+            if (current.UseSystemAccentColor && TryGetWindowsAccentColor(out var sysColor))
+            {
+                return sysColor;
+            }
+
             try
             {
-                return (Color)ColorConverter.ConvertFromString(SettingsService.Instance.Current.AccentColor);
+                return (Color)ColorConverter.ConvertFromString(current.AccentColor);
             }
             catch
             {
@@ -48,6 +55,8 @@ public class ThemeService : IDisposable
         }
     }
 
+    public Color TextOnAccentColor => GetContrastingForeground(AccentColor);
+
     private readonly Action<AppSettings> _settingsChangedHandler;
 
     public ThemeService()
@@ -55,7 +64,6 @@ public class ThemeService : IDisposable
         _mode = SettingsService.Instance.Current.Theme;
         _settingsChangedHandler = cfg =>
         {
-            UpdateAccentResource(AccentColor);
             if (_mode != cfg.Theme)
             {
                 _mode = cfg.Theme;
@@ -63,6 +71,7 @@ public class ThemeService : IDisposable
             }
             else
             {
+                UpdateThemeResources(_isDarkTheme, AccentColor);
                 ThemeChanged?.Invoke();
             }
         };
@@ -75,15 +84,16 @@ public class ThemeService : IDisposable
     {
         if (e.Category == UserPreferenceCategory.General || e.Category == UserPreferenceCategory.Color)
         {
-            Application.Current?.Dispatcher.Invoke(UpdateThemeResolution);
+            var app = Application.Current;
+            if (app?.Dispatcher != null && !app.Dispatcher.HasShutdownStarted)
+            {
+                app.Dispatcher.BeginInvoke(UpdateThemeResolution);
+            }
         }
     }
 
     public void UpdateThemeResolution()
     {
-        bool wasDark = _isDarkTheme;
-        bool wasTransparency = _isTransparencyEnabled;
-
         if (_mode == AppThemeMode.Dark)
         {
             _isDarkTheme = true;
@@ -92,44 +102,145 @@ public class ThemeService : IDisposable
         {
             _isDarkTheme = false;
         }
-        else // System
+        else
         {
             _isDarkTheme = GetWindowsIsDarkTheme();
         }
 
         _isTransparencyEnabled = GetWindowsIsTransparencyEnabled();
-        UpdateAccentResource(AccentColor);
+        UpdateThemeResources(_isDarkTheme, AccentColor);
 
         ThemeChanged?.Invoke();
     }
 
     public void UpdateAccentResource(Color color)
     {
-        if (Application.Current != null)
+        UpdateThemeResources(_isDarkTheme, color);
+    }
+
+    private void UpdateThemeResources(bool isDark, Color accent)
+    {
+        var app = Application.Current;
+        if (app == null || app.Dispatcher.HasShutdownStarted) return;
+
+        void Apply()
         {
             try
             {
-                if (Application.Current.Dispatcher.CheckAccess())
-                {
-                    ApplyBrushes(color);
-                }
-                else
-                {
-                    Application.Current.Dispatcher.BeginInvoke(() => ApplyBrushes(color));
-                }
+                ApplyTokenDictionary(app, isDark);
+                ApplyAccentBrushes(app, accent, isDark);
             }
-            catch { }
+            catch
+            {
+            }
+        }
+
+        if (app.Dispatcher.CheckAccess())
+        {
+            Apply();
+        }
+        else
+        {
+            app.Dispatcher.BeginInvoke(Apply);
         }
     }
 
-    private static void ApplyBrushes(Color color)
+    private static void ApplyTokenDictionary(Application app, bool isDark)
+    {
+        string targetSuffix = isDark ? "Themes/Tokens.Dark.xaml" : "Themes/Tokens.Light.xaml";
+        var targetUri = new Uri($"pack://application:,,,/ClipFlyout;component/{targetSuffix}", UriKind.Absolute);
+
+        // Load token values from XAML and assign directly onto Application.Resources.
+        // Never replace/remove MergedDictionaries entries at runtime, which can trigger
+        // DeferredAppResourceReference NREs when combined with .NET 10 WPF ThemeMode.
+        var tokenDict = new ResourceDictionary { Source = targetUri };
+        foreach (var key in tokenDict.Keys)
+        {
+            object? val = tokenDict[key];
+            if (val is Freezable freezable && freezable.CanFreeze && !freezable.IsFrozen)
+            {
+                freezable.Freeze();
+            }
+            app.Resources[key] = val;
+        }
+    }
+
+    private static void ApplyAccentBrushes(Application app, Color accent, bool isDark)
+    {
+        Color hover = isDark ? AdjustBrightness(accent, 1.14) : AdjustBrightness(accent, 0.90);
+        Color pressed = isDark ? AdjustBrightness(accent, 0.84) : AdjustBrightness(accent, 0.78);
+        Color onAccent = GetContrastingForeground(accent);
+
+        app.Resources["FluentAccentBrush"] = CreateFrozenBrush(accent);
+        app.Resources["FluentAccentHoverBrush"] = CreateFrozenBrush(hover);
+        app.Resources["FluentAccentPressedBrush"] = CreateFrozenBrush(pressed);
+        app.Resources["FluentAccentSubtleBrush"] = CreateFrozenBrush(Color.FromArgb(38, accent.R, accent.G, accent.B));
+        app.Resources["FluentAccentLightBrush"] = CreateFrozenBrush(Color.FromArgb(44, accent.R, accent.G, accent.B));
+        app.Resources["FluentTextOnAccentBrush"] = CreateFrozenBrush(onAccent);
+    }
+
+    public static SolidColorBrush CreateFrozenBrush(Color color)
     {
         var brush = new SolidColorBrush(color);
         brush.Freeze();
-        Application.Current.Resources["FluentAccentBrush"] = brush;
-        var lightBrush = new SolidColorBrush(Color.FromArgb(40, color.R, color.G, color.B));
-        lightBrush.Freeze();
-        Application.Current.Resources["FluentAccentLightBrush"] = lightBrush;
+        return brush;
+    }
+
+    /// <summary>
+    /// Computes WCAG 2.1 relative luminance to pick crisp black or white foreground text on any accent color.
+    /// </summary>
+    public static Color GetContrastingForeground(Color background)
+    {
+        static double Linearize(byte c)
+        {
+            double s = c / 255.0;
+            return s <= 0.03928 ? s / 12.92 : Math.Pow((s + 0.055) / 1.055, 2.4);
+        }
+
+        double luminance = 0.2126 * Linearize(background.R) +
+                           0.7152 * Linearize(background.G) +
+                           0.0722 * Linearize(background.B);
+
+        // Contrast ratio threshold favoring crisp legibility on bright accents (yellow, cyan, mint)
+        return luminance > 0.36 ? Color.FromRgb(16, 16, 16) : Color.FromRgb(255, 255, 255);
+    }
+
+    public static Color AdjustBrightness(Color color, double factor)
+    {
+        byte r = (byte)Math.Clamp((int)Math.Round(color.R * factor), 0, 255);
+        byte g = (byte)Math.Clamp((int)Math.Round(color.G * factor), 0, 255);
+        byte b = (byte)Math.Clamp((int)Math.Round(color.B * factor), 0, 255);
+        return Color.FromArgb(color.A, r, g, b);
+    }
+
+    public static bool TryGetWindowsAccentColor(out Color color)
+    {
+        color = Color.FromRgb(0, 120, 212);
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\DWM");
+            var val = key?.GetValue("AccentColor") ?? key?.GetValue("ColorizationColor");
+            if (val is int abgr)
+            {
+                // AccentColor is stored as ABGR
+                byte r = (byte)(abgr & 0xFF);
+                byte g = (byte)((abgr >> 8) & 0xFF);
+                byte b = (byte)((abgr >> 16) & 0xFF);
+                if (key?.GetValue("AccentColor") == null)
+                {
+                    // ColorizationColor is stored as ARGB
+                    r = (byte)((abgr >> 16) & 0xFF);
+                    g = (byte)((abgr >> 8) & 0xFF);
+                    b = (byte)(abgr & 0xFF);
+                }
+                color = Color.FromRgb(r, g, b);
+                return true;
+            }
+        }
+        catch
+        {
+        }
+        return false;
     }
 
     private static bool GetWindowsIsDarkTheme()
@@ -151,7 +262,6 @@ public class ThemeService : IDisposable
         }
         catch
         {
-            // Default to light (standard Windows clean default) if cannot read
         }
         return false;
     }
@@ -169,7 +279,6 @@ public class ThemeService : IDisposable
         }
         catch
         {
-            // Default to true if cannot read
         }
         return true;
     }

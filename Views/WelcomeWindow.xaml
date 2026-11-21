@@ -3,137 +3,69 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:ClipFlyout.Controls"
         Title="ClipFlyout へようこそ"
-        Width="580"
-        Height="670"
+        Width="560"
+        Height="690"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
+        Background="Transparent"
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
-        Topmost="True"
         FontFamily="Segoe UI Variable Text, Segoe UI, sans-serif">
 
-    <Grid x:Name="RootGrid" Background="#F8FAFC">
+    <Grid Background="{DynamicResource AppSurfaceBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Top Header Hero -->
-        <Border Grid.Row="0" Padding="36,32,36,16">
-            <StackPanel HorizontalAlignment="Center">
-                <Border Width="64" Height="64" CornerRadius="16" Margin="0,0,0,16" HorizontalAlignment="Center">
-                    <Image x:Name="WelcomeAppIcon" Width="64" Height="64" RenderOptions.BitmapScalingMode="HighQuality"/>
-                </Border>
-                <TextBlock x:Name="WelcomeTitle"
-                           Text="ClipFlyout へようこそ"
-                           FontSize="24"
-                           FontWeight="Bold"
-                           HorizontalAlignment="Center"
-                           Foreground="#0F172A"/>
-                <TextBlock x:Name="WelcomeSubtitle"
-                           Text="コピーするだけで、整形・変換・保存のアクションを即座に提案します"
-                           FontSize="13"
-                           Margin="0,6,0,0"
-                           HorizontalAlignment="Center"
-                           Foreground="#64748B"/>
-            </StackPanel>
-        </Border>
+        <!-- Hero Header -->
+        <StackPanel Grid.Row="0" Margin="36,24,36,12" HorizontalAlignment="Center">
+            <Image x:Name="WelcomeAppIcon"
+                   Width="56" Height="56"
+                   Margin="0,0,0,12"
+                   HorizontalAlignment="Center"
+                   RenderOptions.BitmapScalingMode="HighQuality"/>
+            <TextBlock x:Name="WelcomeTitle"
+                       Text="ClipFlyout へようこそ"
+                       FontSize="24"
+                       FontWeight="SemiBold"
+                       HorizontalAlignment="Center"
+                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+            <TextBlock x:Name="WelcomeSubtitle"
+                       Text="コピーするだけで、整形・変換・保存のアクションを即座に提案します"
+                       FontSize="13"
+                       Margin="0,6,0,0"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+        </StackPanel>
 
-        <!-- Feature Overview Cards -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="36,8,36,12">
-            <StackPanel>
-                <!-- Feature 1: Clipboard Integration -->
-                <Border x:Name="CardFeature1" CornerRadius="8" BorderThickness="1" BorderBrush="#E2E8F0" Background="#FFFFFF" Padding="16,14" Margin="0,0,0,10">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Border Width="36" Height="36" CornerRadius="8" Background="#203B82F6" Margin="0,0,14,0" VerticalAlignment="Center">
-                            <TextBlock Text="📋" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock x:Name="Feat1Title" Text="クリップボード連携" FontSize="13.5" FontWeight="SemiBold" Foreground="#0F172A"/>
-                            <TextBlock x:Name="Feat1Desc" Text="テキスト、URL、JSON、カラーコード、画像を安全にローカル解析し、操作ボタンを表示" FontSize="12" Foreground="#64748B" Margin="0,2,0,0"/>
-                        </StackPanel>
-                    </Grid>
-                </Border>
+        <!-- Feature Cards + Quick Setup Options -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="36,4,36,16">
+                <controls:SettingsCard x:Name="CardFeat1" IconGlyph="&#xE8C8;" Header="" Description=""/>
+                <controls:SettingsCard x:Name="CardFeat2" IconGlyph="&#xE75B;" Header="" Description=""/>
+                <controls:SettingsCard x:Name="CardFeat3" IconGlyph="&#xE72E;" Header="" Description="" Margin="0,0,0,14"/>
 
-                <!-- Feature 2: Taskbar Widget -->
-                <Border x:Name="CardFeature2" CornerRadius="8" BorderThickness="1" BorderBrush="#E2E8F0" Background="#FFFFFF" Padding="16,14" Margin="0,0,0,10">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Border Width="36" Height="36" CornerRadius="8" Background="#2010B981" Margin="0,0,14,0" VerticalAlignment="Center">
-                            <TextBlock Text="📌" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock x:Name="Feat2Title" Text="タスクバーウィジェット" FontSize="13.5" FontWeight="SemiBold" Foreground="#0F172A"/>
-                            <TextBlock x:Name="Feat2Desc" Text="タスクバーに最新のコピー内容を小さく表示。クリックでいつでもフライアウトを呼び出し" FontSize="12" Foreground="#64748B" Margin="0,2,0,0"/>
-                        </StackPanel>
-                    </Grid>
-                </Border>
+                <!-- Quick Language Selector -->
+                <controls:SettingsCard x:Name="CardOptLanguage" IconGlyph="&#xF2B7;" Header="" Description="">
+                    <ComboBox x:Name="CmbLanguage" Width="170" SelectionChanged="CmbLanguage_SelectionChanged"/>
+                </controls:SettingsCard>
 
-                <!-- Feature 3: Privacy & Security -->
-                <Border x:Name="CardFeature3" CornerRadius="8" BorderThickness="1" BorderBrush="#E2E8F0" Background="#FFFFFF" Padding="16,14" Margin="0,0,0,16">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Border Width="36" Height="36" CornerRadius="8" Background="#208B5CF6" Margin="0,0,14,0" VerticalAlignment="Center">
-                            <TextBlock Text="🛡️" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock x:Name="Feat3Title" Text="プライバシー重視・完全ローカル" FontSize="13.5" FontWeight="SemiBold" Foreground="#0F172A"/>
-                            <TextBlock x:Name="Feat3Desc" Text="外部通信なし。1PasswordやBitwardenなどのパスワード管理ツールは自動除外" FontSize="12" Foreground="#64748B" Margin="0,2,0,0"/>
-                        </StackPanel>
-                    </Grid>
-                </Border>
-
-                <!-- Quick Language Option Card -->
-                <Border x:Name="CardOptionLanguage" CornerRadius="8" BorderThickness="1" BorderBrush="#E2E8F0" Background="#FFFFFF" Padding="16,12" Margin="0,0,0,10">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock x:Name="OptLanguageTitle" Text="表示言語" FontSize="13" FontWeight="Medium" Foreground="#0F172A"/>
-                            <TextBlock x:Name="OptLanguageDesc" Text="インターフェースの表示言語を選択します" FontSize="11.5" Foreground="#64748B" Margin="0,1,0,0"/>
-                        </StackPanel>
-                        <ComboBox x:Name="CmbLanguage" Grid.Column="1" Width="150" Height="30" VerticalAlignment="Center"
-                                  Background="#FFFFFF" BorderBrush="#CBD5E1" Foreground="#0F172A" FontSize="12"
-                                  SelectionChanged="CmbLanguage_SelectionChanged">
-                            <ComboBoxItem Content="自動検出 (OS設定)" Tag="Auto"/>
-                            <ComboBoxItem Content="日本語" Tag="Japanese"/>
-                            <ComboBoxItem Content="English" Tag="English"/>
-                        </ComboBox>
-                    </Grid>
-                </Border>
-
-                <!-- Quick Startup Option Card -->
-                <Border x:Name="CardOptionStartup" CornerRadius="8" BorderThickness="1" BorderBrush="#E2E8F0" Background="#FFFFFF" Padding="16,12">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock x:Name="OptStartupTitle" Text="Windows 起動時に自動開始" FontSize="13" FontWeight="Medium" Foreground="#0F172A"/>
-                            <TextBlock x:Name="OptStartupDesc" Text="PC起動時にバックグラウンドでスタンバイします" FontSize="11.5" Foreground="#64748B" Margin="0,1,0,0"/>
-                        </StackPanel>
-                        <controls:ToggleSwitch Grid.Column="1" x:Name="ToggleStartup" VerticalAlignment="Center" ForceLightMode="True"/>
-                    </Grid>
-                </Border>
+                <!-- Quick Startup Toggle -->
+                <controls:SettingsCard x:Name="CardOptStartup" IconGlyph="&#xE7E8;" Header="" Description="">
+                    <controls:ToggleSwitch x:Name="ToggleStartup"/>
+                </controls:SettingsCard>
             </StackPanel>
         </ScrollViewer>
 
-        <!-- Bottom Action Bar -->
-        <Border Grid.Row="2" x:Name="FooterBorder" Padding="36,16,36,24" BorderThickness="0,1,0,0" BorderBrush="#E2E8F0" Background="#F1F5F9">
+        <!-- Footer Actions -->
+        <Border Grid.Row="2"
+                Padding="36,16,36,22"
+                BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource DividerStrokeBrush}"
+                Background="{DynamicResource CardBackgroundSecondaryBrush}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -142,69 +74,20 @@
 
                 <Button Grid.Column="0"
                         x:Name="BtnCustomize"
+                        Style="{StaticResource FluentButtonStyle}"
                         Content="詳細をカスタマイズ"
                         HorizontalAlignment="Left"
                         Height="36"
                         Padding="18,0"
-                        BorderThickness="1"
-                        FontSize="13"
-                        FontWeight="Medium"
-                        Cursor="Hand"
-                        Click="BtnCustomize_Click">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="btnBorder"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="6"
-                                    Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="btnBorder" Property="Background" Value="#F8FAFC"/>
-                                    <Setter TargetName="btnBorder" Property="BorderBrush" Value="#94A3B8"/>
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="btnBorder" Property="Background" Value="#E2E8F0"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Button.Template>
-                </Button>
+                        Click="BtnCustomize_Click"/>
 
                 <Button Grid.Column="1"
                         x:Name="BtnUseDefaults"
-                        Content="既定値で使用する (推奨)"
+                        Style="{StaticResource FluentAccentButtonStyle}"
+                        Content="この設定で始める (推奨)"
                         Height="36"
                         Padding="22,0"
-                        FontSize="13"
-                        FontWeight="SemiBold"
-                        BorderThickness="1"
-                        Cursor="Hand"
-                        Click="BtnUseDefaults_Click">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="btnBorder"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="6"
-                                    Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="btnBorder" Property="Opacity" Value="0.92"/>
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="btnBorder" Property="Opacity" Value="0.82"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Button.Template>
-                </Button>
+                        Click="BtnUseDefaults_Click"/>
             </Grid>
         </Border>
     </Grid>

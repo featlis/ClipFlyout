@@ -1,10 +1,13 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using ClipFlyout.Native;
 using Microsoft.Win32;
 using QRCoder;
+using WpfApplication = System.Windows.Application;
 using WpfClipboard = System.Windows.Clipboard;
 
 namespace ClipFlyout.Services;
@@ -21,7 +24,45 @@ public class ActionExecutor
     public ActionExecutor(IClipboardMonitor clipboardMonitor, Action<string>? setClipboardText = null)
     {
         _clipboardMonitor = clipboardMonitor;
-        _setClipboardText = setClipboardText ?? (text => WpfClipboard.SetDataObject(text, true));
+        _setClipboardText = setClipboardText ?? SetClipboardTextWithRetry;
+    }
+
+    private static void SetClipboardTextWithRetry(string text)
+    {
+        Exception? lastError = null;
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                WpfClipboard.SetDataObject(text, true);
+                return;
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+                Thread.Sleep(50);
+            }
+        }
+        if (lastError != null) throw lastError;
+    }
+
+    private static void SetClipboardImageWithRetry(BitmapSource image)
+    {
+        Exception? lastError = null;
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                WpfClipboard.SetImage(image);
+                return;
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+                Thread.Sleep(50);
+            }
+        }
+        if (lastError != null) throw lastError;
     }
 
     public void CopyText(string text, string successMessageKey = "Toast_Copied")
@@ -56,16 +97,22 @@ public class ActionExecutor
         }
     }
 
-    public void PasteToActiveWindow()
+    public void PasteToActiveWindow(bool notifyToast = false)
     {
         try
         {
-            Win32.PasteToActiveWindow();
-            ActionExecuted?.Invoke(_loc.Get("Toast_Pasted"));
+            bool sent = Win32.PasteToActiveWindow();
+            if (notifyToast)
+            {
+                ActionExecuted?.Invoke(sent ? _loc.Get("Toast_Pasted") : _loc.Get("Toast_PasteBlocked"));
+            }
         }
         catch (Exception ex)
         {
-            ActionExecuted?.Invoke($"Error: {ex.Message}");
+            if (notifyToast)
+            {
+                ActionExecuted?.Invoke($"Error: {ex.Message}");
+            }
         }
     }
 
@@ -75,7 +122,7 @@ public class ActionExecutor
         {
             using (_clipboardMonitor.SuppressNotifications())
             {
-                WpfClipboard.SetImage(image);
+                SetClipboardImageWithRetry(image);
             }
             ActionExecuted?.Invoke(_loc.Get(successMessageKey));
         }
@@ -109,9 +156,16 @@ public class ActionExecutor
     {
         try
         {
-            Process.Start(new ProcessStartInfo
+            if (!Uri.TryCreate(url?.Trim(), UriKind.Absolute, out var uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             {
-                FileName = url,
+                ActionExecuted?.Invoke(_loc.Get("Toast_InvalidUrl"));
+                return;
+            }
+
+            using var _ = Process.Start(new ProcessStartInfo
+            {
+                FileName = uri.AbsoluteUri,
                 UseShellExecute = true
             });
             ActionExecuted?.Invoke(_loc.Get("Toast_BrowserOpened"));
@@ -126,8 +180,66 @@ public class ActionExecutor
     {
         try
         {
-            Process.Start(new ProcessStartInfo { FileName = $"mailto:{emailAddress}", UseShellExecute = true });
+            string clean = (emailAddress ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(clean) || clean.Contains('?') || clean.Contains('&') || clean.Contains('\r') || clean.Contains('\n'))
+            {
+                return;
+            }
+
+            using var _ = Process.Start(new ProcessStartInfo
+            {
+                FileName = $"mailto:{Uri.EscapeDataString(clean)}",
+                UseShellExecute = true
+            });
             ActionExecuted?.Invoke(_loc.Get("Toast_EmailOpened"));
+        }
+        catch (Exception ex)
+        {
+            ActionExecuted?.Invoke($"Error: {ex.Message}");
+        }
+    }
+
+    public void OpenContainingFolder(string filePath)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(filePath)) return;
+
+            if (Directory.Exists(filePath))
+            {
+                using var _ = Process.Start(new ProcessStartInfo
+                {
+                    FileName = filePath,
+                    UseShellExecute = true
+                });
+            }
+            else if (File.Exists(filePath))
+            {
+                using var _ = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{filePath}\"",
+                    UseShellExecute = true
+                });
+            }
+            else
+            {
+                string? dir = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                {
+                    using var _ = Process.Start(new ProcessStartInfo
+                    {
+                        FileName = dir,
+                        UseShellExecute = true
+                    });
+                }
+                else
+                {
+                    return;
+                }
+            }
+
+            ActionExecuted?.Invoke(_loc.Get("Toast_FolderOpened"));
         }
         catch (Exception ex)
         {
@@ -137,7 +249,7 @@ public class ActionExecutor
 
     public void GenerateAndCopyQrCode(string text)
     {
-        try
+        _ = Task.Run(() =>
         {
             using var qrGenerator = new QRCodeGenerator();
             using var qrCodeData = qrGenerator.CreateQrCode(text, QRCodeGenerator.ECCLevel.Q);
@@ -151,13 +263,31 @@ public class ActionExecutor
             bitmapImage.StreamSource = ms;
             bitmapImage.EndInit();
             bitmapImage.Freeze();
-
-            CopyImage(bitmapImage, "Toast_QrCopied");
-        }
-        catch (Exception ex)
+            return bitmapImage;
+        }).ContinueWith(t =>
         {
-            ActionExecuted?.Invoke($"QR Error: {ex.Message}");
-        }
+            var app = WpfApplication.Current;
+            void Deliver()
+            {
+                if (t.Status == TaskStatus.RanToCompletion)
+                {
+                    CopyImage(t.Result, "Toast_QrCopied");
+                }
+                else
+                {
+                    ActionExecuted?.Invoke($"QR Error: {t.Exception?.GetBaseException().Message}");
+                }
+            }
+
+            if (app?.Dispatcher != null && !app.Dispatcher.HasShutdownStarted)
+            {
+                app.Dispatcher.BeginInvoke(Deliver);
+            }
+            else
+            {
+                Deliver();
+            }
+        });
     }
 
     public void SaveImageToFile(BitmapSource image)
@@ -173,7 +303,8 @@ public class ActionExecutor
 
             if (dialog.ShowDialog() == true)
             {
-                BitmapEncoder encoder = Path.GetExtension(dialog.FileName).ToLowerInvariant() switch
+                string fileName = dialog.FileName;
+                BitmapEncoder encoder = Path.GetExtension(fileName).ToLowerInvariant() switch
                 {
                     ".jpg" or ".jpeg" => new JpegBitmapEncoder(),
                     ".bmp" => new BmpBitmapEncoder(),
@@ -181,10 +312,11 @@ public class ActionExecutor
                 };
 
                 encoder.Frames.Add(BitmapFrame.Create(image));
-                using var fs = File.OpenWrite(dialog.FileName);
+                // Use File.Create (truncates existing file instead of leaving trailing garbage bytes!)
+                using var fs = File.Create(fileName);
                 encoder.Save(fs);
 
-                ActionExecuted?.Invoke(_loc.Get("Toast_ImageSaved", Path.GetFileName(dialog.FileName)));
+                ActionExecuted?.Invoke(_loc.Get("Toast_ImageSaved", Path.GetFileName(fileName)));
             }
         }
         catch (Exception ex)

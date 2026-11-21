@@ -5,6 +5,7 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Tokens.Light.xaml"/>
                 <ResourceDictionary Source="Themes/FluentControls.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>

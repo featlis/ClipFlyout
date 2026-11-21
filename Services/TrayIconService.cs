@@ -1,18 +1,16 @@
 using System;
 using System.Drawing;
-using System.Drawing.Drawing2D;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using H.NotifyIcon;
+using ClipFlyout.Controls;
 using ClipFlyout.Models;
-using ClipFlyout.Services;
 using ClipFlyout.Views;
 using WpfApplication = System.Windows.Application;
-using WpfColor = System.Windows.Media.Color;
-using WpfBrush = System.Windows.Media.SolidColorBrush;
-using DrawingSize = System.Drawing.Size;
-using DrawingRectangle = System.Drawing.Rectangle;
 
 namespace ClipFlyout.Services;
 
@@ -26,31 +24,24 @@ public class TrayIconService : IDisposable
     private readonly ContextMenu _contextMenu;
     private readonly Icon _appIcon;
     private readonly HwndSource _anchorSource;
+    private readonly Func<bool>? _hotkeyFailedProvider;
     private SettingsWindow? _settingsWindow;
+    private bool _isCheckingUpdates;
 
-    private MenuItem? _settingsItem;
-    private MenuItem? _toggleItem;
-    private MenuItem? _themeSubMenu;
-    private MenuItem? _themeSysItem;
-    private MenuItem? _themeLightItem;
-    private MenuItem? _themeDarkItem;
-    private MenuItem? _langSubMenu;
-    private MenuItem? _langAutoItem;
-    private MenuItem? _langJaItem;
-    private MenuItem? _langEnItem;
-    private MenuItem? _exitItem;
-    private MenuItem? _checkUpdatesItem;
-    private readonly Action _themeChangedHandler;
-    private readonly Action _historyChangedHandler;
+    private readonly Action<AppSettings> _settingsChangedHandler;
+    private readonly Action _languageChangedHandler;
 
-    public TrayIconService(IClipboardMonitor clipboardMonitor)
+    public static bool IsContextMenuActive { get; private set; }
+
+    public event Action<DetectionResult>? HistoryItemSelected;
+    public event Action? RecallRequested;
+
+    public TrayIconService(IClipboardMonitor clipboardMonitor, Func<bool>? hotkeyFailedProvider = null)
     {
         _clipboardMonitor = clipboardMonitor;
-        _contextMenu = CreateContextMenu();
+        _hotkeyFailedProvider = hotkeyFailedProvider;
         _appIcon = AppIconHelper.CreateAppIcon(32);
 
-        // Hidden anchor window provides a valid foreground HWND so the context menu
-        // can be dismissed properly when clicking outside (standard Win32 tray behavior).
         _anchorSource = new HwndSource(new HwndSourceParameters("ClipFlyoutTrayAnchor")
         {
             Width = 0,
@@ -58,61 +49,58 @@ public class TrayIconService : IDisposable
             WindowStyle = 0
         });
 
+        _contextMenu = CreateContextMenu();
+
         _taskbarIcon = new TaskbarIcon
         {
             Icon = _appIcon,
             ToolTipText = "ClipFlyout"
-            // Note: We do NOT assign ContextMenu to TaskbarIcon directly. H.NotifyIcon's
-            // built-in right-click handler causes immediate popup dismissal due to focus conflicts.
         };
-        _taskbarIcon.TrayLeftMouseUp += (s, e) => ToggleContextMenu();
-        _taskbarIcon.TrayRightMouseUp += (s, e) => ToggleContextMenu();
-        _taskbarIcon.TrayMouseDoubleClick += (s, e) => OpenSettings();
+
+        // Clean Windows 11 tray UX:
+        // Left-click -> toggle/recall flyout; Right-click -> Fluent menu; Double-click -> Settings
+        _taskbarIcon.TrayLeftMouseUp += (_, _) => RecallRequested?.Invoke();
+        _taskbarIcon.TrayRightMouseUp += (_, _) => ToggleContextMenu();
+        _taskbarIcon.TrayMouseDoubleClick += (_, _) => OpenSettings();
         _taskbarIcon.ForceCreate();
 
-        _themeChangedHandler = () =>
-        {
-            var app = WpfApplication.Current;
-            if (app != null && !app.Dispatcher.HasShutdownStarted)
-            {
-                app.Dispatcher.Invoke(RebuildContextMenu);
-            }
-        };
-        _historyChangedHandler = () =>
-        {
-            var app = WpfApplication.Current;
-            if (app != null && !app.Dispatcher.HasShutdownStarted)
-            {
-                app.Dispatcher.Invoke(RebuildContextMenu);
-            }
-        };
+        _settingsChangedHandler = _ => UpdateToolTip();
+        _languageChangedHandler = UpdateToolTip;
 
-        _loc.LanguageChanged += BuildMenu;
-        _theme.ThemeChanged += _themeChangedHandler;
-        HistoryService.Instance.HistoryChanged += _historyChangedHandler;
-
-        BuildMenu();
+        _settings.SettingsChanged += _settingsChangedHandler;
+        _loc.LanguageChanged += _languageChangedHandler;
+        UpdateToolTip();
     }
 
-    public event Action<DetectionResult>? HistoryItemSelected;
+    private void UpdateToolTip()
+    {
+        var app = WpfApplication.Current;
+        if (app == null || app.Dispatcher.HasShutdownStarted) return;
+
+        void Apply()
+        {
+            bool enabled = _settings.Current.IsMonitoringEnabled;
+            _taskbarIcon.ToolTipText = enabled ? _loc.Get("Tray_TitleActive") : _loc.Get("Tray_TitlePaused");
+        }
+
+        if (app.Dispatcher.CheckAccess()) Apply();
+        else app.Dispatcher.BeginInvoke(Apply);
+    }
 
     public void OpenSettings()
     {
-        if (WpfApplication.Current.Dispatcher.CheckAccess())
-        {
-            ShowSettingsInternal();
-        }
-        else
-        {
-            WpfApplication.Current.Dispatcher.Invoke(ShowSettingsInternal);
-        }
+        var app = WpfApplication.Current;
+        if (app == null || app.Dispatcher.HasShutdownStarted) return;
+
+        if (app.Dispatcher.CheckAccess()) ShowSettingsInternal();
+        else app.Dispatcher.Invoke(ShowSettingsInternal);
     }
 
     private void ShowSettingsInternal()
     {
         if (_settingsWindow == null || !_settingsWindow.IsLoaded)
         {
-            _settingsWindow = new SettingsWindow();
+            _settingsWindow = new SettingsWindow(_hotkeyFailedProvider);
             _settingsWindow.Closed += (_, _) => _settingsWindow = null;
             _settingsWindow.Show();
         }
@@ -134,33 +122,32 @@ public class TrayIconService : IDisposable
             return;
         }
 
+        // Lazy build right before display (zero overhead on clipboard copies!)
+        PopulateMenuItems();
+
         IsContextMenuActive = true;
         if (_anchorSource.Handle != IntPtr.Zero)
         {
             Native.Win32.SetForegroundWindow(_anchorSource.Handle);
         }
 
-        _contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+        _contextMenu.Placement = PlacementMode.MousePoint;
         _contextMenu.IsOpen = true;
     }
-
-    public static bool IsContextMenuActive { get; private set; }
-
-    private bool _pendingMenuRebuild;
 
     private ContextMenu CreateContextMenu()
     {
         var menu = new ContextMenu
         {
-            FontSize = 12.5,
-            Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint
+            Placement = PlacementMode.MousePoint
         };
 
-        menu.Opened += (_, _) =>
+        if (WpfApplication.Current?.TryFindResource("FluentContextMenuStyle") is Style cmStyle)
         {
-            IsContextMenuActive = true;
-        };
+            menu.Style = cmStyle;
+        }
 
+        menu.Opened += (_, _) => IsContextMenuActive = true;
         menu.Closed += (_, _) =>
         {
             IsContextMenuActive = false;
@@ -168,318 +155,177 @@ public class TrayIconService : IDisposable
             {
                 Native.Win32.PostMessage(_anchorSource.Handle, Native.Win32.WM_NULL, IntPtr.Zero, IntPtr.Zero);
             }
-            if (_pendingMenuRebuild)
-            {
-                _pendingMenuRebuild = false;
-                RebuildContextMenu();
-            }
         };
 
         return menu;
     }
 
-    private void UpdateMenuTheme()
+    private MenuItem MakeItem(string header, Action? onClick = null, bool isCheckable = false, bool isChecked = false, bool isEnabled = true)
     {
-        // User requested: Always use the light mode color palette for the tray icon context menu,
-        // even when the application / OS is in dark mode.
-        var itemForeground = new WpfBrush(WpfColor.FromRgb(24, 32, 45));
-        var hoverBackground = new WpfBrush(WpfColor.FromRgb(220, 232, 248));
-        var pressedBackground = new WpfBrush(WpfColor.FromRgb(198, 220, 245));
-        var menuBackground = new WpfBrush(WpfColor.FromRgb(255, 255, 255));
-
-        _contextMenu.Background = menuBackground;
-        _contextMenu.Foreground = itemForeground;
-        _contextMenu.BorderBrush = new WpfBrush(WpfColor.FromRgb(226, 232, 240));
-        _contextMenu.BorderThickness = new Thickness(1);
-
-        // Explicit MenuItem style for high contrast, clean hover/press behavior
-        var style = new Style(typeof(MenuItem));
-        style.Setters.Add(new Setter(Control.ForegroundProperty, itemForeground));
-        style.Setters.Add(new Setter(Control.BackgroundProperty, new WpfBrush(WpfColor.FromArgb(0, 0, 0, 0))));
-        style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(12, 7, 12, 7)));
-        style.Setters.Add(new Setter(Control.MinHeightProperty, 30.0));
-        style.Triggers.Add(new Trigger
+        var item = new MenuItem
         {
-            Property = MenuItem.IsHighlightedProperty,
-            Value = true,
-            Setters = { new Setter(Control.BackgroundProperty, hoverBackground), new Setter(Control.ForegroundProperty, itemForeground) }
-        });
-        style.Triggers.Add(new Trigger
-        {
-            Property = MenuItem.IsPressedProperty,
-            Value = true,
-            Setters = { new Setter(Control.BackgroundProperty, pressedBackground) }
-        });
-        _contextMenu.Resources[typeof(MenuItem)] = style;
+            Header = header,
+            IsCheckable = isCheckable,
+            IsChecked = isChecked,
+            IsEnabled = isEnabled
+        };
 
-        // Ensure nested submenus also use the light system keys
-        _contextMenu.Resources[System.Windows.SystemColors.MenuBrushKey] = menuBackground;
-        _contextMenu.Resources[System.Windows.SystemColors.MenuTextBrushKey] = itemForeground;
-        _contextMenu.Resources[System.Windows.SystemColors.HighlightBrushKey] = hoverBackground;
-        _contextMenu.Resources[System.Windows.SystemColors.HighlightTextBrushKey] = itemForeground;
-        _contextMenu.Resources[System.Windows.SystemColors.ControlBrushKey] = menuBackground;
-        _contextMenu.Resources[System.Windows.SystemColors.ControlTextBrushKey] = itemForeground;
+        if (WpfApplication.Current?.TryFindResource("FluentMenuItemStyle") is Style itemStyle)
+        {
+            item.Style = itemStyle;
+        }
+
+        if (onClick != null)
+        {
+            item.Click += (_, _) => onClick();
+        }
+
+        return item;
     }
 
-    private void BuildMenu()
+    private Separator MakeSeparator()
     {
-        if (WpfApplication.Current.Dispatcher.CheckAccess())
+        var sep = new Separator();
+        if (WpfApplication.Current?.TryFindResource("FluentMenuSeparatorStyle") is Style sepStyle)
         {
-            RebuildContextMenu();
+            sep.Style = sepStyle;
         }
-        else
-        {
-            WpfApplication.Current.Dispatcher.Invoke(RebuildContextMenu);
-        }
+        return sep;
     }
 
-    private void RebuildContextMenu()
+    private void PopulateMenuItems()
     {
-        if (_contextMenu.IsOpen)
-        {
-            _pendingMenuRebuild = true;
-            return;
-        }
-
         _contextMenu.Items.Clear();
-        UpdateMenuTheme();
 
-        // 1. Title Header
-        var titleItem = new MenuItem
-        {
-            Header = $"ClipFlyout {AppInfo.DisplayVersion}",
-            IsEnabled = false,
-            FontWeight = FontWeights.Bold,
-            Foreground = new WpfBrush(WpfColor.FromRgb(100, 116, 139))
-        };
-        _contextMenu.Items.Add(titleItem);
+        var cfg = _settings.Current;
 
-        // 2. Settings Item
-        _settingsItem = new MenuItem
-        {
-            Header = _loc.Get("Tray_Settings"),
-            FontWeight = FontWeights.SemiBold
-        };
-        _settingsItem.Click += (s, e) => OpenSettings();
-        _contextMenu.Items.Add(_settingsItem);
+        // Open Flyout
+        _contextMenu.Items.Add(MakeItem(_loc.Get("Tray_Settings_Flyout"), () => RecallRequested?.Invoke()));
 
-        // 2b. History Submenu
-        var historySubMenu = new MenuItem
+        // Recent History Submenu
+        var historyMenu = MakeItem(_loc.Get("Tray_History"));
+        var items = HistoryService.Instance.GetItems();
+        if (items.Count == 0)
         {
-            Header = _loc.Get("Tray_History")
-        };
-        var historyItems = HistoryService.Instance.GetItems();
-        if (historyItems.Count == 0)
-        {
-            historySubMenu.Items.Add(new MenuItem
-            {
-                Header = _loc.Get("History_Empty"),
-                IsEnabled = false
-            });
+            historyMenu.Items.Add(MakeItem(_loc.Get("History_Empty"), isEnabled: false));
         }
         else
         {
-            foreach (var item in historyItems)
+            int shown = 0;
+            foreach (var h in items)
             {
-                string header = item.DisplaySnippet;
-                if (header.Length > 28) header = header[..28] + "…";
-                var historyMenuItem = new MenuItem
-                {
-                    Header = $"{item.Timestamp:HH:mm}  {header}"
-                };
-                var targetResult = item.Result;
-                historyMenuItem.Click += (_, _) =>
-                {
-                    HistoryItemSelected?.Invoke(targetResult);
-                };
-                historySubMenu.Items.Add(historyMenuItem);
+                if (shown >= 10) break;
+                string prefix = h.IsPinned ? "★ " : string.Empty;
+                string label = $"{prefix}{h.DisplaySnippet}";
+                if (label.Length > 42) label = label[..42] + "…";
+                var captured = h.Result;
+                historyMenu.Items.Add(MakeItem(label, () => HistoryItemSelected?.Invoke(captured)));
+                shown++;
             }
+            historyMenu.Items.Add(MakeSeparator());
+            historyMenu.Items.Add(MakeItem(_loc.Get("Tray_ClearHistory"), () => HistoryService.Instance.Clear(includePinned: false)));
         }
-        _contextMenu.Items.Add(historySubMenu);
+        _contextMenu.Items.Add(historyMenu);
 
-        _contextMenu.Items.Add(new Separator());
+        _contextMenu.Items.Add(MakeSeparator());
 
-        // 3. Toggle Monitoring
-        _toggleItem = new MenuItem
-        {
-            Header = _loc.Get("Tray_ToggleMonitoring"),
-            IsCheckable = true,
-            IsChecked = _clipboardMonitor.IsEnabled
-        };
-        _toggleItem.Click += (s, e) =>
-        {
-            bool newVal = !_clipboardMonitor.IsEnabled;
-            _clipboardMonitor.IsEnabled = newVal;
-            _settings.UpdateSettings(cfg => cfg.IsMonitoringEnabled = newVal);
-            UpdateStatus();
-        };
-        _contextMenu.Items.Add(_toggleItem);
+        // Toggle Monitoring
+        _contextMenu.Items.Add(MakeItem(
+            _loc.Get("Tray_ToggleMonitoring"),
+            () =>
+            {
+                bool next = !_settings.Current.IsMonitoringEnabled;
+                _clipboardMonitor.IsEnabled = next;
+                _settings.UpdateSettings(s => s.IsMonitoringEnabled = next);
+            },
+            isCheckable: true,
+            isChecked: cfg.IsMonitoringEnabled));
 
-        // 4. Theme Submenu
-        _themeSubMenu = new MenuItem
-        {
-            Header = _loc.Get("Tray_Theme")
-        };
+        // Theme Submenu
+        var themeMenu = MakeItem(_loc.Get("Tray_Theme"));
+        themeMenu.Items.Add(MakeItem(_loc.Get("Tray_ThemeSystem"), () => SetTheme(AppThemeMode.System), true, cfg.Theme == AppThemeMode.System));
+        themeMenu.Items.Add(MakeItem(_loc.Get("Tray_ThemeLight"), () => SetTheme(AppThemeMode.Light), true, cfg.Theme == AppThemeMode.Light));
+        themeMenu.Items.Add(MakeItem(_loc.Get("Tray_ThemeDark"), () => SetTheme(AppThemeMode.Dark), true, cfg.Theme == AppThemeMode.Dark));
+        _contextMenu.Items.Add(themeMenu);
 
-        _themeSysItem = new MenuItem
-        {
-            Header = _loc.Get("Tray_ThemeSystem"),
-            IsCheckable = true,
-            IsChecked = _settings.Current.Theme == AppThemeMode.System
-        };
-        _themeSysItem.Click += (s, e) =>
-        {
-            _theme.Mode = AppThemeMode.System;
-            _settings.UpdateSettings(cfg => cfg.Theme = AppThemeMode.System);
-            RebuildContextMenu();
-        };
+        // Language Submenu
+        var langMenu = MakeItem(_loc.Get("Tray_Language"));
+        langMenu.Items.Add(MakeItem(_loc.Get("Tray_LangAuto"), () => SetLanguage(AppLanguage.Auto), true, cfg.Language == AppLanguage.Auto));
+        langMenu.Items.Add(MakeItem(_loc.Get("Tray_LangJapanese"), () => SetLanguage(AppLanguage.Japanese), true, cfg.Language == AppLanguage.Japanese));
+        langMenu.Items.Add(MakeItem(_loc.Get("Tray_LangEnglish"), () => SetLanguage(AppLanguage.English), true, cfg.Language == AppLanguage.English));
+        _contextMenu.Items.Add(langMenu);
 
-        _themeLightItem = new MenuItem
-        {
-            Header = _loc.Get("Tray_ThemeLight"),
-            IsCheckable = true,
-            IsChecked = _settings.Current.Theme == AppThemeMode.Light
-        };
-        _themeLightItem.Click += (s, e) =>
-        {
-            _theme.Mode = AppThemeMode.Light;
-            _settings.UpdateSettings(cfg => cfg.Theme = AppThemeMode.Light);
-            RebuildContextMenu();
-        };
+        _contextMenu.Items.Add(MakeSeparator());
 
-        _themeDarkItem = new MenuItem
-        {
-            Header = _loc.Get("Tray_ThemeDark"),
-            IsCheckable = true,
-            IsChecked = _settings.Current.Theme == AppThemeMode.Dark
-        };
-        _themeDarkItem.Click += (s, e) =>
-        {
-            _theme.Mode = AppThemeMode.Dark;
-            _settings.UpdateSettings(cfg => cfg.Theme = AppThemeMode.Dark);
-            RebuildContextMenu();
-        };
+        // Settings & Updates
+        _contextMenu.Items.Add(MakeItem(_loc.Get("Tray_Settings"), OpenSettings));
+        _contextMenu.Items.Add(MakeItem(
+            _isCheckingUpdates ? _loc.Get("Update_Checking") : _loc.Get("Tray_CheckUpdates"),
+            () => _ = CheckUpdatesFromTrayAsync(),
+            isEnabled: !_isCheckingUpdates));
 
-        _themeSubMenu.Items.Add(_themeSysItem);
-        _themeSubMenu.Items.Add(_themeLightItem);
-        _themeSubMenu.Items.Add(_themeDarkItem);
-        _contextMenu.Items.Add(_themeSubMenu);
+        _contextMenu.Items.Add(MakeSeparator());
 
-        // 5. Language Submenu
-        _langSubMenu = new MenuItem
-        {
-            Header = _loc.Get("Tray_Language")
-        };
-
-        _langAutoItem = new MenuItem
-        {
-            Header = _loc.Get("Tray_LangAuto"),
-            IsCheckable = true,
-            IsChecked = _settings.Current.Language == AppLanguage.Auto
-        };
-        _langAutoItem.Click += (s, e) =>
-        {
-            _loc.CurrentLanguage = AppLanguage.Auto;
-            _settings.UpdateSettings(cfg => cfg.Language = AppLanguage.Auto);
-        };
-
-        _langJaItem = new MenuItem
-        {
-            Header = _loc.Get("Tray_LangJapanese"),
-            IsCheckable = true,
-            IsChecked = _settings.Current.Language == AppLanguage.Japanese
-        };
-        _langJaItem.Click += (s, e) =>
-        {
-            _loc.CurrentLanguage = AppLanguage.Japanese;
-            _settings.UpdateSettings(cfg => cfg.Language = AppLanguage.Japanese);
-        };
-
-        _langEnItem = new MenuItem
-        {
-            Header = _loc.Get("Tray_LangEnglish"),
-            IsCheckable = true,
-            IsChecked = _settings.Current.Language == AppLanguage.English
-        };
-        _langEnItem.Click += (s, e) =>
-        {
-            _loc.CurrentLanguage = AppLanguage.English;
-            _settings.UpdateSettings(cfg => cfg.Language = AppLanguage.English);
-        };
-
-        _langSubMenu.Items.Add(_langAutoItem);
-        _langSubMenu.Items.Add(_langJaItem);
-        _langSubMenu.Items.Add(_langEnItem);
-        _contextMenu.Items.Add(_langSubMenu);
-
-        _contextMenu.Items.Add(new Separator());
-
-        _checkUpdatesItem = new MenuItem { Header = _loc.Get("Tray_CheckUpdates") };
-        _checkUpdatesItem.Click += async (_, _) => await CheckForUpdatesAsync();
-        _contextMenu.Items.Add(_checkUpdatesItem);
-
-        // 6. Exit
-        _exitItem = new MenuItem
-        {
-            Header = _loc.Get("Tray_Exit")
-        };
-        _exitItem.Click += (s, e) => WpfApplication.Current.Shutdown();
-        _contextMenu.Items.Add(_exitItem);
-
-        UpdateStatus();
+        // Exit
+        _contextMenu.Items.Add(MakeItem(_loc.Get("Tray_Exit"), () => WpfApplication.Current?.Shutdown()));
     }
 
-    private async System.Threading.Tasks.Task CheckForUpdatesAsync()
+    private void SetTheme(AppThemeMode mode)
     {
-        if (_checkUpdatesItem != null) _checkUpdatesItem.IsEnabled = false;
+        _settings.UpdateSettings(s => s.Theme = mode);
+        _theme.Mode = mode;
+    }
+
+    private void SetLanguage(AppLanguage lang)
+    {
+        _settings.UpdateSettings(s => s.Language = lang);
+        _loc.CurrentLanguage = lang;
+    }
+
+    private async Task CheckUpdatesFromTrayAsync()
+    {
+        if (_isCheckingUpdates) return;
+        _isCheckingUpdates = true;
         try
         {
-            var result = await UpdateService.Instance.CheckForUpdateAsync();
-            if (result is null)
+            var update = await UpdateService.Instance.CheckForUpdateAsync(CancellationToken.None);
+            if (update == null)
             {
-                MessageBox.Show(_loc.Get("Update_UpToDate"), "ClipFlyout", MessageBoxButton.OK, MessageBoxImage.Information);
+                FluentDialog.ShowInfo(_settingsWindow, "ClipFlyout", _loc.Get("Update_UpToDate"), _loc.Get("Dialog_OK"), "\uE73E");
                 return;
             }
 
-            var choice = MessageBox.Show(
-                _loc.Get("Update_Available", result.Version),
-                "ClipFlyout",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Information);
-            if (choice == MessageBoxResult.Yes)
+            bool install = FluentDialog.ShowConfirm(
+                _settingsWindow,
+                _loc.Get("Update_Available_Title"),
+                _loc.Get("Update_Available_Body", update.Version),
+                _loc.Get("Update_InstallNow"),
+                _loc.Get("Dialog_Cancel"),
+                "\uE896");
+
+            if (install)
             {
-                await UpdateService.Instance.DownloadAndStartInstallerAsync(result);
-                WpfApplication.Current.Shutdown();
+                await UpdateService.Instance.DownloadAndStartInstallerAsync(update, CancellationToken.None);
+                WpfApplication.Current?.Shutdown();
             }
         }
-        catch
+        catch (Exception ex)
         {
-            MessageBox.Show(_loc.Get("Update_Failed"), "ClipFlyout", MessageBoxButton.OK, MessageBoxImage.Warning);
+            FluentDialog.ShowInfo(_settingsWindow, "ClipFlyout", _loc.Get("Update_Error_Dialog", ex.Message), _loc.Get("Dialog_OK"), "\uE7BA");
         }
         finally
         {
-            if (_checkUpdatesItem != null) _checkUpdatesItem.IsEnabled = true;
+            _isCheckingUpdates = false;
         }
-    }
-
-    private void UpdateStatus()
-    {
-        if (_toggleItem != null)
-        {
-            _toggleItem.IsChecked = _clipboardMonitor.IsEnabled;
-        }
-
-        string title = _clipboardMonitor.IsEnabled ? _loc.Get("Tray_TitleActive") : _loc.Get("Tray_TitlePaused");
-        _taskbarIcon.ToolTipText = title.Length > 63 ? title[..63] : title;
     }
 
     public void Dispose()
     {
-        _loc.LanguageChanged -= BuildMenu;
-        _theme.ThemeChanged -= _themeChangedHandler;
-        HistoryService.Instance.HistoryChanged -= _historyChangedHandler;
+        _settings.SettingsChanged -= _settingsChangedHandler;
+        _loc.LanguageChanged -= _languageChangedHandler;
+        _settingsWindow?.Close();
         _taskbarIcon.Dispose();
-        _appIcon.Dispose();
         _anchorSource.Dispose();
+        _appIcon.Dispose();
     }
 }

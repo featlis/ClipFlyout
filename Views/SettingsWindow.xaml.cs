@@ -1,10 +1,13 @@
 using System;
 using System.Diagnostics;
-using System.Text.RegularExpressions;
+using System.Globalization;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
+using ClipFlyout.Controls;
 using ClipFlyout.Models;
 using ClipFlyout.Native;
 using ClipFlyout.Services;
@@ -13,889 +16,725 @@ namespace ClipFlyout.Views;
 
 public partial class SettingsWindow : Window
 {
-    private bool _isInitializing = true;
-    private bool _isUpdatingColor = false;
     private readonly SettingsService _settings = SettingsService.Instance;
-    private readonly ThemeService _theme = ThemeService.Instance;
     private readonly LocalizationService _loc = LocalizationService.Instance;
+    private readonly DispatcherTimer _sliderDebounceTimer;
+    private bool _isInitializing = true;
+    private bool _isSyncingColor;
     private IntPtr _hwnd = IntPtr.Zero;
     private UpdateRelease? _pendingUpdate;
-    private System.Drawing.Icon? _iconBig;
-    private System.Drawing.Icon? _iconSmall;
-    private readonly Action _languageChangedHandler;
-    private readonly Action _themeChangedHandler;
+    private bool _isCheckingUpdates;
 
-    public SettingsWindow()
+    private readonly Action _themeChangedHandler;
+    private readonly Action _languageChangedHandler;
+    private readonly Action _historyChangedHandler;
+    private readonly Func<bool>? _hotkeyFailedProvider;
+
+    public SettingsWindow(Func<bool>? hotkeyFailedProvider = null)
     {
+        _hotkeyFailedProvider = hotkeyFailedProvider;
         InitializeComponent();
+
         try
         {
-            Icon = AppIconHelper.GetAppIconBitmapSource(64);
-            HeaderAppIcon.Source = AppIconHelper.GetAppIconBitmapSource(40);
+            var iconSrc = AppIconHelper.GetAppIconBitmapSource(64);
+            Icon = iconSrc;
+            HeaderAppIcon.Source = iconSrc;
+            AboutAppIcon.Source = iconSrc;
         }
         catch { }
 
-        SourceInitialized += SettingsWindow_SourceInitialized;
+        NavVersionText.Text = AppInfo.DisplayVersion;
 
-        _languageChangedHandler = () =>
+        // 150ms debounce so dragging sliders never thrashes disk I/O or DWM
+        _sliderDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+        _sliderDebounceTimer.Tick += (_, _) =>
         {
-            if (!Dispatcher.HasShutdownStarted)
-            {
-                Dispatcher.Invoke(ApplyLocalization);
-            }
+            _sliderDebounceTimer.Stop();
+            SaveAllSettings();
         };
+
         _themeChangedHandler = () =>
         {
             if (!Dispatcher.HasShutdownStarted)
-            {
-                Dispatcher.Invoke(ApplyTheme);
-            }
+                Dispatcher.BeginInvoke(ApplyWindowBackdrop);
+        };
+        _languageChangedHandler = () =>
+        {
+            if (!Dispatcher.HasShutdownStarted)
+                Dispatcher.BeginInvoke(ApplyLocalization);
+        };
+        _historyChangedHandler = () =>
+        {
+            if (!Dispatcher.HasShutdownStarted)
+                Dispatcher.BeginInvoke(UpdateHistoryCountLabel);
         };
 
-        _loc.LanguageChanged += _languageChangedHandler;
-        _theme.ThemeChanged += _themeChangedHandler;
-
+        SourceInitialized += OnSourceInitialized;
         Loaded += SettingsWindow_Loaded;
         Closed += (_, _) =>
         {
+            _sliderDebounceTimer.Stop();
+            ThemeService.Instance.ThemeChanged -= _themeChangedHandler;
             _loc.LanguageChanged -= _languageChangedHandler;
-            _theme.ThemeChanged -= _themeChangedHandler;
-            _iconBig?.Dispose();
-            _iconSmall?.Dispose();
+            HistoryService.Instance.HistoryChanged -= _historyChangedHandler;
         };
+
+        ThemeService.Instance.ThemeChanged += _themeChangedHandler;
+        _loc.LanguageChanged += _languageChangedHandler;
+        HistoryService.Instance.HistoryChanged += _historyChangedHandler;
+
+        // Hydrate localization & values upfront so offscreen/first-frame renders look crisp immediately
+        ApplyLocalization();
+        LoadValuesFromSettings();
     }
 
-    private void SettingsWindow_SourceInitialized(object? sender, EventArgs e)
+    private void OnSourceInitialized(object? sender, EventArgs e)
     {
-        var helper = new WindowInteropHelper(this);
-        _hwnd = helper.Handle;
-        ApplyMicaEffect();
-
-        // Enforce the modern gradient clipboard icon directly on Win32 HWND so Windows Taskbar,
-        // Alt+Tab, and titlebar never fall back to old cached shell icons.
-        try
-        {
-            _iconBig = AppIconHelper.CreateAppIcon(64);
-            _iconSmall = AppIconHelper.CreateAppIcon(16);
-
-            Win32.SendMessage(_hwnd, Win32.WM_SETICON, (IntPtr)Win32.ICON_BIG, _iconBig.Handle);
-            Win32.SendMessage(_hwnd, Win32.WM_SETICON, (IntPtr)Win32.ICON_SMALL, _iconSmall.Handle);
-            Win32.SetClassLongPtr(_hwnd, Win32.GCLP_HICON, _iconBig.Handle);
-            Win32.SetClassLongPtr(_hwnd, Win32.GCLP_HICONSM, _iconSmall.Handle);
-        }
-        catch { }
-
+        _hwnd = new WindowInteropHelper(this).Handle;
         var source = HwndSource.FromHwnd(_hwnd);
-        source?.AddHook(WndProc);
-    }
-
-    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
-    {
-        if (msg == Win32.WM_GETICON)
+        if (source?.CompositionTarget != null)
         {
-            if ((int)wParam == Win32.ICON_BIG && _iconBig != null)
-            {
-                handled = true;
-                return _iconBig.Handle;
-            }
-            if ((int)wParam == Win32.ICON_SMALL && _iconSmall != null)
-            {
-                handled = true;
-                return _iconSmall.Handle;
-            }
+            source.CompositionTarget.BackgroundColor = Colors.Transparent;
         }
-        return IntPtr.Zero;
-    }
-
-    private void ApplyMicaEffect()
-    {
-        if (_hwnd == IntPtr.Zero) return;
-        bool isDark = _theme.IsDarkTheme;
-        Win32.EnableMica(_hwnd, isDark);
+        ApplyWindowBackdrop();
     }
 
     private void SettingsWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        ApplyWindowBackdrop();
+        UpdateHotkeyConflictBanner();
+        UpdateHistoryCountLabel();
+    }
+
+    private void ApplyWindowBackdrop()
+    {
+        if (_hwnd != IntPtr.Zero)
+        {
+            Win32.EnableMica(_hwnd, ThemeService.Instance.IsDarkTheme);
+        }
+    }
+
+    private void NavItem_Checked(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded && PageGeneral == null) return;
+        if (sender is not RadioButton rb || rb.Tag is not string tagStr) return;
+
+        int page = int.TryParse(tagStr, out int p) ? p : 0;
+        PageGeneral.Visibility = page == 0 ? Visibility.Visible : Visibility.Collapsed;
+        PageFlyout.Visibility = page == 1 ? Visibility.Visible : Visibility.Collapsed;
+        PageWidget.Visibility = page == 2 ? Visibility.Visible : Visibility.Collapsed;
+        PageDetectors.Visibility = page == 3 ? Visibility.Visible : Visibility.Collapsed;
+        PageHistory.Visibility = page == 4 ? Visibility.Visible : Visibility.Collapsed;
+        PageAbout.Visibility = page == 5 ? Visibility.Visible : Visibility.Collapsed;
+
+        PageHeaderTitle.Text = page switch
+        {
+            0 => _loc.Get("Nav_General"),
+            1 => _loc.Get("Nav_Flyout"),
+            2 => _loc.Get("Nav_Widget"),
+            3 => _loc.Get("Nav_Detectors"),
+            4 => _loc.Get("Nav_History"),
+            _ => _loc.Get("Nav_About")
+        };
+
+        if (page == 4) UpdateHistoryCountLabel();
+    }
+
+    private void ApplyLocalization()
+    {
+        bool prevInit = _isInitializing;
         _isInitializing = true;
+        try
+        {
+            Title = _loc.Get("Settings_Title");
 
-        PopulateDropdowns();
-        LoadSettingsValues();
-        ApplyLocalization();
-        ApplyTheme();
+            // Navigation items
+            NavGeneralText.Text = _loc.Get("Nav_General");
+            NavFlyoutText.Text = _loc.Get("Nav_Flyout");
+            NavWidgetText.Text = _loc.Get("Nav_Widget");
+            NavDetectorsText.Text = _loc.Get("Nav_Detectors");
+            NavHistoryText.Text = _loc.Get("Nav_History");
+            NavAboutText.Text = _loc.Get("Nav_About");
 
-        HookToggleEvents();
+            // Update active page header
+            if (NavGeneral.IsChecked == true) PageHeaderTitle.Text = _loc.Get("Nav_General");
+            else if (NavFlyout.IsChecked == true) PageHeaderTitle.Text = _loc.Get("Nav_Flyout");
+            else if (NavWidget.IsChecked == true) PageHeaderTitle.Text = _loc.Get("Nav_Widget");
+            else if (NavDetectors.IsChecked == true) PageHeaderTitle.Text = _loc.Get("Nav_Detectors");
+            else if (NavHistory.IsChecked == true) PageHeaderTitle.Text = _loc.Get("Nav_History");
+            else if (NavAbout.IsChecked == true) PageHeaderTitle.Text = _loc.Get("Nav_About");
 
-        _isInitializing = false;
+            // Page 0: General
+            CardMonitoring.Header = _loc.Get("Setting_Monitoring");
+            CardMonitoring.Description = _loc.Get("Setting_Monitoring_Desc");
+            CardStartup.Header = _loc.Get("Setting_Startup");
+            CardStartup.Description = _loc.Get("Setting_Startup_Desc");
+            CardRecallHotkey.Header = _loc.Get("Setting_EnableRecallHotkey");
+            CardRecallHotkey.Description = _loc.Get("Setting_EnableRecallHotkey_Desc");
+            HotkeyConflictText.Text = _loc.Get("Setting_HotkeyConflict");
+            CardLanguage.Header = _loc.Get("Setting_Language");
+            CardLanguage.Description = _loc.Get("Setting_Language_Desc");
+
+            // Page 1: Flyout & Appearance
+            CardTheme.Header = _loc.Get("Setting_Theme");
+            CardTheme.Description = _loc.Get("Setting_Theme_Desc");
+            CardSystemAccent.Header = _loc.Get("Setting_UseSystemAccent");
+            CardSystemAccent.Description = _loc.Get("Setting_UseSystemAccent_Desc");
+            LabelAccentColor.Text = _loc.Get("Setting_AccentColor");
+            DescAccentColor.Text = _loc.Get("Setting_AccentColor_Desc");
+            LabelColorR.Text = _loc.Get("Color_Red");
+            LabelColorG.Text = _loc.Get("Color_Green");
+            LabelColorB.Text = _loc.Get("Color_Blue");
+            LabelColorHex.Text = _loc.Get("Color_Hex");
+            SwatchBlue.ToolTip = _loc.Get("Accent_Blue");
+            SwatchTeal.ToolTip = _loc.Get("Accent_Teal");
+            SwatchGreen.ToolTip = _loc.Get("Accent_Green");
+            SwatchPurple.ToolTip = _loc.Get("Accent_Purple");
+            SwatchPink.ToolTip = _loc.Get("Accent_Pink");
+            SwatchOrange.ToolTip = _loc.Get("Accent_Orange");
+            CardPlacement.Header = _loc.Get("Setting_Placement");
+            CardPlacement.Description = _loc.Get("Setting_Placement_Desc");
+            CardOpacity.Header = _loc.Get("Setting_Opacity");
+            CardOpacity.Description = _loc.Get("Setting_Opacity_Desc");
+            CardDuration.Header = _loc.Get("Setting_Duration");
+            CardDuration.Description = _loc.Get("Setting_Duration_Desc");
+            CardHoverDuration.Header = _loc.Get("Setting_HoverDuration");
+            CardHoverDuration.Description = _loc.Get("Setting_HoverDuration_Desc");
+            CardSuppressFullscreen.Header = _loc.Get("Setting_SuppressFullscreen");
+            CardSuppressFullscreen.Description = _loc.Get("Setting_SuppressFullscreen_Desc");
+
+            // Page 2: Taskbar Widget
+            CardShowWidget.Header = _loc.Get("Setting_ShowTaskbarWidget");
+            CardShowWidget.Description = _loc.Get("Setting_ShowTaskbarWidget_Desc");
+            CardWidgetPosition.Header = _loc.Get("Setting_WidgetPosition");
+            CardWidgetPosition.Description = _loc.Get("Setting_WidgetPosition_Desc");
+            CardWidgetAutoAlign.Header = _loc.Get("Setting_WidgetAutoAlign");
+            CardWidgetAutoAlign.Description = _loc.Get("Setting_WidgetAutoAlign_Desc");
+            CardWidgetMonitor.Header = _loc.Get("Setting_WidgetMonitor");
+            CardWidgetMonitor.Description = _loc.Get("Setting_WidgetMonitor_Desc");
+            CardWidgetTextColor.Header = _loc.Get("Setting_WidgetTextColor");
+            CardWidgetTextColor.Description = _loc.Get("Setting_WidgetTextColor_Desc");
+            CardWidgetOffset.Header = _loc.Get("Setting_WidgetOffsetX");
+            CardWidgetOffset.Description = _loc.Get("Setting_WidgetOffsetX_Desc");
+
+            // Page 3: Detectors
+            GroupDetectorsCore.Text = _loc.Get("Section_Detectors_Core");
+            GroupDetectorsTools.Text = _loc.Get("Section_Detectors_Tools");
+            CardDetectHex.Header = _loc.Get("Detector_HexColor");
+            CardDetectHex.Description = _loc.Get("Detector_HexColor_Desc");
+            CardDetectUrl.Header = _loc.Get("Detector_Url");
+            CardDetectUrl.Description = _loc.Get("Detector_Url_Desc");
+            CardDetectFileDrop.Header = _loc.Get("Detector_FileDrop");
+            CardDetectFileDrop.Description = _loc.Get("Detector_FileDrop_Desc");
+            CardDetectImage.Header = _loc.Get("Detector_Image");
+            CardDetectImage.Description = _loc.Get("Detector_Image_Desc");
+            CardDetectJson.Header = _loc.Get("Detector_Json");
+            CardDetectJson.Description = _loc.Get("Detector_Json_Desc");
+            CardDetectEmail.Header = _loc.Get("Detector_Email");
+            CardDetectEmail.Description = _loc.Get("Detector_Email_Desc");
+            CardDetectTimestamp.Header = _loc.Get("Detector_Timestamp");
+            CardDetectTimestamp.Description = _loc.Get("Detector_Timestamp_Desc");
+            CardDetectIsoDate.Header = _loc.Get("Detector_IsoDateTime");
+            CardDetectIsoDate.Description = _loc.Get("Detector_IsoDateTime_Desc");
+            CardDetectBase64.Header = _loc.Get("Detector_Base64");
+            CardDetectBase64.Description = _loc.Get("Detector_Base64_Desc");
+            CardDetectTable.Header = _loc.Get("Detector_Table");
+            CardDetectTable.Description = _loc.Get("Detector_Table_Desc");
+            CardDetectCode.Header = _loc.Get("Detector_Code");
+            CardDetectCode.Description = _loc.Get("Detector_Code_Desc");
+            CardDetectPlainText.Header = _loc.Get("Detector_PlainText");
+            CardDetectPlainText.Description = _loc.Get("Detector_PlainText_Desc");
+            CardCleanUrl.Header = _loc.Get("Detector_CleanUrl");
+            CardCleanUrl.Description = _loc.Get("Detector_CleanUrl_Desc");
+            CardCaseConverter.Header = _loc.Get("Detector_CaseConverter");
+            CardCaseConverter.Description = _loc.Get("Detector_CaseConverter_Desc");
+            CardJwt.Header = _loc.Get("Detector_Jwt");
+            CardJwt.Description = _loc.Get("Detector_Jwt_Desc");
+
+            // Page 4: History & Privacy
+            CardIgnorePasswordManagers.Header = _loc.Get("Setting_IgnorePasswordManagers");
+            CardIgnorePasswordManagers.Description = _loc.Get("Setting_IgnorePasswordManagers_Desc");
+            CardPersistHistory.Header = _loc.Get("Setting_PersistHistory");
+            CardPersistHistory.Description = _loc.Get("Setting_PersistHistory_Desc");
+            CardClearHistory.Header = _loc.Get("Setting_ClearHistory");
+            BtnClearHistory.Content = _loc.Get("Setting_ClearHistory_Btn");
+            CardLocalProcessing.Header = _loc.Get("About_Privacy_Title");
+            CardLocalProcessing.Description = _loc.Get("About_Privacy_Desc");
+            UpdateHistoryCountLabel();
+
+            // Page 5: Updates & About
+            GroupUpdatesHeader.Text = _loc.Get("Section_Updates");
+            GroupAboutHeader.Text = _loc.Get("Section_About");
+            CardAutoUpdate.Header = _loc.Get("Setting_AutoUpdate");
+            CardAutoUpdate.Description = _loc.Get("Setting_AutoUpdate_Desc");
+            CardManualUpdate.Header = _loc.Get("Setting_ManualUpdate");
+            CardManualUpdate.Description = _loc.Get("Setting_ManualUpdate_Desc");
+            CheckUpdatesButton.Content = _loc.Get("Update_CheckNow");
+            BtnInstallUpdateNow.Content = _loc.Get("Update_InstallNow");
+            AboutVersionText.Text = _loc.Get("About_Version", AppInfo.DisplayVersion);
+            AboutRuntimeText.Text = _loc.Get("About_Runtime");
+            AboutAuthorText.Text = _loc.Get("Credits_Author");
+            AboutLicenseText.Text = _loc.Get("Credits_License");
+            CardGithub.Header = _loc.Get("About_Github");
+            CardGithub.Description = _loc.Get("About_Github_Desc");
+            GithubButton.Content = _loc.Get("About_Open");
+            CardReset.Header = _loc.Get("About_Reset");
+            CardReset.Description = _loc.Get("About_Reset_Desc");
+            ResetDefaultsButton.Content = _loc.Get("About_Reset");
+
+            PopulateDropdowns();
+        }
+        finally
+        {
+            _isInitializing = prevInit;
+        }
     }
 
     private void PopulateDropdowns()
     {
-        // Theme dropdown
-        ComboTheme.Items.Clear();
-        ComboTheme.Items.Add(new ComboBoxItem { Content = _loc.Get("Theme_System"), Tag = AppThemeMode.System });
-        ComboTheme.Items.Add(new ComboBoxItem { Content = _loc.Get("Theme_Light"), Tag = AppThemeMode.Light });
-        ComboTheme.Items.Add(new ComboBoxItem { Content = _loc.Get("Theme_Dark"), Tag = AppThemeMode.Dark });
-
-        // Language dropdown
-        ComboLanguage.Items.Clear();
-        ComboLanguage.Items.Add(new ComboBoxItem { Content = _loc.Get("Lang_Auto"), Tag = AppLanguage.Auto });
-        ComboLanguage.Items.Add(new ComboBoxItem { Content = _loc.Get("Lang_Ja"), Tag = AppLanguage.Japanese });
-        ComboLanguage.Items.Add(new ComboBoxItem { Content = _loc.Get("Lang_En"), Tag = AppLanguage.English });
-
-        // Widget Position dropdown
-        ComboWidgetPos.Items.Clear();
-        ComboWidgetPos.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_Pos_TrayLeft"), Tag = WidgetPositionMode.TrayLeft });
-        ComboWidgetPos.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_Pos_CenterRight"), Tag = WidgetPositionMode.CenterRight });
-        ComboWidgetPos.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_Pos_CenterLeft"), Tag = WidgetPositionMode.CenterLeft });
-        ComboWidgetPos.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_Pos_FarLeft"), Tag = WidgetPositionMode.FarLeft });
-        ComboWidgetPos.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_Pos_AboveTaskbar"), Tag = WidgetPositionMode.AboveTaskbar });
-
-        // Widget Text Color dropdown
-        ComboWidgetTextColor.Items.Clear();
-        ComboWidgetTextColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_TextColor_Auto"), Tag = WidgetTextColorMode.Auto });
-        ComboWidgetTextColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_TextColor_Light"), Tag = WidgetTextColorMode.Light });
-        ComboWidgetTextColor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_TextColor_Dark"), Tag = WidgetTextColorMode.Dark });
-
-        // Widget Monitor dropdown
-        ComboWidgetMonitor.Items.Clear();
-        ComboWidgetMonitor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_Monitor_Primary"), Tag = WidgetMonitorTarget.Primary });
-        ComboWidgetMonitor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_Monitor_Cursor"), Tag = WidgetMonitorTarget.FollowCursor });
-        ComboWidgetMonitor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_Monitor_Display1"), Tag = WidgetMonitorTarget.Monitor1 });
-        ComboWidgetMonitor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_Monitor_Display2"), Tag = WidgetMonitorTarget.Monitor2 });
-        ComboWidgetMonitor.Items.Add(new ComboBoxItem { Content = _loc.Get("Widget_Monitor_Display3"), Tag = WidgetMonitorTarget.Monitor3 });
-
-        // Placement dropdown
-        ComboPlacement.Items.Clear();
-        ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_BottomRight"), Tag = FlyoutPlacement.BottomRight });
-        ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_TopRight"), Tag = FlyoutPlacement.TopRight });
-        ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_TopLeft"), Tag = FlyoutPlacement.TopLeft });
-        ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_BottomLeft"), Tag = FlyoutPlacement.BottomLeft });
-        ComboPlacement.Items.Add(new ComboBoxItem { Content = _loc.Get("Placement_NearCursor"), Tag = FlyoutPlacement.NearCursor });
-    }
-
-    private void LoadSettingsValues()
-    {
         var cfg = _settings.Current;
 
-        ToggleMonitoring.IsOn = cfg.IsMonitoringEnabled;
-        ToggleStartup.IsOn = cfg.LaunchOnStartup;
-        ToggleAutoUpdate.IsOn = cfg.AutomaticallyInstallUpdates;
+        CmbTheme.Items.Clear();
+        CmbTheme.Items.Add(_loc.Get("Theme_System"));
+        CmbTheme.Items.Add(_loc.Get("Theme_Light"));
+        CmbTheme.Items.Add(_loc.Get("Theme_Dark"));
+        CmbTheme.SelectedIndex = (int)cfg.Theme;
 
-        SelectComboByTag(ComboTheme, cfg.Theme);
-        SelectComboByTag(ComboLanguage, cfg.Language);
-        SelectComboByTag(ComboWidgetPos, cfg.WidgetPosition);
-        SelectComboByTag(ComboWidgetTextColor, cfg.WidgetTextColor);
-        SelectComboByTag(ComboWidgetMonitor, cfg.WidgetMonitor);
-        ToggleWidgetAutoAlign.IsOn = cfg.WidgetAutoAlign;
-        SelectComboByTag(ComboPlacement, cfg.Placement);
+        CmbLanguage.Items.Clear();
+        CmbLanguage.Items.Add(_loc.Get("Lang_Auto"));
+        CmbLanguage.Items.Add(_loc.Get("Lang_Ja"));
+        CmbLanguage.Items.Add(_loc.Get("Lang_En"));
+        CmbLanguage.SelectedIndex = (int)cfg.Language;
 
-        InitColorPicker(cfg.AccentColor);
+        CmbPlacement.Items.Clear();
+        CmbPlacement.Items.Add(_loc.Get("Placement_BottomRight"));
+        CmbPlacement.Items.Add(_loc.Get("Placement_TopRight"));
+        CmbPlacement.Items.Add(_loc.Get("Placement_TopLeft"));
+        CmbPlacement.Items.Add(_loc.Get("Placement_BottomLeft"));
+        CmbPlacement.Items.Add(_loc.Get("Placement_NearCursor"));
+        CmbPlacement.SelectedIndex = (int)cfg.Placement;
 
-        SliderWidgetOffset.Value = cfg.WidgetOffsetX;
-        TextWidgetOffsetVal.Text = $"{cfg.WidgetOffsetX:+0;-0;0}px";
+        CmbWidgetPosition.Items.Clear();
+        CmbWidgetPosition.Items.Add(_loc.Get("Widget_Pos_TrayLeft"));
+        CmbWidgetPosition.Items.Add(_loc.Get("Widget_Pos_CenterRight"));
+        CmbWidgetPosition.Items.Add(_loc.Get("Widget_Pos_CenterLeft"));
+        CmbWidgetPosition.Items.Add(_loc.Get("Widget_Pos_FarLeft"));
+        CmbWidgetPosition.Items.Add(_loc.Get("Widget_Pos_AboveTaskbar"));
+        CmbWidgetPosition.SelectedIndex = (int)cfg.WidgetPosition;
 
-        SliderOpacity.Value = cfg.OpacityPercent;
-        TextOpacityVal.Text = $"{cfg.OpacityPercent:0}%";
+        CmbWidgetMonitor.Items.Clear();
+        CmbWidgetMonitor.Items.Add(_loc.Get("Widget_Monitor_Primary"));
+        CmbWidgetMonitor.Items.Add(_loc.Get("Widget_Monitor_Cursor"));
+        CmbWidgetMonitor.Items.Add(_loc.Get("Widget_Monitor_Display1"));
+        CmbWidgetMonitor.Items.Add(_loc.Get("Widget_Monitor_Display2"));
+        CmbWidgetMonitor.Items.Add(_loc.Get("Widget_Monitor_Display3"));
+        CmbWidgetMonitor.SelectedIndex = (int)cfg.WidgetMonitor;
 
-        SliderDuration.Value = cfg.DisplayDurationSeconds;
-        TextDurationVal.Text = $"{cfg.DisplayDurationSeconds:0.0}s";
-
-        SliderHoverDuration.Value = cfg.HoverLeaveDurationSeconds;
-        TextHoverDurationVal.Text = $"{cfg.HoverLeaveDurationSeconds:0.0}s";
-
-        ToggleDetHex.IsOn = cfg.DetectHexColor;
-        ToggleDetTimestamp.IsOn = cfg.DetectTimestamp;
-        ToggleDetJson.IsOn = cfg.DetectJson;
-        ToggleDetUrl.IsOn = cfg.DetectUrl;
-        ToggleDetEmail.IsOn = cfg.DetectEmail;
-        ToggleDetBase64.IsOn = cfg.DetectBase64;
-        ToggleDetTable.IsOn = cfg.DetectTable;
-        ToggleDetCode.IsOn = cfg.DetectCode;
-        ToggleDetImage.IsOn = cfg.DetectImage;
-        ToggleDetText.IsOn = cfg.DetectPlainText;
-
-        ToggleShowWidget.IsOn = cfg.ShowTaskbarWidget;
-        ToggleIgnorePasswords.IsOn = cfg.IgnorePasswordManagers;
-        ToggleRecallHotkey.IsOn = cfg.EnableRecallHotkey;
-
-        ToggleCleanUrl.IsOn = cfg.EnableCleanUrl;
-        ToggleCaseConverter.IsOn = cfg.EnableCaseConverter;
-        ToggleJwt.IsOn = cfg.EnableJwtDetector;
+        CmbWidgetTextColor.Items.Clear();
+        CmbWidgetTextColor.Items.Add(_loc.Get("Widget_TextColor_Auto"));
+        CmbWidgetTextColor.Items.Add(_loc.Get("Widget_TextColor_Light"));
+        CmbWidgetTextColor.Items.Add(_loc.Get("Widget_TextColor_Dark"));
+        CmbWidgetTextColor.SelectedIndex = (int)cfg.WidgetTextColor;
     }
 
-    private void HookToggleEvents()
+    private void LoadValuesFromSettings()
     {
-        ToggleMonitoring.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.IsMonitoringEnabled = val); };
-        ToggleStartup.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.LaunchOnStartup = val); };
-        ToggleAutoUpdate.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.AutomaticallyInstallUpdates = val); };
-
-        ToggleShowWidget.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.ShowTaskbarWidget = val); };
-        ToggleWidgetAutoAlign.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.WidgetAutoAlign = val); };
-        ToggleIgnorePasswords.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.IgnorePasswordManagers = val); };
-        ToggleRecallHotkey.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.EnableRecallHotkey = val); };
-
-        ToggleDetHex.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectHexColor = val); };
-        ToggleDetTimestamp.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectTimestamp = val); };
-        ToggleDetJson.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectJson = val); };
-        ToggleDetUrl.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectUrl = val); };
-        ToggleDetEmail.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectEmail = val); };
-        ToggleDetBase64.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectBase64 = val); };
-        ToggleDetTable.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectTable = val); };
-        ToggleDetCode.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectCode = val); };
-        ToggleDetImage.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectImage = val); };
-        ToggleDetText.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.DetectPlainText = val); };
-
-        ToggleCleanUrl.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.EnableCleanUrl = val); };
-        ToggleCaseConverter.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.EnableCaseConverter = val); };
-        ToggleJwt.Toggled += (_, val) => { if (!_isInitializing) _settings.UpdateSettings(s => s.EnableJwtDetector = val); };
-    }
-
-    private static void SelectComboByTag(ComboBox combo, object tagValue)
-    {
-        foreach (ComboBoxItem item in combo.Items)
-        {
-            if (Equals(item.Tag, tagValue))
-            {
-                combo.SelectedItem = item;
-                break;
-            }
-        }
-    }
-
-    private void TabButton_Checked(object sender, RoutedEventArgs e)
-    {
-        if (sender is RadioButton rb && rb.Tag is string tag)
-        {
-            TabContentGeneral.Visibility = tag == "0" ? Visibility.Visible : Visibility.Collapsed;
-            TabContentAppearance.Visibility = tag == "1" ? Visibility.Visible : Visibility.Collapsed;
-            TabContentDetectors.Visibility = tag == "2" ? Visibility.Visible : Visibility.Collapsed;
-            TabContentUpdates.Visibility = tag == "3" ? Visibility.Visible : Visibility.Collapsed;
-            TabContentCredits.Visibility = tag == "4" ? Visibility.Visible : Visibility.Collapsed;
-        }
-    }
-
-    #region Color Picker Logic
-
-    private void InitColorPicker(string hex)
-    {
+        _isInitializing = true;
         try
         {
-            var color = (Color)ColorConverter.ConvertFromString(hex);
-            UpdateColorPickerUI(color, hex);
-        }
-        catch
-        {
-            UpdateColorPickerUI(Color.FromRgb(0, 120, 212), "#0078D4");
-        }
-    }
+            var cfg = _settings.Current;
 
-    private void UpdateColorPickerUI(Color color, string hex)
-    {
-        _isUpdatingColor = true;
-        try
-        {
-            SliderR.Value = color.R;
-            SliderG.Value = color.G;
-            SliderB.Value = color.B;
-            TextRVal.Text = color.R.ToString();
-            TextGVal.Text = color.G.ToString();
-            TextBVal.Text = color.B.ToString();
-            TextHexCode.Text = hex.ToUpperInvariant();
-            ColorPreviewBox.Background = new SolidColorBrush(color);
+            ToggleMonitoring.IsOn = cfg.IsMonitoringEnabled;
+            ToggleStartup.IsOn = cfg.LaunchOnStartup;
+            ToggleRecallHotkey.IsOn = cfg.EnableRecallHotkey;
+            CmbLanguage.SelectedIndex = (int)cfg.Language;
+
+            CmbTheme.SelectedIndex = (int)cfg.Theme;
+            ToggleSystemAccent.IsOn = cfg.UseSystemAccentColor;
+            SyncAccentControls(cfg.AccentColor);
+            UpdateAccentPickerEnabledState();
+
+            CmbPlacement.SelectedIndex = (int)cfg.Placement;
+            SliderOpacity.Value = cfg.OpacityPercent;
+            TxtOpacityVal.Text = $"{cfg.OpacityPercent:F0}%";
+            SliderDuration.Value = cfg.DisplayDurationSeconds;
+            TxtDurationVal.Text = $"{cfg.DisplayDurationSeconds:F1}s";
+            SliderHoverDuration.Value = cfg.HoverLeaveDurationSeconds;
+            TxtHoverDurationVal.Text = $"{cfg.HoverLeaveDurationSeconds:F1}s";
+            ToggleSuppressFullscreen.IsOn = cfg.SuppressInFullscreen;
+
+            ToggleShowWidget.IsOn = cfg.ShowTaskbarWidget;
+            CmbWidgetPosition.SelectedIndex = (int)cfg.WidgetPosition;
+            ToggleWidgetAutoAlign.IsOn = cfg.WidgetAutoAlign;
+            CmbWidgetMonitor.SelectedIndex = (int)cfg.WidgetMonitor;
+            CmbWidgetTextColor.SelectedIndex = (int)cfg.WidgetTextColor;
+            SliderWidgetOffset.Value = cfg.WidgetOffsetX;
+            TxtWidgetOffsetVal.Text = $"{cfg.WidgetOffsetX:F0}px";
+            UpdateWidgetSubSettingsState();
+
+            ToggleDetectHex.IsOn = cfg.DetectHexColor;
+            ToggleDetectUrl.IsOn = cfg.DetectUrl;
+            ToggleDetectFileDrop.IsOn = cfg.DetectFileDrop;
+            ToggleDetectImage.IsOn = cfg.DetectImage;
+            ToggleDetectJson.IsOn = cfg.DetectJson;
+            ToggleDetectEmail.IsOn = cfg.DetectEmail;
+            ToggleDetectTimestamp.IsOn = cfg.DetectTimestamp;
+            ToggleDetectIsoDate.IsOn = cfg.DetectIsoDateTime;
+            ToggleDetectBase64.IsOn = cfg.DetectBase64;
+            ToggleDetectTable.IsOn = cfg.DetectTable;
+            ToggleDetectCode.IsOn = cfg.DetectCode;
+            ToggleDetectPlainText.IsOn = cfg.DetectPlainText;
+            ToggleCleanUrl.IsOn = cfg.EnableCleanUrl;
+            ToggleCaseConverter.IsOn = cfg.EnableCaseConverter;
+            ToggleJwt.IsOn = cfg.EnableJwtDetector;
+
+            ToggleIgnorePasswordManagers.IsOn = cfg.IgnorePasswordManagers;
+            TogglePersistHistory.IsOn = cfg.PersistHistory;
+            ToggleAutoUpdate.IsOn = cfg.AutomaticallyInstallUpdates;
         }
         finally
         {
-            _isUpdatingColor = false;
-        }
-    }
-
-    private void ColorSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (_isUpdatingColor || _isInitializing) return;
-
-        byte r = (byte)Math.Round(SliderR.Value);
-        byte g = (byte)Math.Round(SliderG.Value);
-        byte b = (byte)Math.Round(SliderB.Value);
-
-        TextRVal.Text = r.ToString();
-        TextGVal.Text = g.ToString();
-        TextBVal.Text = b.ToString();
-
-        var color = Color.FromRgb(r, g, b);
-        string hex = $"#{r:X2}{g:X2}{b:X2}";
-
-        _isUpdatingColor = true;
-        try
-        {
-            TextHexCode.Text = hex;
-            ColorPreviewBox.Background = new SolidColorBrush(color);
-        }
-        finally
-        {
-            _isUpdatingColor = false;
-        }
-
-        _theme.UpdateAccentResource(color);
-        _settings.UpdateSettings(s => s.AccentColor = hex);
-    }
-
-    private void TextHexCode_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_isUpdatingColor || _isInitializing) return;
-
-        string text = TextHexCode.Text.Trim();
-        if (!text.StartsWith("#")) text = "#" + text;
-
-        if (Regex.IsMatch(text, "^#[0-9a-fA-F]{6}$"))
-        {
-            try
-            {
-                var color = (Color)ColorConverter.ConvertFromString(text);
-                _isUpdatingColor = true;
-                try
-                {
-                    SliderR.Value = color.R;
-                    SliderG.Value = color.G;
-                    SliderB.Value = color.B;
-                    TextRVal.Text = color.R.ToString();
-                    TextGVal.Text = color.G.ToString();
-                    TextBVal.Text = color.B.ToString();
-                    ColorPreviewBox.Background = new SolidColorBrush(color);
-                }
-                finally
-                {
-                    _isUpdatingColor = false;
-                }
-
-                _theme.UpdateAccentResource(color);
-                _settings.UpdateSettings(s => s.AccentColor = text.ToUpperInvariant());
-            }
-            catch { }
-        }
-    }
-
-    private void PresetColor_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button btn && btn.Tag is string hex)
-        {
-            try
-            {
-                var color = (Color)ColorConverter.ConvertFromString(hex);
-                UpdateColorPickerUI(color, hex);
-                _theme.UpdateAccentResource(color);
-                _settings.UpdateSettings(s => s.AccentColor = hex);
-            }
-            catch { }
-        }
-    }
-
-    #endregion
-
-    private void ComboTheme_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_isInitializing) return;
-        if (ComboTheme.SelectedItem is ComboBoxItem { Tag: AppThemeMode mode })
-        {
-            _theme.Mode = mode;
-            _settings.UpdateSettings(s => s.Theme = mode);
-        }
-    }
-
-    private void ComboLanguage_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_isInitializing) return;
-        if (ComboLanguage.SelectedItem is ComboBoxItem { Tag: AppLanguage lang })
-        {
-            _loc.CurrentLanguage = lang;
-            _settings.UpdateSettings(s => s.Language = lang);
-        }
-    }
-
-    private void ComboWidgetPos_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_isInitializing) return;
-        if (ComboWidgetPos.SelectedItem is ComboBoxItem { Tag: WidgetPositionMode pos })
-        {
-            _settings.UpdateSettings(s => s.WidgetPosition = pos);
-        }
-    }
-
-    private void ComboWidgetTextColor_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_isInitializing) return;
-        if (ComboWidgetTextColor.SelectedItem is ComboBoxItem { Tag: WidgetTextColorMode mode })
-        {
-            _settings.UpdateSettings(s => s.WidgetTextColor = mode);
-        }
-    }
-
-    private void ComboWidgetMonitor_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_isInitializing) return;
-        if (ComboWidgetMonitor.SelectedItem is ComboBoxItem { Tag: WidgetMonitorTarget target })
-        {
-            _settings.UpdateSettings(s => s.WidgetMonitor = target);
-        }
-    }
-
-    private void SliderWidgetOffset_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (TextWidgetOffsetVal != null)
-        {
-            int val = (int)Math.Round(e.NewValue);
-            TextWidgetOffsetVal.Text = $"{val:+0;-0;0}px";
-        }
-        if (!_isInitializing)
-        {
-            _settings.UpdateSettings(s => s.WidgetOffsetX = (int)Math.Round(e.NewValue));
-        }
-    }
-
-    private void ComboPlacement_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_isInitializing) return;
-        if (ComboPlacement.SelectedItem is ComboBoxItem { Tag: FlyoutPlacement placement })
-        {
-            _settings.UpdateSettings(s => s.Placement = placement);
-        }
-    }
-
-    private void SliderOpacity_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (TextOpacityVal != null)
-        {
-            TextOpacityVal.Text = $"{e.NewValue:0}%";
-        }
-        if (!_isInitializing)
-        {
-            _settings.UpdateSettings(s => s.OpacityPercent = Math.Round(e.NewValue, 0));
-        }
-    }
-
-    private void SliderDuration_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (TextDurationVal != null)
-        {
-            TextDurationVal.Text = $"{e.NewValue:0.0}s";
-        }
-        if (!_isInitializing)
-        {
-            _settings.UpdateSettings(s => s.DisplayDurationSeconds = Math.Round(e.NewValue, 1));
-        }
-    }
-
-    private void SliderHoverDuration_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (TextHoverDurationVal != null)
-        {
-            TextHoverDurationVal.Text = $"{e.NewValue:0.0}s";
-        }
-        if (!_isInitializing)
-        {
-            _settings.UpdateSettings(s => s.HoverLeaveDurationSeconds = Math.Round(e.NewValue, 1));
-        }
-    }
-
-    public void ApplyTheme()
-    {
-        bool isDark = _theme.IsDarkTheme;
-        ApplyMicaEffect();
-
-        if (isDark)
-        {
-            Background = new SolidColorBrush(Color.FromRgb(26, 28, 35));
-            Foreground = new SolidColorBrush(Color.FromRgb(243, 244, 246));
-
-            HeaderBorder.Background = new SolidColorBrush(Color.FromArgb(200, 22, 24, 30));
-            HeaderBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
-            TabHeaderBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
-            TabHeaderBorder.Background = new SolidColorBrush(Color.FromArgb(160, 22, 24, 30));
-
-            AppHeaderTitle.Foreground = new SolidColorBrush(Color.FromRgb(249, 250, 251));
-            AppHeaderSubtitle.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
-
-            ResetDefaultsButton.Background = new SolidColorBrush(Color.FromRgb(38, 42, 53));
-            ResetDefaultsButton.BorderBrush = new SolidColorBrush(Color.FromRgb(62, 70, 88));
-            ResetDefaultsButton.Foreground = new SolidColorBrush(Color.FromRgb(243, 244, 246));
-
-            SetCardStyle(CardGeneral, isDark);
-            SetCardStyle(CardFlyout, isDark);
-            SetCardStyle(CardColorPicker, isDark);
-            SetCardStyle(CardDetectors, isDark);
-            SetCardStyle(CardUpdates, isDark);
-            SetCardStyle(CardAbout, isDark);
-            SetCardStyle(CardCredits, isDark);
-
-            var darkComboBg = new SolidColorBrush(Color.FromRgb(38, 42, 53));
-            var darkComboBorder = new SolidColorBrush(Color.FromRgb(62, 70, 88));
-            var darkComboFg = new SolidColorBrush(Color.FromRgb(243, 244, 246));
-            SetComboStyle(ComboTheme, darkComboBg, darkComboBorder, darkComboFg);
-            SetComboStyle(ComboLanguage, darkComboBg, darkComboBorder, darkComboFg);
-            SetComboStyle(ComboWidgetPos, darkComboBg, darkComboBorder, darkComboFg);
-            SetComboStyle(ComboWidgetTextColor, darkComboBg, darkComboBorder, darkComboFg);
-            SetComboStyle(ComboWidgetMonitor, darkComboBg, darkComboBorder, darkComboFg);
-            SetComboStyle(ComboPlacement, darkComboBg, darkComboBorder, darkComboFg);
-
-            TextHexCode.Background = darkComboBg;
-            TextHexCode.BorderBrush = darkComboBorder;
-            TextHexCode.Foreground = darkComboFg;
-
-            SetSeparatorColors(isDark);
-
-            PrivacyCallout.Background = new SolidColorBrush(Color.FromArgb(24, 255, 255, 255));
-            PrivacyTitle.Foreground = new SolidColorBrush(Color.FromRgb(229, 231, 235));
-            PrivacyDesc.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
-
-            GithubButton.Background = new SolidColorBrush(Color.FromRgb(42, 47, 61));
-            GithubButton.BorderBrush = new SolidColorBrush(Color.FromRgb(62, 70, 90));
-            GithubButton.Foreground = new SolidColorBrush(Color.FromRgb(243, 244, 246));
-            CheckUpdatesButton.Background = new SolidColorBrush(Color.FromRgb(38, 42, 53));
-            CheckUpdatesButton.BorderBrush = new SolidColorBrush(Color.FromRgb(62, 70, 90));
-            CheckUpdatesButton.Foreground = new SolidColorBrush(Color.FromRgb(243, 244, 246));
-
-            BtnInstallUpdateNow.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129));
-            BtnInstallUpdateNow.Foreground = Brushes.White;
-
-            var tabFg = new SolidColorBrush(Color.FromRgb(226, 232, 240));
-            TabBtnGeneral.Foreground = tabFg;
-            TabBtnAppearance.Foreground = tabFg;
-            TabBtnDetectors.Foreground = tabFg;
-            TabBtnUpdates.Foreground = tabFg;
-            TabBtnCredits.Foreground = tabFg;
-        }
-        else
-        {
-            Background = new SolidColorBrush(Color.FromRgb(246, 248, 250));
-            Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-
-            HeaderBorder.Background = new SolidColorBrush(Color.FromArgb(220, 255, 255, 255));
-            HeaderBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(226, 232, 240));
-            TabHeaderBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(226, 232, 240));
-            TabHeaderBorder.Background = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255));
-
-            AppHeaderTitle.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-            AppHeaderSubtitle.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
-
-            ResetDefaultsButton.Background = new SolidColorBrush(Color.FromRgb(255, 255, 255));
-            ResetDefaultsButton.BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225));
-            ResetDefaultsButton.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-
-            SetCardStyle(CardGeneral, isDark);
-            SetCardStyle(CardFlyout, isDark);
-            SetCardStyle(CardColorPicker, isDark);
-            SetCardStyle(CardDetectors, isDark);
-            SetCardStyle(CardUpdates, isDark);
-            SetCardStyle(CardAbout, isDark);
-            SetCardStyle(CardCredits, isDark);
-
-            var lightComboBg = new SolidColorBrush(Color.FromRgb(255, 255, 255));
-            var lightComboBorder = new SolidColorBrush(Color.FromRgb(203, 213, 225));
-            var lightComboFg = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-            SetComboStyle(ComboTheme, lightComboBg, lightComboBorder, lightComboFg);
-            SetComboStyle(ComboLanguage, lightComboBg, lightComboBorder, lightComboFg);
-            SetComboStyle(ComboWidgetPos, lightComboBg, lightComboBorder, lightComboFg);
-            SetComboStyle(ComboWidgetTextColor, lightComboBg, lightComboBorder, lightComboFg);
-            SetComboStyle(ComboWidgetMonitor, lightComboBg, lightComboBorder, lightComboFg);
-            SetComboStyle(ComboPlacement, lightComboBg, lightComboBorder, lightComboFg);
-
-            TextHexCode.Background = lightComboBg;
-            TextHexCode.BorderBrush = lightComboBorder;
-            TextHexCode.Foreground = lightComboFg;
-
-            SetSeparatorColors(isDark);
-
-            PrivacyCallout.Background = new SolidColorBrush(Color.FromRgb(248, 250, 252));
-            PrivacyTitle.Foreground = new SolidColorBrush(Color.FromRgb(51, 65, 85));
-            PrivacyDesc.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
-
-            GithubButton.Background = new SolidColorBrush(Color.FromRgb(255, 255, 255));
-            GithubButton.BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225));
-            GithubButton.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-            CheckUpdatesButton.Background = new SolidColorBrush(Color.FromRgb(255, 255, 255));
-            CheckUpdatesButton.BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225));
-            CheckUpdatesButton.Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42));
-
-            BtnInstallUpdateNow.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129));
-            BtnInstallUpdateNow.Foreground = Brushes.White;
-
-            var tabFg = new SolidColorBrush(Color.FromRgb(51, 65, 85));
-            TabBtnGeneral.Foreground = tabFg;
-            TabBtnAppearance.Foreground = tabFg;
-            TabBtnDetectors.Foreground = tabFg;
-            TabBtnUpdates.Foreground = tabFg;
-            TabBtnCredits.Foreground = tabFg;
-        }
-    }
-
-    private static void SetCardStyle(Border card, bool isDark)
-    {
-        if (isDark)
-        {
-            card.Background = new SolidColorBrush(Color.FromRgb(34, 38, 47));
-            card.BorderBrush = new SolidColorBrush(Color.FromArgb(35, 255, 255, 255));
-        }
-        else
-        {
-            card.Background = new SolidColorBrush(Color.FromRgb(255, 255, 255));
-            card.BorderBrush = new SolidColorBrush(Color.FromRgb(226, 232, 240));
-        }
-    }
-
-    private static void SetComboStyle(ComboBox combo, Brush bg, Brush border, Brush fg)
-    {
-        combo.Background = bg;
-        combo.BorderBrush = border;
-        combo.Foreground = fg;
-
-        var itemStyle = new Style(typeof(ComboBoxItem));
-        itemStyle.Setters.Add(new Setter(ComboBoxItem.BackgroundProperty, bg));
-        itemStyle.Setters.Add(new Setter(ComboBoxItem.ForegroundProperty, fg));
-        combo.ItemContainerStyle = itemStyle;
-    }
-
-    private void SetSeparatorColors(bool isDark)
-    {
-        var sepBrush = isDark ? new SolidColorBrush(Color.FromArgb(25, 255, 255, 255)) : new SolidColorBrush(Color.FromRgb(241, 245, 249));
-        Sep1.Background = sepBrush;
-        Sep2.Background = sepBrush;
-        Sep3.Background = sepBrush;
-        Sep3a.Background = sepBrush;
-        Sep3b.Background = sepBrush;
-        Sep3c.Background = sepBrush;
-        Sep3AutoAlign.Background = sepBrush;
-        Sep3Monitor.Background = sepBrush;
-        Sep3d.Background = sepBrush;
-        Sep3e.Background = sepBrush;
-        Sep4.Background = sepBrush;
-        Sep5.Background = sepBrush;
-        Sep5a.Background = sepBrush;
-        Sep5b.Background = sepBrush;
-        SepColor.Background = sepBrush;
-        Sep6.Background = sepBrush;
-        Sep7.Background = sepBrush;
-        Sep8.Background = sepBrush;
-        Sep8b.Background = sepBrush;
-        Sep9.Background = sepBrush;
-        Sep10.Background = sepBrush;
-        Sep11.Background = sepBrush;
-        Sep12.Background = sepBrush;
-        Sep13.Background = sepBrush;
-        Sep13a.Background = sepBrush;
-        Sep13b.Background = sepBrush;
-        Sep13c.Background = sepBrush;
-        SepUpdate1.Background = sepBrush;
-        Sep14.Background = sepBrush;
-    }
-
-    public void ApplyLocalization()
-    {
-        Title = _loc.Get("Settings_Title");
-        AppHeaderTitle.Text = "ClipFlyout";
-        AppHeaderSubtitle.Text = _loc.Get("Settings_SubTitle");
-        ResetDefaultsButton.Content = _loc.Get("About_Reset");
-
-        // Tab Headers
-        TabBtnGeneral.Content = _loc.Get("Tab_General");
-        TabBtnAppearance.Content = _loc.Get("Tab_Appearance");
-        TabBtnDetectors.Content = _loc.Get("Tab_Detectors");
-        TabBtnUpdates.Content = _loc.Get("Tab_Updates");
-        TabBtnCredits.Content = _loc.Get("Tab_Credits");
-
-        SecGeneralTitle.Text = _loc.Get("Section_General");
-        LblMonitoring.Text = _loc.Get("Setting_Monitoring");
-        DescMonitoring.Text = _loc.Get("Setting_Monitoring_Desc");
-        LblShowWidget.Text = _loc.Get("Setting_ShowTaskbarWidget");
-        DescShowWidget.Text = _loc.Get("Setting_ShowTaskbarWidget_Desc");
-        LblWidgetPos.Text = _loc.Get("Setting_WidgetPosition");
-        DescWidgetPos.Text = _loc.Get("Setting_WidgetPosition_Desc");
-        LblWidgetAutoAlign.Text = _loc.Get("Setting_WidgetAutoAlign");
-        DescWidgetAutoAlign.Text = _loc.Get("Setting_WidgetAutoAlign_Desc");
-        LblWidgetMonitor.Text = _loc.Get("Setting_WidgetMonitor");
-        DescWidgetMonitor.Text = _loc.Get("Setting_WidgetMonitor_Desc");
-        LblWidgetOffset.Text = _loc.Get("Setting_WidgetOffsetX");
-        DescWidgetOffset.Text = _loc.Get("Setting_WidgetOffsetX_Desc");
-        LblWidgetTextColor.Text = _loc.Get("Setting_WidgetTextColor");
-        DescWidgetTextColor.Text = _loc.Get("Setting_WidgetTextColor_Desc");
-        LblIgnorePasswords.Text = _loc.Get("Setting_IgnorePasswordManagers");
-        DescIgnorePasswords.Text = _loc.Get("Setting_IgnorePasswordManagers_Desc");
-        LblRecallHotkey.Text = _loc.Get("Setting_EnableRecallHotkey");
-        DescRecallHotkey.Text = _loc.Get("Setting_EnableRecallHotkey_Desc");
-        LblStartup.Text = _loc.Get("Setting_Startup");
-        DescStartup.Text = _loc.Get("Setting_Startup_Desc");
-        LblLang.Text = _loc.Get("Setting_Language");
-        DescLang.Text = _loc.Get("Setting_Language_Desc");
-
-        SecFlyoutTitle.Text = _loc.Get("Section_Flyout");
-        LblTheme.Text = _loc.Get("Setting_Theme");
-        DescTheme.Text = _loc.Get("Setting_Theme_Desc");
-        LblPlacement.Text = _loc.Get("Setting_Placement");
-        DescPlacement.Text = _loc.Get("Setting_Placement_Desc");
-        LblOpacity.Text = _loc.Get("Setting_Opacity");
-        DescOpacity.Text = _loc.Get("Setting_Opacity_Desc");
-        LblDuration.Text = _loc.Get("Setting_Duration");
-        DescDuration.Text = _loc.Get("Setting_Duration_Desc");
-        LblHoverDuration.Text = _loc.Get("Setting_HoverDuration");
-        DescHoverDuration.Text = _loc.Get("Setting_HoverDuration_Desc");
-
-        SecColorPickerTitle.Text = _loc.Get("Setting_AccentColor");
-        LblColorPreset.Text = _loc.Get("Color_Preset");
-        LblColorRed.Text = _loc.Get("Color_Red");
-        LblColorGreen.Text = _loc.Get("Color_Green");
-        LblColorBlue.Text = _loc.Get("Color_Blue");
-
-        SecDetectorsTitle.Text = _loc.Get("Section_Detectors");
-        SecDetectorsSubtitle.Text = _loc.Get("Section_Detectors_Desc");
-        LblDetHex.Text = _loc.Get("Detector_HexColor");
-        DescDetHex.Text = _loc.Get("Detector_HexColor_Desc");
-        LblDetTimestamp.Text = _loc.Get("Detector_Timestamp");
-        DescDetTimestamp.Text = _loc.Get("Detector_Timestamp_Desc");
-        LblDetJson.Text = _loc.Get("Detector_Json");
-        DescDetJson.Text = _loc.Get("Detector_Json_Desc");
-        LblDetUrl.Text = _loc.Get("Detector_Url");
-        DescDetUrl.Text = _loc.Get("Detector_Url_Desc");
-        LblDetEmail.Text = _loc.Get("Detector_Email");
-        DescDetEmail.Text = _loc.Get("Detector_Email_Desc");
-        LblDetBase64.Text = _loc.Get("Detector_Base64");
-        DescDetBase64.Text = _loc.Get("Detector_Base64_Desc");
-        LblDetTable.Text = _loc.Get("Detector_Table");
-        DescDetTable.Text = _loc.Get("Detector_Table_Desc");
-        LblDetCode.Text = _loc.Get("Detector_Code");
-        DescDetCode.Text = _loc.Get("Detector_Code_Desc");
-        LblDetImage.Text = _loc.Get("Detector_Image");
-        DescDetImage.Text = _loc.Get("Detector_Image_Desc");
-        LblDetText.Text = _loc.Get("Detector_PlainText");
-        DescDetText.Text = _loc.Get("Detector_PlainText_Desc");
-        LblCleanUrl.Text = _loc.Get("Detector_CleanUrl");
-        DescCleanUrl.Text = _loc.Get("Detector_CleanUrl_Desc");
-        LblCaseConverter.Text = _loc.Get("Detector_CaseConverter");
-        DescCaseConverter.Text = _loc.Get("Detector_CaseConverter_Desc");
-        LblJwt.Text = _loc.Get("Detector_Jwt");
-        DescJwt.Text = _loc.Get("Detector_Jwt_Desc");
-
-        SecUpdatesTitle.Text = _loc.Get("Tab_Updates");
-        LblAutoUpdate.Text = _loc.Get("Setting_AutoUpdate");
-        DescAutoUpdate.Text = _loc.Get("Setting_AutoUpdate_Desc");
-        CheckUpdatesButton.Content = _loc.Get("Update_CheckNow");
-        BtnInstallUpdateNow.Content = _loc.Get("Update_InstallNow");
-
-        SecAboutTitle.Text = _loc.Get("Section_About");
-        PrivacyTitle.Text = _loc.Get("About_Privacy_Title");
-        PrivacyDesc.Text = _loc.Get("About_Privacy_Desc");
-        AboutVersion.Text = _loc.Get("About_Version", AppInfo.DisplayVersion);
-
-        SecCreditsTitle.Text = _loc.Get("Section_Credits");
-        CreditsProject.Text = _loc.Get("Credits_Project");
-        CreditsAuthor.Text = _loc.Get("Credits_Author");
-        CreditsLicense.Text = _loc.Get("Credits_License");
-        CreditsNotice.Text = _loc.Get("Credits_Desc");
-
-        // Refresh dropdown display texts
-        int themeIdx = ComboTheme.SelectedIndex;
-        int langIdx = ComboLanguage.SelectedIndex;
-        int widgetPosIdx = ComboWidgetPos.SelectedIndex;
-        int widgetTextColorIdx = ComboWidgetTextColor.SelectedIndex;
-        int widgetMonitorIdx = ComboWidgetMonitor.SelectedIndex;
-        int placementIdx = ComboPlacement.SelectedIndex;
-
-        PopulateDropdowns();
-
-        ComboTheme.SelectedIndex = themeIdx;
-        ComboLanguage.SelectedIndex = langIdx;
-        ComboWidgetPos.SelectedIndex = widgetPosIdx;
-        ComboWidgetTextColor.SelectedIndex = widgetTextColorIdx;
-        ComboWidgetMonitor.SelectedIndex = widgetMonitorIdx;
-        ComboPlacement.SelectedIndex = placementIdx;
-    }
-
-    private void ResetDefaultsButton_Click(object sender, RoutedEventArgs e)
-    {
-        var result = MessageBox.Show(
-            _loc.Get("About_Reset_Confirm"),
-            "ClipFlyout",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question
-        );
-
-        if (result == MessageBoxResult.Yes)
-        {
-            var defaultSettings = new AppSettings();
-            _settings.SaveSettings(defaultSettings);
-            _theme.Mode = defaultSettings.Theme;
-            _loc.CurrentLanguage = defaultSettings.Language;
-
-            _isInitializing = true;
-            LoadSettingsValues();
             _isInitializing = false;
         }
     }
 
-    private void GithubButton_Click(object sender, RoutedEventArgs e)
+    private void SyncAccentControls(string hex)
     {
+        _isSyncingColor = true;
         try
         {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = "https://github.com/featlis/ClipFlyout",
-                UseShellExecute = true
-            });
+            Color c;
+            try { c = (Color)ColorConverter.ConvertFromString(hex); }
+            catch { c = Color.FromRgb(0, 120, 212); }
+
+            SliderColorR.Value = c.R;
+            SliderColorG.Value = c.G;
+            SliderColorB.Value = c.B;
+            ValColorR.Text = c.R.ToString(CultureInfo.InvariantCulture);
+            ValColorG.Text = c.G.ToString(CultureInfo.InvariantCulture);
+            ValColorB.Text = c.B.ToString(CultureInfo.InvariantCulture);
+            string upperHex = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+            TextHexCode.Text = upperHex;
+            CurrentAccentPreview.Background = ThemeService.CreateFrozenBrush(c);
+            UpdateSelectedSwatchHighlight(upperHex);
         }
-        catch { }
+        finally
+        {
+            _isSyncingColor = false;
+        }
+    }
+
+    private void UpdateSelectedSwatchHighlight(string hex)
+    {
+        Button[] swatches = [SwatchBlue, SwatchTeal, SwatchGreen, SwatchPurple, SwatchPink, SwatchOrange];
+        foreach (var btn in swatches)
+        {
+            if (btn.Background is SolidColorBrush scb)
+            {
+                string swatchHex = $"#{scb.Color.R:X2}{scb.Color.G:X2}{scb.Color.B:X2}";
+                btn.Tag = swatchHex.Equals(hex, StringComparison.OrdinalIgnoreCase) ? "Selected" : null;
+            }
+        }
+    }
+
+    private void UpdateAccentPickerEnabledState()
+    {
+        bool manual = !ToggleSystemAccent.IsOn;
+        AccentPickerCard.IsEnabled = manual;
+        AccentPickerCard.Opacity = manual ? 1.0 : 0.5;
+    }
+
+    private void UpdateWidgetSubSettingsState()
+    {
+        bool enabled = ToggleShowWidget.IsOn;
+        WidgetSubSettingsPanel.IsEnabled = enabled;
+        WidgetSubSettingsPanel.Opacity = enabled ? 1.0 : 0.5;
+    }
+
+    private void UpdateHotkeyConflictBanner()
+    {
+        bool showConflict = ToggleRecallHotkey.IsOn && _hotkeyFailedProvider?.Invoke() == true;
+        HotkeyConflictBanner.Visibility = showConflict ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void UpdateHistoryCountLabel()
+    {
+        CardClearHistory.Description = _loc.Get("Setting_ClearHistory_Desc", HistoryService.Instance.Count);
+    }
+
+    private void SettingChanged_Event(object sender, RoutedEventArgs e)
+    {
+        if (_isInitializing) return;
+
+        UpdateAccentPickerEnabledState();
+        UpdateWidgetSubSettingsState();
+        SaveAllSettings();
+        UpdateHotkeyConflictBanner();
+    }
+
+    private void DebouncedSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_isInitializing) return;
+
+        TxtOpacityVal.Text = $"{SliderOpacity.Value:F0}%";
+        TxtDurationVal.Text = $"{SliderDuration.Value:F1}s";
+        TxtHoverDurationVal.Text = $"{SliderHoverDuration.Value:F1}s";
+        TxtWidgetOffsetVal.Text = $"{SliderWidgetOffset.Value:F0}px";
+
+        _sliderDebounceTimer.Stop();
+        _sliderDebounceTimer.Start();
+    }
+
+    private void AccentSwatch_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Background: SolidColorBrush scb })
+        {
+            string hex = $"#{scb.Color.R:X2}{scb.Color.G:X2}{scb.Color.B:X2}";
+            SyncAccentControls(hex);
+            ThemeService.Instance.UpdateAccentResource(scb.Color);
+            SaveAllSettings();
+        }
+    }
+
+    private void RgbSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_isInitializing || _isSyncingColor) return;
+
+        byte r = (byte)Math.Round(SliderColorR.Value);
+        byte g = (byte)Math.Round(SliderColorG.Value);
+        byte b = (byte)Math.Round(SliderColorB.Value);
+        var color = Color.FromRgb(r, g, b);
+        string hex = $"#{r:X2}{g:X2}{b:X2}";
+
+        _isSyncingColor = true;
+        try
+        {
+            ValColorR.Text = r.ToString(CultureInfo.InvariantCulture);
+            ValColorG.Text = g.ToString(CultureInfo.InvariantCulture);
+            ValColorB.Text = b.ToString(CultureInfo.InvariantCulture);
+            TextHexCode.Text = hex;
+            CurrentAccentPreview.Background = ThemeService.CreateFrozenBrush(color);
+            UpdateSelectedSwatchHighlight(hex);
+        }
+        finally
+        {
+            _isSyncingColor = false;
+        }
+
+        // Instant visual feedback + 150ms debounced persistence
+        ThemeService.Instance.UpdateAccentResource(color);
+        _sliderDebounceTimer.Stop();
+        _sliderDebounceTimer.Start();
+    }
+
+    private void TextHexCode_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_isInitializing || _isSyncingColor) return;
+
+        string text = TextHexCode.Text.Trim();
+        if (!text.StartsWith('#')) text = "#" + text;
+        if (text.Length == 7)
+        {
+            try
+            {
+                var c = (Color)ColorConverter.ConvertFromString(text);
+                _isSyncingColor = true;
+                try
+                {
+                    SliderColorR.Value = c.R;
+                    SliderColorG.Value = c.G;
+                    SliderColorB.Value = c.B;
+                    ValColorR.Text = c.R.ToString(CultureInfo.InvariantCulture);
+                    ValColorG.Text = c.G.ToString(CultureInfo.InvariantCulture);
+                    ValColorB.Text = c.B.ToString(CultureInfo.InvariantCulture);
+                    CurrentAccentPreview.Background = ThemeService.CreateFrozenBrush(c);
+                    UpdateSelectedSwatchHighlight(text.ToUpperInvariant());
+                }
+                finally
+                {
+                    _isSyncingColor = false;
+                }
+
+                ThemeService.Instance.UpdateAccentResource(c);
+                _sliderDebounceTimer.Stop();
+                _sliderDebounceTimer.Start();
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private void SaveAllSettings()
+    {
+        var chosenLang = (AppLanguage)Math.Max(0, CmbLanguage.SelectedIndex);
+        var chosenTheme = (AppThemeMode)Math.Max(0, CmbTheme.SelectedIndex);
+        string hexColor = $"#{(byte)Math.Round(SliderColorR.Value):X2}{(byte)Math.Round(SliderColorG.Value):X2}{(byte)Math.Round(SliderColorB.Value):X2}";
+
+        _settings.UpdateSettings(s =>
+        {
+            s.IsMonitoringEnabled = ToggleMonitoring.IsOn;
+            s.LaunchOnStartup = ToggleStartup.IsOn;
+            s.EnableRecallHotkey = ToggleRecallHotkey.IsOn;
+            s.Language = chosenLang;
+
+            s.Theme = chosenTheme;
+            s.UseSystemAccentColor = ToggleSystemAccent.IsOn;
+            s.AccentColor = hexColor;
+            s.Placement = (FlyoutPlacement)Math.Max(0, CmbPlacement.SelectedIndex);
+            s.OpacityPercent = Math.Round(SliderOpacity.Value);
+            s.DisplayDurationSeconds = Math.Round(SliderDuration.Value, 1);
+            s.HoverLeaveDurationSeconds = Math.Round(SliderHoverDuration.Value, 1);
+            s.SuppressInFullscreen = ToggleSuppressFullscreen.IsOn;
+
+            s.ShowTaskbarWidget = ToggleShowWidget.IsOn;
+            s.WidgetPosition = (WidgetPositionMode)Math.Max(0, CmbWidgetPosition.SelectedIndex);
+            s.WidgetAutoAlign = ToggleWidgetAutoAlign.IsOn;
+            s.WidgetMonitor = (WidgetMonitorTarget)Math.Max(0, CmbWidgetMonitor.SelectedIndex);
+            s.WidgetTextColor = (WidgetTextColorMode)Math.Max(0, CmbWidgetTextColor.SelectedIndex);
+            s.WidgetOffsetX = Math.Round(SliderWidgetOffset.Value);
+
+            s.DetectHexColor = ToggleDetectHex.IsOn;
+            s.DetectUrl = ToggleDetectUrl.IsOn;
+            s.DetectFileDrop = ToggleDetectFileDrop.IsOn;
+            s.DetectImage = ToggleDetectImage.IsOn;
+            s.DetectJson = ToggleDetectJson.IsOn;
+            s.DetectEmail = ToggleDetectEmail.IsOn;
+            s.DetectTimestamp = ToggleDetectTimestamp.IsOn;
+            s.DetectIsoDateTime = ToggleDetectIsoDate.IsOn;
+            s.DetectBase64 = ToggleDetectBase64.IsOn;
+            s.DetectTable = ToggleDetectTable.IsOn;
+            s.DetectCode = ToggleDetectCode.IsOn;
+            s.DetectPlainText = ToggleDetectPlainText.IsOn;
+            s.EnableCleanUrl = ToggleCleanUrl.IsOn;
+            s.EnableCaseConverter = ToggleCaseConverter.IsOn;
+            s.EnableJwtDetector = ToggleJwt.IsOn;
+
+            s.IgnorePasswordManagers = ToggleIgnorePasswordManagers.IsOn;
+            s.PersistHistory = TogglePersistHistory.IsOn;
+            s.AutomaticallyInstallUpdates = ToggleAutoUpdate.IsOn;
+        });
+
+        if (!TogglePersistHistory.IsOn)
+        {
+            HistoryService.Instance.DeletePersistedFile();
+        }
+
+        if (_loc.CurrentLanguage != chosenLang)
+        {
+            _loc.CurrentLanguage = chosenLang;
+        }
+    }
+
+    private void BtnClearHistory_Click(object sender, RoutedEventArgs e)
+    {
+        HistoryService.Instance.Clear(includePinned: true);
+        HistoryService.Instance.DeletePersistedFile();
+        UpdateHistoryCountLabel();
+        CardClearHistory.Description = _loc.Get("Setting_ClearHistory_Done");
     }
 
     private async void CheckUpdatesButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_isCheckingUpdates) return;
+        _isCheckingUpdates = true;
         CheckUpdatesButton.IsEnabled = false;
         BtnInstallUpdateNow.Visibility = Visibility.Collapsed;
-        TextUpdateStatus.Text = _loc.Get("Update_Checking");
-        TextUpdateStatus.Foreground = _theme.IsDarkTheme
-            ? new SolidColorBrush(Color.FromRgb(156, 163, 175))
-            : new SolidColorBrush(Color.FromRgb(100, 116, 139));
+        ShowUpdateStatus("\uE895", _loc.Get("Update_Checking"), "TextSecondaryBrush");
 
         try
         {
-            var update = await UpdateService.Instance.CheckForUpdateAsync();
-            if (update is null)
+            _pendingUpdate = await UpdateService.Instance.CheckForUpdateAsync(CancellationToken.None);
+            if (_pendingUpdate != null)
             {
-                TextUpdateStatus.Text = $"✓ {_loc.Get("Update_UpToDate")}";
-                TextUpdateStatus.Foreground = new SolidColorBrush(Color.FromRgb(16, 185, 129));
-                return;
+                ShowUpdateStatus("\uE896", _loc.Get("Update_Available", _pendingUpdate.Version), "FluentAccentBrush");
+                BtnInstallUpdateNow.Visibility = Visibility.Visible;
             }
-
-            _pendingUpdate = update;
-            TextUpdateStatus.Text = $"★ v{update.Version}";
-            TextUpdateStatus.Foreground = new SolidColorBrush(Color.FromRgb(59, 130, 246));
-            BtnInstallUpdateNow.Visibility = Visibility.Visible;
+            else
+            {
+                ShowUpdateStatus("\uE73E", _loc.Get("Update_UpToDate"), "StatusSuccessBrush");
+            }
         }
         catch
         {
-            TextUpdateStatus.Text = $"⚠ {_loc.Get("Update_Failed")}";
-            TextUpdateStatus.Foreground = new SolidColorBrush(Color.FromRgb(239, 68, 68));
+            ShowUpdateStatus("\uE7BA", _loc.Get("Update_Failed"), "StatusErrorBrush");
         }
         finally
         {
+            _isCheckingUpdates = false;
             CheckUpdatesButton.IsEnabled = true;
         }
     }
 
     private async void BtnInstallUpdateNow_Click(object sender, RoutedEventArgs e)
     {
-        if (_pendingUpdate is null) return;
+        if (_pendingUpdate == null) return;
         BtnInstallUpdateNow.IsEnabled = false;
         CheckUpdatesButton.IsEnabled = false;
-        TextUpdateStatus.Text = _loc.Get("Update_Downloading");
-        TextUpdateStatus.Foreground = new SolidColorBrush(Color.FromRgb(59, 130, 246));
+
+        var progress = new Progress<double>(ratio =>
+        {
+            int pct = (int)Math.Round(ratio * 100);
+            string msg = pct >= 100 ? _loc.Get("Update_Verifying") : _loc.Get("Update_Downloading", pct);
+            ShowUpdateStatus("\uE896", msg, "FluentAccentBrush");
+        });
+
+        ShowUpdateStatus("\uE896", _loc.Get("Update_Downloading", 0), "FluentAccentBrush");
 
         try
         {
-            await UpdateService.Instance.DownloadAndStartInstallerAsync(_pendingUpdate);
+            await UpdateService.Instance.DownloadAndStartInstallerAsync(_pendingUpdate, CancellationToken.None, progress);
             Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            ShowUpdateStatus("\uE7BA", $"{_loc.Get("Update_Failed")} ({ex.Message})", "StatusErrorBrush");
+            BtnInstallUpdateNow.IsEnabled = true;
+            CheckUpdatesButton.IsEnabled = true;
+        }
+    }
+
+    private void ShowUpdateStatus(string glyph, string message, string brushKey)
+    {
+        UpdateStatusGlyph.Text = glyph;
+        UpdateStatusGlyph.Foreground = TryFindResource(brushKey) as Brush ?? Brushes.Gray;
+        UpdateStatusText.Text = message;
+        UpdateStatusBanner.Visibility = Visibility.Visible;
+    }
+
+    private void GithubButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            using var _ = Process.Start(new ProcessStartInfo
+            {
+                FileName = "https://github.com/featlis/ClipFlyout",
+                UseShellExecute = true
+            });
         }
         catch
         {
-            TextUpdateStatus.Text = $"⚠ {_loc.Get("Update_Failed")}";
-            TextUpdateStatus.Foreground = new SolidColorBrush(Color.FromRgb(239, 68, 68));
-            BtnInstallUpdateNow.IsEnabled = true;
-            CheckUpdatesButton.IsEnabled = true;
+        }
+    }
+
+    private void ResetDefaultsButton_Click(object sender, RoutedEventArgs e)
+    {
+        bool confirmed = FluentDialog.ShowConfirm(
+            this,
+            _loc.Get("About_Reset"),
+            _loc.Get("About_Reset_Confirm"),
+            _loc.Get("Dialog_Confirm"),
+            _loc.Get("Dialog_Cancel"),
+            "\uE777");
+
+        if (confirmed)
+        {
+            var defaults = new AppSettings { IsFirstRun = false };
+            _settings.SaveSettings(defaults);
+            _loc.CurrentLanguage = defaults.Language;
+            LoadValuesFromSettings();
+            ApplyLocalization();
         }
     }
 }

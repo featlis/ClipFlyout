@@ -8,6 +8,7 @@ using Xunit;
 
 namespace ClipFlyout.Tests;
 
+[Collection("SequentialSingleton")]
 public class ExtendedFeaturesTests : IDisposable
 {
     private readonly DataTypeDetector _detector;
@@ -127,12 +128,12 @@ public class ExtendedFeaturesTests : IDisposable
     }
 
     [Fact]
-    public void HistoryService_CapsAtTenItems_AndOrdersNewestFirst()
+    public void HistoryService_CapsAtTwentyItems_AndOrdersNewestFirst()
     {
         var service = HistoryService.Instance;
-        service.Clear();
+        service.Clear(includePinned: true);
 
-        for (int i = 1; i <= 15; i++)
+        for (int i = 1; i <= 25; i++)
         {
             var result = new DetectionResult(
                 ClipDataType.PlainText,
@@ -146,8 +147,8 @@ public class ExtendedFeaturesTests : IDisposable
         }
 
         var items = service.GetItems();
-        Assert.Equal(10, items.Count);
-        Assert.Equal("Item 15", items[0].DisplayTitle);
+        Assert.Equal(20, items.Count);
+        Assert.Equal("Item 25", items[0].DisplayTitle);
         Assert.Equal("Item 6", items[^1].DisplayTitle);
     }
 
@@ -389,14 +390,14 @@ public class ExtendedFeaturesTests : IDisposable
     }
 
     [Fact]
-    public void LocalizationService_WidgetEmpty_UsesFullWidthForJapanese()
+    public void LocalizationService_WidgetEmpty_ResolvesForBothLanguages()
     {
         var loc = LocalizationService.Instance;
         loc.CurrentLanguage = AppLanguage.Japanese;
-        Assert.Equal("（クリップボード空）", loc.Get("Widget_Empty"));
+        Assert.Equal("クリップボード空", loc.Get("Widget_Empty"));
 
         loc.CurrentLanguage = AppLanguage.English;
-        Assert.Equal("(Clipboard empty)", loc.Get("Widget_Empty"));
+        Assert.Equal("Clipboard empty", loc.Get("Widget_Empty"));
     }
 
     [Fact]
@@ -409,7 +410,6 @@ public class ExtendedFeaturesTests : IDisposable
         Assert.Equal("\uE8C8", actionWithGlyph.EffectiveGlyph);
         Assert.True(actionWithGlyph.IsPrimary);
 
-        // Fallback resolution from IconKey/LabelKey
         var saveAction = new ActionItem("Action_Save", "Save", "Save24", "Save to disk", () => { });
         Assert.Equal("\uE74E", saveAction.EffectiveGlyph);
         Assert.Equal("Save to disk", saveAction.DisplaySubtitle);
@@ -418,7 +418,7 @@ public class ExtendedFeaturesTests : IDisposable
         Assert.Equal("\uE790", colorAction.EffectiveGlyph);
 
         var convertAction = new ActionItem("Action_Convert", "Convert", "Dial24", "Convert format", () => { });
-        Assert.Equal("\uE895", convertAction.EffectiveGlyph);
+        Assert.Equal("\uE8AB", convertAction.EffectiveGlyph);
     }
 
     [Fact]
@@ -438,16 +438,14 @@ public class ExtendedFeaturesTests : IDisposable
         Assert.Equal("#3B82F6", primaryAction.Subtitle);
         Assert.Equal("\uE8C8", primaryAction.EffectiveGlyph);
 
-        // Verify convert action
-        var convertAction = result.AvailableActions.FirstOrDefault(a => a.LabelKey == "Action_ConvertColor");
-        Assert.NotNull(convertAction);
-        Assert.Equal("RGB, HSL, RGBA", convertAction.Subtitle);
-        Assert.Equal("\uE895", convertAction.EffectiveGlyph);
+        // Verify RGB, HSL, RGBA actions (no fake duplicate Convert action)
+        Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_CopyRgb");
+        Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_CopyHsl");
+        Assert.Contains(result.AvailableActions, a => a.LabelKey == "Action_CopyRgba");
 
-        // Verify description
         var loc = LocalizationService.Instance;
         loc.CurrentLanguage = AppLanguage.English;
-        Assert.Equal("Color Hex Code", loc.Get("Type_HexColor_Desc"));
+        Assert.Equal("Color Code", loc.Get("Type_HexColor_Desc"));
     }
 
     [Fact]

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace ClipFlyout.Native;
 
@@ -13,10 +15,10 @@ public static class Win32
     public const int WS_EX_TOOLWINDOW = 0x00000080;
     public const int WS_EX_TOPMOST = 0x00000008;
 
-    public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
-    public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
-    public static readonly IntPtr HWND_TOP = new IntPtr(0);
-    public static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
+    public static readonly IntPtr HWND_TOPMOST = new(-1);
+    public static readonly IntPtr HWND_NOTOPMOST = new(-2);
+    public static readonly IntPtr HWND_TOP = new(0);
+    public static readonly IntPtr HWND_BOTTOM = new(1);
 
     public const uint SWP_NOSIZE = 0x0001;
     public const uint SWP_NOMOVE = 0x0002;
@@ -31,6 +33,50 @@ public static class Win32
     public const int ICON_BIG = 1;
     public const int GCLP_HICON = -14;
     public const int GCLP_HICONSM = -34;
+
+    // Low-level hooks (active only while FlyoutWindow is open)
+    public const int WH_KEYBOARD_LL = 13;
+    public const int WH_MOUSE_LL = 14;
+    public const int WM_KEYDOWN = 0x0100;
+    public const int WM_SYSKEYDOWN = 0x0104;
+    public const int WM_LBUTTONDOWN = 0x0201;
+    public const int WM_RBUTTONDOWN = 0x0204;
+    public const int WM_MBUTTONDOWN = 0x0207;
+
+    public delegate IntPtr LowLevelHookProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr SetWindowsHookEx(int idHook, LowLevelHookProc lpfn, IntPtr hMod, uint dwThreadId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    public static extern IntPtr GetModuleHandle(string? lpModuleName);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct KBDLLHOOKSTRUCT
+    {
+        public uint vkCode;
+        public uint scanCode;
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MSLLHOOKSTRUCT
+    {
+        public POINT pt;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     public struct WINDOWPOS
@@ -72,8 +118,16 @@ public static class Win32
     public const uint MOD_WIN = 0x0008;
     public const uint MOD_NOREPEAT = 0x4000;
 
+    public const ushort VK_SHIFT = 0x10;
     public const ushort VK_CONTROL = 0x11;
+    public const ushort VK_MENU = 0x12; // Alt
+    public const ushort VK_ESCAPE = 0x1B;
+    public const ushort VK_RETURN = 0x0D;
+    public const ushort VK_UP = 0x26;
+    public const ushort VK_DOWN = 0x28;
     public const ushort VK_V = 0x56;
+    public const ushort VK_LWIN = 0x5B;
+    public const ushort VK_RWIN = 0x5C;
 
     public const uint INPUT_KEYBOARD = 1;
     public const uint KEYEVENTF_KEYUP = 0x0002;
@@ -132,6 +186,12 @@ public static class Win32
     [DllImport("user32.dll")]
     public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
 
+    [DllImport("user32.dll")]
+    public static extern short GetAsyncKeyState(int vKey);
+
+    [DllImport("user32.dll")]
+    public static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
     public enum QUERY_USER_NOTIFICATION_STATE
     {
         QUNS_NOT_PRESENT = 1,
@@ -153,7 +213,7 @@ public static class Win32
     public static extern IntPtr GetShellWindow();
 
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-    public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+    public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -162,8 +222,6 @@ public static class Win32
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool IsIconic(IntPtr hWnd);
-
-
 
     [StructLayout(LayoutKind.Sequential)]
     public struct INPUT
@@ -215,25 +273,139 @@ public static class Win32
     [DllImport("user32.dll", SetLastError = true)]
     public static extern uint SendInput(uint nInputs, [In] INPUT[] pInputs, int cbSize);
 
-    public static void PasteToActiveWindow()
+    /// <summary>
+    /// Releases interfering held modifiers and sends a clean Ctrl+V chord with hardware scan codes.
+    /// Returns true if all input events were accepted by Windows.
+    /// </summary>
+    public static bool PasteToActiveWindow()
     {
-        var inputs = new INPUT[4];
+        var list = new List<INPUT>(8);
 
-        inputs[0].type = INPUT_KEYBOARD;
-        inputs[0].u.ki.wVk = VK_CONTROL;
+        // Release held Alt / Shift / Win if user just triggered via shortcut
+        ushort[] interferingModifiers = [VK_MENU, VK_SHIFT, VK_LWIN, VK_RWIN];
+        foreach (var mod in interferingModifiers)
+        {
+            if ((GetAsyncKeyState(mod) & 0x8000) != 0)
+            {
+                list.Add(MakeKeyInput(mod, keyUp: true));
+            }
+        }
 
-        inputs[1].type = INPUT_KEYBOARD;
-        inputs[1].u.ki.wVk = VK_V;
+        list.Add(MakeKeyInput(VK_CONTROL, keyUp: false));
+        list.Add(MakeKeyInput(VK_V, keyUp: false));
+        list.Add(MakeKeyInput(VK_V, keyUp: true));
+        list.Add(MakeKeyInput(VK_CONTROL, keyUp: true));
 
-        inputs[2].type = INPUT_KEYBOARD;
-        inputs[2].u.ki.wVk = VK_V;
-        inputs[2].u.ki.dwFlags = KEYEVENTF_KEYUP;
+        var inputs = list.ToArray();
+        uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+        return sent == inputs.Length;
+    }
 
-        inputs[3].type = INPUT_KEYBOARD;
-        inputs[3].u.ki.wVk = VK_CONTROL;
-        inputs[3].u.ki.dwFlags = KEYEVENTF_KEYUP;
+    private static INPUT MakeKeyInput(ushort vk, bool keyUp)
+    {
+        return new INPUT
+        {
+            type = INPUT_KEYBOARD,
+            u = new InputUnion
+            {
+                ki = new KEYBDINPUT
+                {
+                    wVk = vk,
+                    wScan = (ushort)MapVirtualKey(vk, 0),
+                    dwFlags = keyUp ? KEYEVENTF_KEYUP : 0
+                }
+            }
+        };
+    }
 
-        SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+    /// <summary>
+    /// Detects whether a fullscreen game, presentation, or borderless fullscreen video is currently active.
+    /// </summary>
+    public static bool IsFullscreenAppActive(IntPtr excludeHwnd = default)
+    {
+        try
+        {
+            if (SHQueryUserNotificationState(out var state) == 0)
+            {
+                if (state == QUERY_USER_NOTIFICATION_STATE.QUNS_RUNNING_D3D_FULL_SCREEN ||
+                    state == QUERY_USER_NOTIFICATION_STATE.QUNS_PRESENTATION_MODE)
+                {
+                    return true;
+                }
+            }
+
+            IntPtr fg = GetForegroundWindow();
+            if (fg == IntPtr.Zero || fg == excludeHwnd || fg == GetDesktopWindow() || fg == GetShellWindow())
+            {
+                return false;
+            }
+
+            var sb = new StringBuilder(128);
+            if (GetClassName(fg, sb, sb.Capacity) > 0)
+            {
+                string cls = sb.ToString();
+                if (cls.Equals("Progman", StringComparison.OrdinalIgnoreCase) ||
+                    cls.Equals("WorkerW", StringComparison.OrdinalIgnoreCase) ||
+                    cls.Equals("Shell_TrayWnd", StringComparison.OrdinalIgnoreCase) ||
+                    cls.Equals("Shell_SecondaryTrayWnd", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            if (GetWindowRect(fg, out var fgRect))
+            {
+                IntPtr hMon = MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST);
+                var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+                if (GetMonitorInfo(hMon, ref mi))
+                {
+                    var m = mi.rcMonitor;
+                    bool coversMonitor = fgRect.Left <= m.Left &&
+                                         fgRect.Top <= m.Top &&
+                                         fgRect.Right >= m.Right &&
+                                         fgRect.Bottom >= m.Bottom;
+                    if (coversMonitor)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Detects whether the Windows Start Menu, Search, Quick Settings, or Shell Flyout is currently foreground.
+    /// </summary>
+    public static bool IsShellOverlayActive()
+    {
+        try
+        {
+            IntPtr fg = GetForegroundWindow();
+            if (fg == IntPtr.Zero) return false;
+
+            var sb = new StringBuilder(128);
+            if (GetClassName(fg, sb, sb.Capacity) > 0)
+            {
+                string cls = sb.ToString();
+                if (cls.Equals("Windows.UI.Core.CoreWindow", StringComparison.OrdinalIgnoreCase) ||
+                    cls.Equals("XamlExplorerHostIslandWindow", StringComparison.OrdinalIgnoreCase) ||
+                    cls.Equals("TopLevelWindowForOverflowXamlIsland", StringComparison.OrdinalIgnoreCase) ||
+                    cls.Equals("NotifyIconOverflowWindow", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
     }
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLong")]
@@ -298,18 +470,23 @@ public static class Win32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumProc lpfnEnum, IntPtr dwData);
 
-    public static System.Collections.Generic.List<IntPtr> GetAllMonitors()
+    public static List<IntPtr> GetAllMonitors()
     {
-        var monitorsWithRect = new System.Collections.Generic.List<(IntPtr hMon, int left)>();
+        var monitorsWithRect = new List<(IntPtr hMon, int left, int top)>();
         EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (IntPtr hMon, IntPtr hdc, ref RECT rc, IntPtr data) =>
         {
-            monitorsWithRect.Add((hMon, rc.Left));
+            monitorsWithRect.Add((hMon, rc.Left, rc.Top));
             return true;
         }, IntPtr.Zero);
 
-        monitorsWithRect.Sort((a, b) => a.left.CompareTo(b.left));
+        // Sort deterministically left-to-right, then top-to-bottom for vertically stacked setups
+        monitorsWithRect.Sort((a, b) =>
+        {
+            int cmp = a.left.CompareTo(b.left);
+            return cmp != 0 ? cmp : a.top.CompareTo(b.top);
+        });
 
-        var list = new System.Collections.Generic.List<IntPtr>(monitorsWithRect.Count);
+        var list = new List<IntPtr>(monitorsWithRect.Count);
         foreach (var item in monitorsWithRect)
         {
             list.Add(item.hMon);
@@ -338,7 +515,6 @@ public static class Win32
     [DllImport("dwmapi.dll")]
     public static extern int DwmExtendFrameIntoClientArea(IntPtr hwnd, ref MARGINS pMarInset);
 
-    // Accent Policy for Windows Acrylic Blur
     public enum AccentState
     {
         ACCENT_DISABLED = 0,
@@ -381,34 +557,35 @@ public static class Win32
     public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
     /// <summary>
-    /// Accurately retrieves the DPI scaling factor for the given monitor and window.
-    /// For SystemAware WPF applications, window DPI (system DPI) must be used for layout calculations.
+    /// Retrieves the effective DPI scaling factor, prioritizing the target monitor's DPI
+    /// for accurate Per-Monitor V2 multi-monitor positioning.
     /// </summary>
     public static double GetMonitorDpiScale(IntPtr hMonitor, IntPtr hwnd)
     {
         try
         {
+            if (hMonitor != IntPtr.Zero && GetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, out uint dpiX, out _) == 0 && dpiX > 0)
+            {
+                return dpiX / 96.0;
+            }
+
             if (hwnd != IntPtr.Zero)
             {
                 uint dpi = GetDpiForWindow(hwnd);
                 if (dpi > 0) return dpi / 96.0;
             }
-
-            if (hMonitor != IntPtr.Zero && GetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, out uint dpiX, out _) == 0 && dpiX > 0)
-            {
-                return dpiX / 96.0;
-            }
         }
-        catch { }
+        catch
+        {
+        }
 
         return 1.0;
     }
 
     /// <summary>
-    /// Enables Windows 11's transient acrylic backdrop and falls back to the
-    /// Accent Policy path on older builds. This must be used on a non-layered
-    /// window: WPF's AllowsTransparency turns a window into a layered window
-    /// and prevents DWM from composing real acrylic behind it.
+    /// Enables Windows 11 native transient acrylic backdrop (DWMSBT_TRANSIENTWINDOW)
+    /// without invoking conflicting Win10 Accent Policy on Win11 22H2+.
+    /// Falls back cleanly to Accent Policy only on older Windows builds.
     /// </summary>
     public static void EnableAcrylicBlur(IntPtr hwnd, bool isDark, double opacityPercent = 85.0, bool enableTransparency = true)
     {
@@ -420,7 +597,6 @@ public static class Win32
             int cornerVal = DWMWCP_ROUND;
             DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref cornerVal, sizeof(int));
 
-            // Extend frame into client area so DWM backdrop covers the window surface
             var margins = new MARGINS { cxLeftWidth = -1, cxRightWidth = -1, cyTopHeight = -1, cyBottomHeight = -1 };
             DwmExtendFrameIntoClientArea(hwnd, ref margins);
 
@@ -428,39 +604,38 @@ public static class Win32
             {
                 int noneBackdrop = DWMSBT_NONE;
                 DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref noneBackdrop, sizeof(int));
-
-                var disabledPolicy = new AccentPolicy { AccentState = AccentState.ACCENT_DISABLED };
-                SetAccentPolicy(hwnd, disabledPolicy);
+                SetAccentPolicy(hwnd, new AccentPolicy { AccentState = AccentState.ACCENT_DISABLED });
                 return;
             }
 
-            // Windows 11 22H2+ transient system backdrop (Desktop Acrylic)
+            // Windows 11 22H2+ native Desktop Acrylic backdrop
             int backdropVal = DWMSBT_TRANSIENTWINDOW;
             int dwmRes = DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropVal, sizeof(int));
 
-            // Accent Policy:
-            // AccentFlags = 0 (removes the unwanted top-border line from AccentFlags = 2).
-            // When DWM backdrop succeeds, use minimal alpha (0x01) so the compositor activates
-            // the hardware blur filter without imposing a competing second tint layer over WPF.
-            // When DWM backdrop is not supported (Windows 10 fallback), apply the acrylic tint.
-            byte r = isDark ? (byte)20 : (byte)255;
-            byte g = isDark ? (byte)20 : (byte)255;
-            byte b = isDark ? (byte)28 : (byte)255;
-            byte alpha = (dwmRes == 0) ? (byte)1 : (byte)Math.Clamp((int)Math.Round((opacityPercent - 20.0) * (180.0 / 80.0) + 30.0), 30, 220);
-            uint abgrColor = ((uint)alpha << 24) | ((uint)b << 16) | ((uint)g << 8) | (uint)r;
+            if (dwmRes == 0)
+            {
+                // Disable legacy accent policy so it never fights Win11 DWM composition
+                SetAccentPolicy(hwnd, new AccentPolicy { AccentState = AccentState.ACCENT_DISABLED });
+                return;
+            }
 
-            var policy = new AccentPolicy
+            // Windows 10 / 11 21H2 fallback
+            byte r = isDark ? (byte)32 : (byte)249;
+            byte g = isDark ? (byte)32 : (byte)249;
+            byte b = isDark ? (byte)32 : (byte)249;
+            byte alpha = (byte)Math.Clamp((int)Math.Round((opacityPercent - 20.0) * (180.0 / 80.0) + 30.0), 30, 220);
+            uint abgrColor = ((uint)alpha << 24) | ((uint)b << 16) | ((uint)g << 8) | r;
+
+            SetAccentPolicy(hwnd, new AccentPolicy
             {
                 AccentState = AccentState.ACCENT_ENABLE_ACRYLICBLURBEHIND,
-                AccentFlags = 0, // Clean: WPF renders the Fluent border
+                AccentFlags = 0,
                 GradientColor = abgrColor,
                 AnimationId = 0
-            };
-            SetAccentPolicy(hwnd, policy);
+            });
         }
         catch
         {
-            // Fallback gracefully
         }
     }
 
@@ -486,9 +661,10 @@ public static class Win32
     }
 
     /// <summary>
-    /// Enables Windows 11 Mica backdrop for primary application windows (like Settings).
+    /// Enables genuine Windows 11 Mica backdrop by extending DWM frame into client area.
+    /// Requires Window.Background = Brushes.Transparent (or translucent brush) to reveal Mica.
     /// </summary>
-    public static void EnableMica(IntPtr hwnd, bool isDark)
+    public static void EnableMica(IntPtr hwnd, bool isDark, bool useMicaAlt = false)
     {
         try
         {
@@ -498,7 +674,10 @@ public static class Win32
             int cornerVal = DWMWCP_ROUND;
             DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref cornerVal, sizeof(int));
 
-            int micaVal = DWMSBT_MAINWINDOW;
+            var margins = new MARGINS { cxLeftWidth = -1, cxRightWidth = -1, cyTopHeight = -1, cyBottomHeight = -1 };
+            DwmExtendFrameIntoClientArea(hwnd, ref margins);
+
+            int micaVal = useMicaAlt ? DWMSBT_TABBEDWINDOW : DWMSBT_MAINWINDOW;
             DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref micaVal, sizeof(int));
         }
         catch
@@ -528,10 +707,9 @@ public static class Win32
 
     public static IntPtr SetClassLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong)
     {
-        if (IntPtr.Size == 8)
-            return SetClassLongPtr64(hWnd, nIndex, dwNewLong);
-        else
-            return new IntPtr(SetClassLong32(hWnd, nIndex, dwNewLong.ToInt32()));
+        return IntPtr.Size == 8
+            ? SetClassLongPtr64(hWnd, nIndex, dwNewLong)
+            : new IntPtr(SetClassLong32(hWnd, nIndex, dwNewLong.ToInt32()));
     }
 
     [DllImport("user32.dll", EntryPoint = "SetClassLongPtr")]

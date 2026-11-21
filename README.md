@@ -7,10 +7,10 @@
 **Windows 11 Fluent Design に準拠したクリップボード解析・フライアウトユーティリティ**  
 *A privacy-focused clipboard utility with native DWM acrylic flyouts and taskbar integration for Windows.*
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/featlis/ClipFlyout/releases)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/featlis/ClipFlyout/releases)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2011%20%7C%2010%20(x64)-0078D4.svg)](https://github.com/featlis/ClipFlyout)
-[![.NET](https://img.shields.io/badge/.NET-9.0%20WPF-512BD4.svg)](https://dotnet.microsoft.com/)
+[![.NET](https://img.shields.io/badge/.NET-10.0%20WPF-512BD4.svg)](https://dotnet.microsoft.com/)
 
 <br />
 
@@ -55,8 +55,10 @@ ClipFlyout は、クリップボードにコピーしたテキストや画像の
 
 | データ型 | 検出条件 | 提供される主なアクション |
 | :--- | :--- | :--- |
-| **HEX カラー** | `#RGB`, `#RRGGBB`, `#AARRGGBB` | カラープレビュー、RGB / HSL / RGBA 変換コピー |
+| **カラーコード** | `#RGB`, `#RRGGBB`, `rgb()`, `hsl()` | カラープレビュー、HEX / RGB / HSL / RGBA 変換コピー |
 | **Unix タイムスタンプ** | 10桁（秒）または 13桁（ミリ秒）の数値 | ローカル日時文字列変換、ISO 8601 変換、現在Epochコピー |
+| **ISO 8601 日時** | `YYYY-MM-DDTHH:mm:ssZ` 等 | ローカル日時、Unix 秒 / ミリ秒変換コピー |
+| **ファイル / フォルダ** | エクスプローラーでコピーしたファイル・フォルダ | フルパス / 引用符付きパス / ファイル名コピー、エクスプローラーで開く |
 | **JSON テキスト** | JSON オブジェクト `{...}` または配列 `[...]` | インデント整形コピー、1行化（Minify）コピー |
 | **Web URL** | `http://` または `https://` リンク | 既定ブラウザで開く、QRコード画像生成コピー、ホストドメインコピー |
 | **クリーン URL** | UTM トラッカーや追跡パラメータを含むリンク | 追跡パラメータを除去したクリーン URL のコピー |
@@ -74,12 +76,12 @@ ClipFlyout は、クリップボードにコピーしたテキストや画像の
 ### 4. インストール方法
 
 #### インストーラー版（推奨）
-1. [GitHub Releases](https://github.com/featlis/ClipFlyout/releases/latest) から `ClipFlyout-Setup-v1.1.0.exe` をダウンロードします。
+1. [GitHub Releases](https://github.com/featlis/ClipFlyout/releases/latest) から `ClipFlyout-Setup-v2.0.0.exe` をダウンロードします。
 2. インストーラーを実行します（標準ユーザー権限でインストール可能です）。
 3. インストール完了後、初回セットアップ画面が表示されます。
 
 #### ポータブル版（ZIP）
-1. `ClipFlyout-v1.1.0-win-x64.zip` をダウンロードし、任意のフォルダーに解凍します。
+1. `ClipFlyout-v2.0.0-win-x64.zip` をダウンロードし、任意のフォルダーに解凍します。
 2. フォルダー内の `ClipFlyout.exe` を起動します（設定はローカル AppData に保存されます）。
 
 ---
@@ -160,8 +162,10 @@ Because the flyout uses the non-activating window style, your active window focu
 
 | Data Type | Detection Criteria | Available Actions |
 | :--- | :--- | :--- |
-| **HEX Color** | `#RGB`, `#RRGGBB`, `#AARRGGBB` | Color swatch preview, Copy RGB / HSL / RGBA values |
+| **Color Code** | `#RGB`, `#RRGGBB`, `rgb()`, `hsl()` | Color swatch preview, Copy HEX / RGB / HSL / RGBA values |
 | **Unix Timestamp** | 10-digit (s) or 13-digit (ms) numbers | Convert to local date string, ISO 8601 UTC, Copy current epoch |
+| **ISO 8601 Date/Time** | `YYYY-MM-DDTHH:mm:ssZ` strings | Local time, Unix seconds / milliseconds copy |
+| **Files & Folders** | Explorer FileDropList items | Copy full / quoted paths, file names, reveal in Explorer |
 | **JSON Text** | JSON object `{...}` or array `[...]` | Format with indentation, Minify to single line |
 | **Web URL** | `http://` or `https://` links | Open in browser, Generate & copy QR code, Copy domain |
 | **Clean URL** | URLs containing tracking parameters | Strip tracking parameters (UTM, fbclid, etc.) and copy clean URL |
@@ -178,11 +182,11 @@ Because the flyout uses the non-activating window style, your active window focu
 
 ### 4. Installation & Usage
 
-1. Download `ClipFlyout-Setup-v1.1.0.exe` or portable `ClipFlyout-v1.1.0-win-x64.zip` from [GitHub Releases](https://github.com/featlis/ClipFlyout/releases/latest).
+1. Download `ClipFlyout-Setup-v2.0.0.exe` or portable `ClipFlyout-v2.0.0-win-x64.zip` from [GitHub Releases](https://github.com/featlis/ClipFlyout/releases/latest).
 2. Run the installer or extract the portable ZIP.
 3. Copy any supported content (`Ctrl + C`).
-4. The flyout appears near the designated screen corner without stealing keyboard focus.
-5. Press **`Alt + Shift + C`** at any time to recall the most recent flyout.
+4. The flyout appears near the designated screen corner without stealing keyboard focus. Use `Esc`, `↑`/`↓`, `Enter`, or `1`–`9` for fast keyboard control.
+5. Press **`Alt + Shift + C`** at any time to toggle/recall the most recent flyout.
 
 ---
 
@@ -191,7 +195,7 @@ Because the flyout uses the non-activating window style, your active window focu
 ### 開発要件
 
 - Windows 11 / 10 (x64)
-- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - [Inno Setup 6](https://jrsoftware.org/isdl.php)（インストーラーパッケージ生成時のみ）
 
 ### ビルドと単体テスト
@@ -200,7 +204,7 @@ Because the flyout uses the non-activating window style, your active window focu
 # ソリューションのビルド
 dotnet build ClipFlyout.csproj -c Release
 
-# 単体テストの実行 (100件のテストスイート)
+# 単体テストの実行 (114件のテストスイート)
 dotnet test tests/ClipFlyout.Tests/ClipFlyout.Tests.csproj -c Release
 ```
 
@@ -208,23 +212,22 @@ dotnet test tests/ClipFlyout.Tests/ClipFlyout.Tests.csproj -c Release
 
 ```powershell
 # バージョンを指定してインストーラーとポータブルZIPを生成
-powershell -ExecutionPolicy Bypass -File scripts\build-installer.ps1 -Version 1.1.0
+powershell -ExecutionPolicy Bypass -File scripts\build-installer.ps1 -Version 2.0.0
 ```
 
 実行後、`dist/` ディレクトリに以下のファイルが出力されます：
-- `dist/ClipFlyout-Setup-v1.1.0.exe`（Inno Setup インストーラー）
-- `dist/ClipFlyout-v1.1.0-win-x64.zip`（自己完結型ポータブルパッケージ）
+- `dist/ClipFlyout-Setup-v2.0.0.exe`（Inno Setup インストーラー）
+- `dist/ClipFlyout-v2.0.0-win-x64.zip`（自己完結型ポータブルパッケージ）
 - `dist/checksums-sha256.txt`（SHA-256 チェックサム一覧）
 
 ### アーキテクチャ概要
 
-- **`Services/ClipboardMonitor.cs`**: `AddClipboardFormatListener` (Win32 API) によるイベント駆動型クリップボード監視。自己書き込みループを防止するシーケンス番号検証と、他プロセスとの競合を処理する非同期リトライ機構を実装。
-- **`Services/DataTypeDetector.cs`**: 優先度順の正規表現および構文解析エンジン。1MB 以上の巨大データに対する保護リミットを内包。
-- **`Services/FlyoutWindowManager.cs`**: `WS_EX_NOACTIVATE` 属性による非アクティブウィンドウ制御、Per-Monitor DPI 対応の正確な画面端吸着配置。
-- **`Views/TaskbarWidgetWindow.xaml.cs`**: タスクバー上にオーバーレイする常時表示ウィジェット。タスクバー自動非表示への追従（30ms ポーリング）、全画面アプリ時の自動抑止、クリック判定（Alpha=1 ブラシ）を実装。
-- **`Services/TaskbarColorDetector.cs`**: タスクバー領域の背景ピクセルをサンプリングし、輝度に応じた文字色（明色・暗色）の自動判別を実施。
-- **`Views/SettingsWindow.xaml`**: Mica デザインに準拠した設定画面。外観、配置、検出フィルター、アップデート確認、ライセンス表示をタブ分割で提供。
-- **`Controls/ToggleSwitch.xaml.cs`**: WinUI 3 準拠のストレッチアニメーション付きトグルスイッチ。
+- **`Services/ClipboardMonitor.cs`**: `AddClipboardFormatListener` (Win32 API) によるイベント駆動型クリップボード監視。`FileDropList` / PNG アルファ / テキスト対応、`CanIncludeInClipboardHistory` DWORD 検証、シーケンス番号＋非同期リトライ機構を実装。
+- **`Services/DataTypeDetector.cs`**: 優先度順の正規表現および構文解析エンジン。1MB 以上の巨大データに対する O(1) 保護リミットと誤検知防止フィルタを内包。
+- **`Services/FlyoutWindowManager.cs`**: `WS_EX_NOACTIVATE` 属性による非アクティブウィンドウ制御、Per-Monitor V2 DPI 対応配置、全画面アプリ自動抑制、軽量フックによる `Esc` / 外クリック即閉じ・キーボード操作を実装。
+- **`Views/TaskbarWidgetWindow.xaml.cs`**: イベント駆動＋500ms ガードによる超軽量タスクバーウィジェット。スタートメニュー・全画面アプリ時の自動回避とレジストリ基準の高速文字色最適化を実装。
+- **`Views/SettingsWindow.xaml`**: 実 Mica 背景＋PowerToys スタイル左 NavigationView＋再利用可能 `SettingsCard` による Windows 11 ネイティブ設定画面。
+- **`Controls/ToggleSwitch.xaml.cs`**: WinUI 3 準拠のホバー拡大・ストレッチアニメーション・WCAG コントラスト対応トグルスイッチ。
 
 ---
 

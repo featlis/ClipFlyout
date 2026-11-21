@@ -5,8 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="ClipFlyout"
-        Width="360"
-        MaxWidth="360"
+        Width="356"
+        MaxWidth="356"
         SizeToContent="Height"
         WindowStyle="None"
         AllowsTransparency="False"
@@ -19,258 +19,362 @@
         FontFamily="Segoe UI Variable Text, Segoe UI, sans-serif">
 
     <Window.Resources>
-        <!-- Windows 11 Smooth Easing Entrance Animation -->
-        <Storyboard x:Key="ShowStoryboard">
-            <DoubleAnimation Storyboard.TargetName="RootCard"
-                             Storyboard.TargetProperty="Opacity"
-                             From="0.0" To="1.0"
-                             Duration="0:0:0.18">
-                <DoubleAnimation.EasingFunction>
-                    <CubicEase EasingMode="EaseOut"/>
-                </DoubleAnimation.EasingFunction>
-            </DoubleAnimation>
-            <DoubleAnimation Storyboard.TargetName="RootTransform"
-                             Storyboard.TargetProperty="Y"
-                             From="12.0" To="0.0"
-                             Duration="0:0:0.18">
-                <DoubleAnimation.EasingFunction>
-                    <CubicEase EasingMode="EaseOut"/>
-                </DoubleAnimation.EasingFunction>
-            </DoubleAnimation>
-        </Storyboard>
+        <!-- Action Row Button Style (Zero opacity washout, instant Fluent tokens) -->
+        <Style x:Key="FlyoutActionButtonStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="42"/>
+            <Setter Property="Margin" Value="0,0,0,5"/>
+            <Setter Property="Padding" Value="11,7"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Background" Value="{DynamicResource ControlFillDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeDefaultBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="btnBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="26"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
 
-        <Storyboard x:Key="HideStoryboard">
-            <DoubleAnimation Storyboard.TargetName="RootCard"
-                             Storyboard.TargetProperty="Opacity"
-                             From="1.0" To="0.0"
-                             Duration="0:0:0.14">
-                <DoubleAnimation.EasingFunction>
-                    <CubicEase EasingMode="EaseIn"/>
-                </DoubleAnimation.EasingFunction>
-            </DoubleAnimation>
-            <DoubleAnimation Storyboard.TargetName="RootTransform"
-                             Storyboard.TargetProperty="Y"
-                             From="0.0" To="6.0"
-                             Duration="0:0:0.14">
-                <DoubleAnimation.EasingFunction>
-                    <CubicEase EasingMode="EaseIn"/>
-                </DoubleAnimation.EasingFunction>
-            </DoubleAnimation>
-        </Storyboard>
+                                <!-- Fluent Action Glyph -->
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding EffectiveGlyph}"
+                                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                           FontSize="14.5"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Left"
+                                           Foreground="{TemplateBinding Foreground}"/>
+
+                                <!-- Title & Subtitle Stack -->
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="2,0,6,0">
+                                    <TextBlock Text="{Binding Label}"
+                                               FontSize="12.5"
+                                               FontWeight="SemiBold"
+                                               Foreground="{TemplateBinding Foreground}"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding DisplaySubtitle}"
+                                               FontSize="10.5"
+                                               Opacity="0.78"
+                                               Margin="0,1,0,0"
+                                               Foreground="{TemplateBinding Foreground}"
+                                               TextTrimming="CharacterEllipsis"
+                                               Visibility="{Binding SubtitleVisibility}"/>
+                                </StackPanel>
+
+                                <!-- Keyboard Shortcut Pill -->
+                                <Border x:Name="ShortcutBadge"
+                                        Grid.Column="2"
+                                        MinWidth="20"
+                                        Height="20"
+                                        Padding="5,0"
+                                        CornerRadius="4"
+                                        VerticalAlignment="Center"
+                                        Background="{DynamicResource ShortcutBadgeBackgroundBrush}"
+                                        Visibility="{Binding ShortcutVisibility}">
+                                    <TextBlock x:Name="ShortcutText"
+                                               Text="{Binding ShortcutHint}"
+                                               FontSize="10.5"
+                                               FontWeight="Medium"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource ShortcutBadgeForegroundBrush}"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsPrimary}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource FluentAccentBrush}"/>
+                                <Setter Property="BorderBrush" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="{DynamicResource FluentTextOnAccentBrush}"/>
+                                <Setter TargetName="ShortcutBadge" Property="Background" Value="#28000000"/>
+                                <Setter TargetName="ShortcutText" Property="Foreground" Value="{DynamicResource FluentTextOnAccentBrush}"/>
+                            </DataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsPrimary}" Value="False"/>
+                                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter TargetName="btnBorder" Property="Background" Value="{DynamicResource ControlFillHoverBrush}"/>
+                                <Setter TargetName="btnBorder" Property="BorderBrush" Value="{DynamicResource ControlStrokeSecondaryBrush}"/>
+                            </MultiDataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsPrimary}" Value="False"/>
+                                    <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter TargetName="btnBorder" Property="Background" Value="{DynamicResource ControlFillPressedBrush}"/>
+                            </MultiDataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsPrimary}" Value="True"/>
+                                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter TargetName="btnBorder" Property="Background" Value="{DynamicResource FluentAccentHoverBrush}"/>
+                            </MultiDataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsPrimary}" Value="True"/>
+                                    <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter TargetName="btnBorder" Property="Background" Value="{DynamicResource FluentAccentPressedBrush}"/>
+                            </MultiDataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
-    <!-- Single Unified Root Card (CornerRadius="12" matching Windows 11 Fluent) -->
+    <!-- Single Unified Root Card (8px radius matching Win11 DWMWCP_ROUND) -->
     <Border x:Name="RootCard"
-            CornerRadius="12"
+            CornerRadius="8"
             BorderThickness="1"
-            Padding="0"
-            Margin="0"
-            MaxWidth="360"
-            ClipToBounds="False"
+            BorderBrush="{DynamicResource FlyoutStrokeBrush}"
+            Background="{DynamicResource FlyoutSurfaceFallbackBrush}"
+            Padding="14,12,14,12"
+            MaxWidth="356"
             RenderTransformOrigin="0.5,0.5">
         <Border.RenderTransform>
-            <TranslateTransform x:Name="RootTransform" Y="0"/>
+            <ScaleTransform x:Name="RootScale" ScaleX="1" ScaleY="1"/>
         </Border.RenderTransform>
 
-        <!-- Inner Top Highlight Specular Edge -->
-        <Border x:Name="InnerHighlightBorder"
-                CornerRadius="11"
-                BorderThickness="0,1,0,0"
-                MaxWidth="360">
-            <StackPanel Margin="14,12,14,14" MaxWidth="332">
-                <!-- Header: Clipboard Icon, App Title, Relative Timestamp, Settings Button, Close Button -->
-                <Grid Margin="0,0,0,10" MaxWidth="332">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
+        <StackPanel>
+            <!-- Header: Type Icon, Title, Relative Timestamp, Pin / Search / Settings / Close -->
+            <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-                    <!-- Left: Icon + Title + Timestamp -->
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="&#xE8C8;"
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock x:Name="HeaderIconGlyph"
+                               Text="&#xE8C8;"
+                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                               FontSize="14"
+                               VerticalAlignment="Center"
+                               Margin="0,0,7,0"
+                               Foreground="{DynamicResource FluentAccentBrush}"/>
+                    <TextBlock x:Name="HeaderAppName"
+                               Text="ClipFlyout"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               MaxWidth="140"
+                               TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                    <TextBlock x:Name="TimestampText"
+                               Text="たった今"
+                               FontSize="11"
+                               VerticalAlignment="Center"
+                               Margin="7,1,0,0"
+                               Foreground="{DynamicResource TextTertiaryBrush}"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="PinButton"
+                            Style="{DynamicResource FluentSubtleIconButtonStyle}"
+                            Width="26" Height="26"
+                            Margin="0,0,2,0"
+                            Click="PinButton_Click">
+                        <TextBlock x:Name="PinButtonGlyph"
+                                   Text="&#xE718;"
                                    FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                   FontSize="14"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,6,0"
-                                   Foreground="{Binding Foreground, ElementName=HeaderAppName}"/>
-                        <TextBlock x:Name="HeaderAppName"
-                                   Text="ClipFlyout"
-                                   FontSize="13"
-                                   FontWeight="SemiBold"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,8,0"/>
-                        <TextBlock x:Name="TimestampText"
-                                   Text="たった今"
-                                   FontSize="11"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
+                                   FontSize="12"/>
+                    </Button>
 
-                    <!-- Right: Settings & Close Buttons -->
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <!-- Settings Button -->
-                        <Button x:Name="SettingsButton"
-                                Width="26" Height="26"
-                                Margin="0,0,3,0"
-                                Padding="0"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                Cursor="Hand"
-                                ToolTip="設定"
-                                Click="SettingsButton_Click">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="btnBorder" Background="Transparent" CornerRadius="5">
-                                        <TextBlock Text="&#xE713;"
-                                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                                   FontSize="12"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="btnBorder" Property="Background" Value="#20888888"/>
-                                        </Trigger>
-                                        <Trigger Property="IsPressed" Value="True">
-                                            <Setter TargetName="btnBorder" Property="Background" Value="#35888888"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
+                    <Button x:Name="SearchToggleButton"
+                            Style="{DynamicResource FluentSubtleIconButtonStyle}"
+                            Width="26" Height="26"
+                            Margin="0,0,2,0"
+                            Visibility="Collapsed"
+                            Click="SearchToggleButton_Click">
+                        <TextBlock Text="&#xE721;"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   FontSize="12"/>
+                    </Button>
 
-                        <!-- Close Button -->
-                        <Button x:Name="CloseButton"
-                                Width="26" Height="26"
-                                Padding="0"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                Cursor="Hand"
-                                ToolTip="閉じる"
-                                Click="CloseButton_Click">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="btnBorder" Background="Transparent" CornerRadius="5">
-                                        <TextBlock Text="&#xE8BB;"
-                                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                                   FontSize="10.5"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="btnBorder" Property="Background" Value="#C42B1C"/>
-                                            <Setter Property="Foreground" Value="#FFFFFF"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
-                    </StackPanel>
-                </Grid>
+                    <Button x:Name="SettingsButton"
+                            Style="{DynamicResource FluentSubtleIconButtonStyle}"
+                            Width="26" Height="26"
+                            Margin="0,0,2,0"
+                            Click="SettingsButton_Click">
+                        <TextBlock Text="&#xE713;"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   FontSize="12"/>
+                    </Button>
 
-                <!-- Hero Content Preview Card -->
-                <Border x:Name="HeroCardBorder"
-                        CornerRadius="8"
-                        BorderThickness="1"
-                        Padding="12"
-                        Margin="0,0,0,10"
-                        MaxWidth="332">
-                    <Grid>
-                        <!-- 1. Color Preview (Hero Card Layout matching preview.jpg) -->
-                        <Grid x:Name="ColorPreviewPanel" Visibility="Collapsed" MaxWidth="308">
+                    <Button x:Name="CloseButton"
+                            Width="26" Height="26"
+                            Padding="0"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Foreground="{DynamicResource TextSecondaryBrush}"
+                            Cursor="Hand"
+                            Click="CloseButton_Click">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="btnBorder" Background="Transparent" CornerRadius="4">
+                                    <TextBlock Text="&#xE8BB;"
+                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                               FontSize="10"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Foreground="{TemplateBinding Foreground}"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="btnBorder" Property="Background" Value="#C42B1C"/>
+                                        <Setter Property="Foreground" Value="#FFFFFF"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="btnBorder" Property="Background" Value="#A32014"/>
+                                        <Setter Property="Foreground" Value="#FFFFFF"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- Unified Single-Layer Hero Content Preview Card (No Box-in-Box!) -->
+            <Border x:Name="HeroCardBorder"
+                    CornerRadius="6"
+                    BorderThickness="1"
+                    Background="{DynamicResource FlyoutHeroBackgroundBrush}"
+                    BorderBrush="{DynamicResource FlyoutHeroStrokeBrush}"
+                    Padding="12,10"
+                    Margin="0,0,0,10">
+                <Grid>
+                    <!-- 1. Color Preview -->
+                    <Grid x:Name="ColorPreviewPanel" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="ColorSwatch"
+                                Grid.Column="0"
+                                Width="48" Height="48"
+                                CornerRadius="6"
+                                BorderThickness="1"
+                                BorderBrush="{DynamicResource ControlStrokeSecondaryBrush}"
+                                Background="#3B82F6"/>
+                        <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="ColorHexText"
+                                       Text="#3B82F6"
+                                       FontSize="17"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <TextBlock x:Name="ColorDescText"
+                                       Text="Color Code"
+                                       FontSize="11"
+                                       Margin="0,1,0,0"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <TextBlock x:Name="ColorValuesText"
+                                       Text="rgb(59, 130, 246) • hsl(217, 91%, 60%)"
+                                       FontSize="10.5"
+                                       Margin="0,2,0,0"
+                                       Foreground="{DynamicResource TextTertiaryBrush}"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- 2. Image Preview -->
+                    <Grid x:Name="ImagePreviewPanel" Visibility="Collapsed">
+                        <Border x:Name="ImagePreviewBorder"
+                                CornerRadius="4"
+                                MaxHeight="132"
+                                ClipToBounds="True">
+                            <Grid>
+                                <Image x:Name="ImageThumbnail"
+                                       Stretch="Uniform"
+                                       MaxHeight="132"
+                                       HorizontalAlignment="Center"
+                                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                                <Border HorizontalAlignment="Right"
+                                        VerticalAlignment="Bottom"
+                                        Margin="6"
+                                        Padding="6,2"
+                                        CornerRadius="4"
+                                        Background="#B8181818">
+                                    <TextBlock x:Name="ImageMetaBadge"
+                                               Text="1920×1080"
+                                               FontSize="10.5"
+                                               FontWeight="SemiBold"
+                                               Foreground="#FFFFFF"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- 3. Text / JSON / Code / URL / FileDrop / Date / JWT Preview -->
+                    <StackPanel x:Name="TextPreviewPanel" Visibility="Collapsed">
+                        <Grid Margin="0,0,0,5">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Border x:Name="ColorSwatch"
+                            <Border x:Name="TypeBadgeBorder"
                                     Grid.Column="0"
-                                    Width="52" Height="52"
-                                    CornerRadius="8"
-                                    BorderThickness="1"
-                                    BorderBrush="#35888888"
-                                    Background="#3B82F6"/>
-                            <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
-                                <TextBlock x:Name="ColorHexText"
-                                           Text="#3B82F6"
-                                           FontSize="17.5"
-                                           FontWeight="Bold"
-                                           TextTrimming="CharacterEllipsis"/>
-                                <TextBlock x:Name="ColorDescText"
-                                           Text="Color Hex Code"
-                                           FontSize="11"
-                                           Margin="0,1,0,0"
-                                           TextTrimming="CharacterEllipsis"/>
-                                <TextBlock x:Name="ColorValuesText"
-                                           Text="RGB(59, 130, 246) • HSL(217°, 91%, 60%)"
-                                           FontSize="10"
-                                           Margin="0,2,0,0"
-                                           TextTrimming="CharacterEllipsis"/>
-                            </StackPanel>
-                        </Grid>
-
-                        <!-- 2. Image Preview -->
-                        <Grid x:Name="ImagePreviewPanel" Visibility="Collapsed" MaxWidth="308">
-                            <Border x:Name="ImagePreviewBorder"
-                                    CornerRadius="6"
-                                    BorderThickness="1"
-                                    MaxHeight="120"
-                                    ClipToBounds="True">
-                                <Image x:Name="ImageThumbnail"
-                                       Stretch="Uniform"
-                                       MaxHeight="120"
-                                       HorizontalAlignment="Center"/>
-                            </Border>
-                        </Grid>
-                                    <!-- 3. Textual / JSON / Code / URL Preview -->
-                        <Border x:Name="TextPreviewPanel"
-                                Visibility="Collapsed"
-                                CornerRadius="6"
-                                BorderThickness="1"
-                                Padding="8,6"
-                                MaxWidth="308">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <Border x:Name="TypeBadgeBorder"
-                                            CornerRadius="4"
-                                            Padding="6,2"
-                                            VerticalAlignment="Center"
-                                            Margin="0,0,8,0">
-                                        <TextBlock x:Name="TypeBadgeText"
-                                                   Text="JSON"
-                                                   FontSize="10.5"
-                                                   FontWeight="SemiBold"/>
-                                    </Border>
-                                    <TextBlock x:Name="HeaderTitleText"
-                                               Text="JSON Object"
-                                               FontSize="12.5"
-                                               FontWeight="SemiBold"
-                                               VerticalAlignment="Center"
-                                               MaxWidth="200"
-                                               TextTrimming="CharacterEllipsis"/>
-                                </StackPanel>
-                                <TextBlock x:Name="BodyPreviewText"
-                                           Text="{}{...}"
-                                           FontFamily="Cascadia Code, Consolas, Segoe UI"
-                                           FontSize="11"
-                                           MaxWidth="290"
-                                           MaxHeight="80"
-                                           TextWrapping="Wrap"
-                                           TextTrimming="CharacterEllipsis"/>
-                                <TextBlock x:Name="HeaderSubtitleText"
-                                           Text="4 properties"
+                                    CornerRadius="4"
+                                    Padding="6,2"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,8,0">
+                                <TextBlock x:Name="TypeBadgeText"
+                                           Text="JSON"
                                            FontSize="10.5"
-                                           Margin="2,4,0,0"
-                                           TextTrimming="CharacterEllipsis"/>
-                            </StackPanel>
-                        </Border>
-                    </Grid>
-                </Border>
+                                           FontWeight="SemiBold"/>
+                            </Border>
+                            <TextBlock x:Name="HeaderTitleText"
+                                       Grid.Column="1"
+                                       Text="JSON Data"
+                                       FontSize="12.5"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </Grid>
 
-                <!-- Actions List: Full-Width Vertical Cards -->
-                <Grid MaxWidth="332">
-                    <ItemsControl x:Name="ActionsItemsControl" MaxWidth="332">
+                        <TextBlock x:Name="BodyPreviewText"
+                                   Text="{}{...}"
+                                   FontFamily="Cascadia Code, Consolas, Segoe UI Variable Text, Segoe UI"
+                                   FontSize="11.5"
+                                   LineHeight="16"
+                                   MaxHeight="72"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Opacity="0.92"
+                                   TextWrapping="Wrap"
+                                   TextTrimming="CharacterEllipsis"/>
+
+                        <TextBlock x:Name="HeaderSubtitleText"
+                                   Text="4 properties"
+                                   FontSize="11"
+                                   Margin="0,5,0,0"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Actions List (Scrollable when > 5 actions, Zero-Jump Feedback Overlay) -->
+            <Grid>
+                <ScrollViewer x:Name="ActionsScrollViewer"
+                              MaxHeight="250"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl x:Name="ActionsItemsControl">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel Orientation="Vertical"/>
@@ -278,115 +382,103 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Button Height="44"
-                                        Margin="0,0,0,6"
-                                        Padding="10,6"
-                                        BorderThickness="1"
-                                        HorizontalContentAlignment="Stretch"
-                                        Cursor="Hand"
+                                <Button Style="{StaticResource FlyoutActionButtonStyle}"
                                         ToolTip="{Binding Description}"
                                         Click="ActionButton_Click"
                                         Loaded="ActionButton_Loaded"
-                                        Tag="{Binding}">
-                                    <Button.Template>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border x:Name="btnBorder"
-                                                    Background="{TemplateBinding Background}"
-                                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                                    CornerRadius="7"
-                                                    Padding="{TemplateBinding Padding}">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="28"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-
-                                                    <!-- Icon Badge / Glyph -->
-                                                    <TextBlock Grid.Column="0"
-                                                               Text="{Binding EffectiveGlyph}"
-                                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                                               FontSize="14"
-                                                               VerticalAlignment="Center"
-                                                               HorizontalAlignment="Center"
-                                                               Foreground="{TemplateBinding Foreground}"/>
-
-                                                    <!-- Title & Subtitle Stack -->
-                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,0,0">
-                                                        <TextBlock Text="{Binding Label}"
-                                                                   FontSize="12"
-                                                                   FontWeight="SemiBold"
-                                                                   Foreground="{TemplateBinding Foreground}"
-                                                                   TextTrimming="CharacterEllipsis"/>
-                                                        <TextBlock Text="{Binding DisplaySubtitle}"
-                                                                   FontSize="10"
-                                                                   Opacity="0.8"
-                                                                   Foreground="{TemplateBinding Foreground}"
-                                                                   TextTrimming="CharacterEllipsis"
-                                                                   Visibility="{Binding SubtitleVisibility}"/>
-                                                    </StackPanel>
-
-                                                    <!-- Chevron Arrow Glyph -->
-                                                    <TextBlock Grid.Column="2"
-                                                               Text="&#xE76C;"
-                                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                                               FontSize="10"
-                                                               Opacity="0.5"
-                                                               VerticalAlignment="Center"
-                                                               Margin="4,0,2,0"
-                                                               Foreground="{TemplateBinding Foreground}"/>
-                                                </Grid>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="btnBorder" Property="Opacity" Value="0.88"/>
-                                                </Trigger>
-                                                <Trigger Property="IsPressed" Value="True">
-                                                    <Setter TargetName="btnBorder" Property="Opacity" Value="0.75"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Button.Template>
-                                </Button>
+                                        Tag="{Binding}"/>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                </ScrollViewer>
 
-                    <!-- Feedback Toast Overlay (shows briefly on action copy/transform) -->
-                    <Border x:Name="InlineFeedbackBar"
-                            CornerRadius="7"
-                            BorderThickness="1"
-                            Padding="12,10"
-                            VerticalAlignment="Center"
-                            HorizontalAlignment="Stretch"
-                            Visibility="Collapsed">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                            <TextBlock Text="&#xE73E;"
-                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                       FontSize="14"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,8,0"
-                                       Foreground="#10B981"/>
-                            <TextBlock x:Name="InlineFeedbackText"
-                                       Text="クリップボードにコピーしました"
-                                       FontSize="12"
-                                       FontWeight="SemiBold"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
+                <!-- Feedback Toast Overlay (Overlays Hidden ActionsScrollViewer so height never jumps) -->
+                <Border x:Name="InlineFeedbackBar"
+                        CornerRadius="6"
+                        BorderThickness="1"
+                        Background="{DynamicResource FlyoutFeedbackBackgroundBrush}"
+                        BorderBrush="{DynamicResource CardStrokeBrush}"
+                        Padding="14,12"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Stretch"
+                        Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock Text="&#xE73E;"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   FontSize="14"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"
+                                   Foreground="{DynamicResource StatusSuccessBrush}"/>
+                        <TextBlock x:Name="InlineFeedbackText"
+                                   Text="クリップボードにコピーしました"
+                                   FontSize="12.5"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Recent & Pinned History Section -->
+            <StackPanel x:Name="RecentHistoryPanel" Margin="0,6,0,0" Visibility="Collapsed">
+                <Border Height="1" Background="{DynamicResource DividerStrokeBrush}" Margin="0,0,0,7"/>
+
+                <Grid Margin="2,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="RecentHeader"
+                               Grid.Column="0"
+                               Text="最近の履歴"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextTertiaryBrush}"/>
+                    <Button x:Name="ClearHistoryButton"
+                            Grid.Column="1"
+                            Content="クリア"
+                            FontSize="10.5"
+                            Padding="6,1"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Foreground="{DynamicResource TextTertiaryBrush}"
+                            Cursor="Hand"
+                            Click="ClearHistoryButton_Click">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="clrBorder" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="clrBorder" Property="Background" Value="{DynamicResource SubtleFillHoverBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
                 </Grid>
 
-                <!-- Recent History Section (Bottom of Flyout matching preview.jpg) -->
-                <StackPanel x:Name="RecentHistoryPanel" Margin="0,6,0,0" MaxWidth="332" Visibility="Collapsed">
-                    <Separator Height="1" Margin="0,0,0,6" Opacity="0.15"/>
-                    <TextBlock x:Name="RecentHeader" Text="履歴" FontSize="10.5" FontWeight="SemiBold" Margin="2,0,0,4" Foreground="#888888"/>
+                <!-- Inline Search Box (Shown when toggled) -->
+                <TextBox x:Name="HistorySearchBox"
+                         Style="{DynamicResource FluentTextBoxStyle}"
+                         Height="28"
+                         MinHeight="28"
+                         FontSize="12"
+                         Padding="8,3"
+                         Margin="0,0,0,5"
+                         Visibility="Collapsed"
+                         TextChanged="HistorySearchBox_TextChanged"/>
+
+                <ScrollViewer MaxHeight="116" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <ItemsControl x:Name="RecentHistoryItemsControl">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Button Height="26"
+                                <Button Height="28"
                                         Margin="0,0,0,2"
-                                        Padding="6,0"
+                                        Padding="0"
                                         Background="Transparent"
                                         BorderThickness="0"
                                         HorizontalContentAlignment="Stretch"
@@ -400,26 +492,36 @@
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="20"/>
                                                         <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Grid.Column="0"
                                                                Text="{Binding IconGlyph}"
                                                                FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                                                FontSize="12"
                                                                VerticalAlignment="Center"
-                                                               Opacity="0.85"
-                                                               Foreground="{Binding Foreground, ElementName=RecentHeader}"/>
+                                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
                                                     <TextBlock Grid.Column="1"
                                                                Text="{Binding DisplayText}"
-                                                               FontSize="11"
+                                                               FontSize="11.5"
                                                                VerticalAlignment="Center"
-                                                               Opacity="0.95"
                                                                TextTrimming="CharacterEllipsis"
-                                                               Foreground="{Binding Foreground, ElementName=HeaderAppName}"/>
+                                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                    <TextBlock Grid.Column="2"
+                                                               Text="&#xE718;"
+                                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                               FontSize="10"
+                                                               Margin="6,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource FluentAccentBrush}"
+                                                               Visibility="{Binding PinVisibility}"/>
                                                 </Grid>
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="histBorder" Property="Background" Value="#18888888"/>
+                                                    <Setter TargetName="histBorder" Property="Background" Value="{DynamicResource SubtleFillHoverBrush}"/>
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="histBorder" Property="Background" Value="{DynamicResource SubtleFillPressedBrush}"/>
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
@@ -428,8 +530,8 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </StackPanel>
+                </ScrollViewer>
             </StackPanel>
-        </Border>
+        </StackPanel>
     </Border>
 </Window>

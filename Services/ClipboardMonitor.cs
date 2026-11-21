@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Interop;
@@ -18,6 +20,7 @@ public class ClipboardMonitor : IClipboardMonitor
     private bool _isListening;
     private int _suppressCount;
     private int _suppressedEventsDuringWrite;
+    private long _suppressedUntilTicks;
     private long _clipboardReadGeneration;
     private volatile bool _isEnabled = true;
     private readonly object _lock = new();
@@ -31,12 +34,10 @@ public class ClipboardMonitor : IClipboardMonitor
 
     public void Start()
     {
-        // HwndSource is affinity-bound to the WPF UI thread. Dispatch before
-        // acquiring the lock, otherwise a background caller can deadlock with
-        // the UI thread while it tries to re-enter Start().
-        if (!WpfApplication.Current.Dispatcher.CheckAccess())
+        var app = WpfApplication.Current;
+        if (app != null && !app.Dispatcher.CheckAccess())
         {
-            WpfApplication.Current.Dispatcher.Invoke(Start);
+            app.Dispatcher.Invoke(Start);
             return;
         }
 
@@ -72,9 +73,11 @@ public class ClipboardMonitor : IClipboardMonitor
 
     public void Stop()
     {
-        if (!WpfApplication.Current.Dispatcher.CheckAccess())
+        var app = WpfApplication.Current;
+        if (app != null && !app.Dispatcher.CheckAccess())
         {
-            WpfApplication.Current.Dispatcher.Invoke(Stop);
+            if (app.Dispatcher.HasShutdownStarted) return;
+            app.Dispatcher.Invoke(Stop);
             return;
         }
 
@@ -103,17 +106,14 @@ public class ClipboardMonitor : IClipboardMonitor
             return;
         }
 
-        // Use Windows' clipboard sequence number instead of a timing window.
-        // That suppresses only the exact update written by our action, while a
-        // user copy immediately afterwards is still processed.
+        uint sequenceNumber = Win32.GetClipboardSequenceNumber();
+        // Record both the current sequence number and a tiny 120ms guard for OleFlushClipboard double-bumps
+        Volatile.Write(ref _suppressedUntilTicks, Environment.TickCount64 + 120);
+
         if (Interlocked.Exchange(ref _suppressedEventsDuringWrite, 0) == 0)
         {
-            uint sequenceNumber = Win32.GetClipboardSequenceNumber();
             lock (_suppressedSequenceNumbers)
             {
-                // A missed native notification (for example while monitoring
-                // is toggled off) must not allow this small bookkeeping cache
-                // to grow without bound.
                 if (_suppressedSequenceNumbers.Count >= 32)
                 {
                     _suppressedSequenceNumbers.Clear();
@@ -144,7 +144,7 @@ public class ClipboardMonitor : IClipboardMonitor
 
     private static readonly HashSet<string> SensitiveProcessNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        "1password", "bitwarden", "keepass", "keepassxc", "lastpass", "dashlane", "enpass", "nordpass"
+        "1password", "bitwarden", "keepass", "keepassxc", "lastpass", "dashlane", "enpass", "nordpass", "roboform", "protonpass"
     };
 
     internal static bool IsSensitiveProcessName(string processName)
@@ -168,6 +168,68 @@ public class ClipboardMonitor : IClipboardMonitor
         }
     }
 
+    /// <summary>
+    /// Evaluates Windows Cloud Clipboard & password-manager ignore formats properly per Microsoft specification:
+    /// - "Clipboard Viewer Ignore": presence alone means exclude
+    /// - "CanIncludeInClipboardHistory": 4-byte DWORD where 0 = exclude, non-zero = allow
+    /// - "ExcludeClipboardContentFromMonitorProcessing": presence with non-zero DWORD (or empty/non-zero) = exclude
+    /// </summary>
+    internal static bool ShouldExcludeClipboardByMetadata(
+        bool hasViewerIgnore,
+        bool hasExcludeMonitor,
+        int? excludeMonitorDword,
+        bool hasCanIncludeHistory,
+        int? canIncludeHistoryDword)
+    {
+        if (hasViewerIgnore) return true;
+        if (hasExcludeMonitor && (!excludeMonitorDword.HasValue || excludeMonitorDword.Value != 0)) return true;
+        if (hasCanIncludeHistory && canIncludeHistoryDword.HasValue && canIncludeHistoryDword.Value == 0) return true;
+        return false;
+    }
+
+    private static int? TryReadClipboardDword(string format)
+    {
+        try
+        {
+            object? data = WpfClipboard.GetData(format);
+            if (data is MemoryStream ms && ms.Length >= 4)
+            {
+                ms.Position = 0;
+                byte[] buf = new byte[4];
+                if (ms.Read(buf, 0, 4) == 4)
+                {
+                    return BitConverter.ToInt32(buf, 0);
+                }
+            }
+            else if (data is byte[] bytes && bytes.Length >= 4)
+            {
+                return BitConverter.ToInt32(bytes, 0);
+            }
+            else if (data is int intVal)
+            {
+                return intVal;
+            }
+        }
+        catch
+        {
+        }
+        return null;
+    }
+
+    private static bool IsExcludedByClipboardFormats()
+    {
+        bool hasViewerIgnore = WpfClipboard.ContainsData("Clipboard Viewer Ignore");
+        if (hasViewerIgnore) return true;
+
+        bool hasExcludeMonitor = WpfClipboard.ContainsData("ExcludeClipboardContentFromMonitorProcessing");
+        int? excludeMonitorDword = hasExcludeMonitor ? TryReadClipboardDword("ExcludeClipboardContentFromMonitorProcessing") : null;
+
+        bool hasCanInclude = WpfClipboard.ContainsData("CanIncludeInClipboardHistory");
+        int? canIncludeDword = hasCanInclude ? TryReadClipboardDword("CanIncludeInClipboardHistory") : null;
+
+        return ShouldExcludeClipboardByMetadata(hasViewerIgnore, hasExcludeMonitor, excludeMonitorDword, hasCanInclude, canIncludeDword);
+    }
+
     private IntPtr HwndHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         if (msg == Win32.WM_CLIPBOARDUPDATE)
@@ -175,16 +237,6 @@ public class ClipboardMonitor : IClipboardMonitor
             if (!_isEnabled)
             {
                 return IntPtr.Zero;
-            }
-
-            if (SettingsService.Instance.Current.IgnorePasswordManagers)
-            {
-                IntPtr owner = Win32.GetClipboardOwner();
-                if (owner == IntPtr.Zero) owner = Win32.GetForegroundWindow();
-                if (IsSensitiveApp(owner))
-                {
-                    return IntPtr.Zero;
-                }
             }
 
             if (Volatile.Read(ref _suppressCount) > 0)
@@ -202,19 +254,39 @@ public class ClipboardMonitor : IClipboardMonitor
                 }
             }
 
-            // Each update gets a generation. Retries for an older clipboard
-            // value are discarded when a newer copy arrives.
+            // Catch immediate OleFlushClipboard secondary bump without blocking real user copies
+            if (Environment.TickCount64 <= Volatile.Read(ref _suppressedUntilTicks))
+            {
+                IntPtr ownerNow = Win32.GetClipboardOwner();
+                if (ownerNow != IntPtr.Zero)
+                {
+                    Win32.GetWindowThreadProcessId(ownerNow, out uint ownerPid);
+                    if (ownerPid == (uint)Environment.ProcessId)
+                    {
+                        return IntPtr.Zero;
+                    }
+                }
+            }
+
+            IntPtr owner = Win32.GetClipboardOwner();
+            if (owner == IntPtr.Zero) owner = Win32.GetForegroundWindow();
+
             long generation = Interlocked.Increment(ref _clipboardReadGeneration);
-            _ = ReadClipboardAsync(generation);
+            _ = ReadClipboardAsync(generation, owner);
         }
 
         return IntPtr.Zero;
     }
 
-    private async Task ReadClipboardAsync(long generation)
+    private async Task ReadClipboardAsync(long generation, IntPtr ownerHwnd)
     {
-        // The WPF Clipboard API must run on the UI dispatcher. Keeping retry
-        // waits asynchronous avoids blocking a worker thread or the UI.
+        // Check sensitive process off the synchronous WndProc hot path
+        if (SettingsService.Instance.Current.IgnorePasswordManagers)
+        {
+            bool sensitive = await Task.Run(() => IsSensitiveApp(ownerHwnd)).ConfigureAwait(false);
+            if (sensitive) return;
+        }
+
         for (int attempt = 0; attempt < 5; attempt++)
         {
             if (generation != Volatile.Read(ref _clipboardReadGeneration) || !_isEnabled)
@@ -222,42 +294,22 @@ public class ClipboardMonitor : IClipboardMonitor
                 return;
             }
 
+            var app = WpfApplication.Current;
+            if (app == null || app.Dispatcher.HasShutdownStarted) return;
+
             try
             {
                 object? extractedData = null;
 
-                await WpfApplication.Current.Dispatcher.InvokeAsync(() =>
+                await app.Dispatcher.InvokeAsync(() =>
                 {
-                    if (SettingsService.Instance.Current.IgnorePasswordManagers)
+                    if (SettingsService.Instance.Current.IgnorePasswordManagers && IsExcludedByClipboardFormats())
                     {
-                        if (WpfClipboard.ContainsData("Clipboard Viewer Ignore") ||
-                            WpfClipboard.ContainsData("ExcludeClipboardContentFromMonitorProcessing") ||
-                            WpfClipboard.ContainsData("CanIncludeInClipboardHistory"))
-                        {
-                            return;
-                        }
+                        return;
                     }
 
-                    if (WpfClipboard.ContainsText())
-                    {
-                        string text = WpfClipboard.GetText();
-                        if (!string.IsNullOrWhiteSpace(text))
-                        {
-                            extractedData = text;
-                        }
-                    }
+                    extractedData = ExtractClipboardPayloadOnUiThread();
 
-                    if (extractedData == null && WpfClipboard.ContainsImage())
-                    {
-                        var img = WpfClipboard.GetImage();
-                        if (img != null)
-                        {
-                            // Freeze before passing the image to analysis on a
-                            // worker thread.
-                            if (img.CanFreeze) img.Freeze();
-                            extractedData = img;
-                        }
-                    }
                     if (extractedData != null && generation == Volatile.Read(ref _clipboardReadGeneration) && _isEnabled)
                     {
                         ClipboardChanged?.Invoke(this, extractedData);
@@ -268,11 +320,110 @@ public class ClipboardMonitor : IClipboardMonitor
             }
             catch
             {
-                // Clipboard was locked by another process. A newer update ends
-                // the loop early on its next iteration.
                 await Task.Delay(80).ConfigureAwait(false);
             }
         }
+    }
+
+    /// <summary>
+    /// Reads the current clipboard payload once on the UI thread (used on startup to hydrate TaskbarWidget
+    /// or when recall hotkey is pressed with empty history).
+    /// </summary>
+    public object? TryReadCurrentClipboard()
+    {
+        try
+        {
+            var app = WpfApplication.Current;
+            if (app == null || app.Dispatcher.HasShutdownStarted) return null;
+
+            object? result = null;
+            if (app.Dispatcher.CheckAccess())
+            {
+                if (!SettingsService.Instance.Current.IgnorePasswordManagers || !IsExcludedByClipboardFormats())
+                {
+                    result = ExtractClipboardPayloadOnUiThread();
+                }
+            }
+            else
+            {
+                app.Dispatcher.Invoke(() =>
+                {
+                    if (!SettingsService.Instance.Current.IgnorePasswordManagers || !IsExcludedByClipboardFormats())
+                    {
+                        result = ExtractClipboardPayloadOnUiThread();
+                    }
+                });
+            }
+            return result;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static object? ExtractClipboardPayloadOnUiThread()
+    {
+        // 1. Explorer FileDropList (files/folders copied in File Explorer)
+        if (WpfClipboard.ContainsFileDropList())
+        {
+            var files = WpfClipboard.GetFileDropList();
+            if (files != null && files.Count > 0)
+            {
+                var paths = new string[files.Count];
+                files.CopyTo(paths, 0);
+                var valid = paths.Where(p => !string.IsNullOrWhiteSpace(p)).ToArray();
+                if (valid.Length > 0)
+                {
+                    return valid;
+                }
+            }
+        }
+
+        // 2. Text payload
+        if (WpfClipboard.ContainsText())
+        {
+            string text = WpfClipboard.GetText();
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                return text;
+            }
+        }
+
+        // 3. PNG stream (preserves alpha transparency better than WPF DIB GetImage)
+        if (WpfClipboard.ContainsData("PNG"))
+        {
+            try
+            {
+                if (WpfClipboard.GetData("PNG") is MemoryStream pngStream && pngStream.Length > 0)
+                {
+                    pngStream.Position = 0;
+                    var bmp = new BitmapImage();
+                    bmp.BeginInit();
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.StreamSource = pngStream;
+                    bmp.EndInit();
+                    if (bmp.CanFreeze) bmp.Freeze();
+                    return bmp;
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        // 4. Standard DIB/Bitmap image
+        if (WpfClipboard.ContainsImage())
+        {
+            var img = WpfClipboard.GetImage();
+            if (img != null)
+            {
+                if (img.CanFreeze) img.Freeze();
+                return img;
+            }
+        }
+
+        return null;
     }
 
     public void Dispose()

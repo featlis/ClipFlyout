@@ -11,6 +11,8 @@ public class SettingsService
     private static readonly Lazy<SettingsService> _instance = new(() => new SettingsService());
     public static SettingsService Instance => _instance.Value;
 
+    private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
+
     private readonly string _settingsFilePath;
     private readonly bool _syncStartupRegistry;
     private readonly object _lock = new();
@@ -52,21 +54,26 @@ public class SettingsService
     public AppSettings LoadSettings()
     {
         AppSettings result;
+        bool loadedFromDisk = false;
         try
         {
             if (File.Exists(_settingsFilePath))
             {
                 string json = File.ReadAllText(_settingsFilePath);
                 var loaded = JsonSerializer.Deserialize<AppSettings>(json);
-                result = loaded?.Normalize() ?? new AppSettings().Normalize();
+                if (loaded != null)
+                {
+                    result = loaded.Normalize();
+                    loadedFromDisk = true;
+                }
+                else
+                {
+                    result = new AppSettings().Normalize();
+                }
             }
             else
             {
                 result = new AppSettings().Normalize();
-                if (_syncStartupRegistry && IsStartupConfigured())
-                {
-                    result.LaunchOnStartup = true;
-                }
             }
         }
         catch (Exception ex)
@@ -75,7 +82,9 @@ public class SettingsService
             result = new AppSettings().Normalize();
         }
 
-        if (!result.LaunchOnStartup && _syncStartupRegistry && IsStartupConfigured())
+        // Only inherit OS startup state on brand-new installs where no settings file exists yet.
+        // Never overwrite an explicit user preference saved on disk.
+        if (!loadedFromDisk && !result.LaunchOnStartup && _syncStartupRegistry && IsStartupConfigured())
         {
             result.LaunchOnStartup = true;
         }
@@ -97,44 +106,66 @@ public class SettingsService
                 if (File.Exists(Path.Combine(startupDir, "ClipFlyout.exe.lnk"))) return true;
             }
         }
-        catch { }
+        catch
+        {
+        }
         return false;
     }
 
     public void SaveSettings(AppSettings settings)
     {
+        AppSettings? snapshotToNotify = null;
+        bool syncStartup = false;
+        bool targetStartupState = false;
+
         lock (_lock)
         {
             try
             {
-                _currentSettings = settings.Normalize();
-                string json = JsonSerializer.Serialize(_currentSettings, new JsonSerializerOptions { WriteIndented = true });
-                string temporaryFilePath = _settingsFilePath + ".tmp";
+                var normalized = settings.Normalize();
+                bool previousStartup = _currentSettings.LaunchOnStartup;
+
+                string json = JsonSerializer.Serialize(normalized, SerializerOptions);
+                string temporaryFilePath = _settingsFilePath + $".{Guid.NewGuid():N}.tmp";
                 File.WriteAllText(temporaryFilePath, json);
                 File.Move(temporaryFilePath, _settingsFilePath, true);
 
-                if (_syncStartupRegistry)
-                {
-                    SyncStartupRegistry(_currentSettings.LaunchOnStartup);
-                }
+                _currentSettings = normalized;
+                snapshotToNotify = normalized.Clone();
 
-                SettingsChanged?.Invoke(_currentSettings.Clone());
+                if (_syncStartupRegistry && previousStartup != normalized.LaunchOnStartup)
+                {
+                    syncStartup = true;
+                    targetStartupState = normalized.LaunchOnStartup;
+                }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Failed to save settings: {ex.Message}");
             }
         }
+
+        // Perform registry sync & event dispatch OUTSIDE lock to prevent UI/background deadlocks
+        if (syncStartup)
+        {
+            SyncStartupRegistry(targetStartupState);
+        }
+
+        if (snapshotToNotify != null)
+        {
+            SettingsChanged?.Invoke(snapshotToNotify);
+        }
     }
 
     public void UpdateSettings(Action<AppSettings> updateAction)
     {
+        AppSettings updated;
         lock (_lock)
         {
-            var copy = _currentSettings.Clone();
-            updateAction(copy);
-            SaveSettings(copy);
+            updated = _currentSettings.Clone();
+            updateAction(updated);
         }
+        SaveSettings(updated);
     }
 
     private void SyncStartupRegistry(bool enable)
@@ -158,7 +189,6 @@ public class SettingsService
                     key.DeleteValue("ClipFlyout", false);
                 }
 
-                // Also clean up shortcut dropped by Inno Setup in {userstartup}
                 string startupDir = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
                 if (!string.IsNullOrEmpty(startupDir))
                 {
