@@ -55,7 +55,12 @@ public class ThemeService : IDisposable
         }
     }
 
-    public Color TextOnAccentColor => GetContrastingForeground(AccentColor);
+    public Color EffectiveAccentColor =>
+        SettingsService.Instance.Current.AutoAdjustAccentColor
+            ? HarmonizeAccentColor(AccentColor, _isDarkTheme)
+            : AccentColor;
+
+    public Color TextOnAccentColor => GetContrastingForeground(EffectiveAccentColor);
 
     private readonly Action<AppSettings> _settingsChangedHandler;
 
@@ -167,16 +172,106 @@ public class ThemeService : IDisposable
 
     private static void ApplyAccentBrushes(Application app, Color accent, bool isDark)
     {
-        Color hover = isDark ? AdjustBrightness(accent, 1.14) : AdjustBrightness(accent, 0.90);
-        Color pressed = isDark ? AdjustBrightness(accent, 0.84) : AdjustBrightness(accent, 0.78);
-        Color onAccent = GetContrastingForeground(accent);
+        Color effective = SettingsService.Instance.Current.AutoAdjustAccentColor
+            ? HarmonizeAccentColor(accent, isDark)
+            : accent;
+        Color hover = isDark ? AdjustBrightness(effective, 1.12) : AdjustBrightness(effective, 0.90);
+        Color pressed = isDark ? AdjustBrightness(effective, 0.86) : AdjustBrightness(effective, 0.78);
+        Color onAccent = GetContrastingForeground(effective);
 
-        app.Resources["FluentAccentBrush"] = CreateFrozenBrush(accent);
+        app.Resources["FluentAccentBrush"] = CreateFrozenBrush(effective);
         app.Resources["FluentAccentHoverBrush"] = CreateFrozenBrush(hover);
         app.Resources["FluentAccentPressedBrush"] = CreateFrozenBrush(pressed);
-        app.Resources["FluentAccentSubtleBrush"] = CreateFrozenBrush(Color.FromArgb(38, accent.R, accent.G, accent.B));
-        app.Resources["FluentAccentLightBrush"] = CreateFrozenBrush(Color.FromArgb(44, accent.R, accent.G, accent.B));
+        app.Resources["FluentAccentSubtleBrush"] = CreateFrozenBrush(Color.FromArgb(isDark ? (byte)36 : (byte)24, effective.R, effective.G, effective.B));
+        app.Resources["FluentAccentLightBrush"] = CreateFrozenBrush(Color.FromArgb(isDark ? (byte)46 : (byte)32, effective.R, effective.G, effective.B));
         app.Resources["FluentTextOnAccentBrush"] = CreateFrozenBrush(onAccent);
+    }
+
+    /// <summary>
+    /// Automatically harmonizes any accent color for Dark or Light mode following WinUI 3 perceptual guidelines:
+    /// Dark mode lifts murky/deep accents into luminous pastel-vibrant tones; Light mode deepens washed-out
+    /// bright accents (e.g. cyan, yellow, mint) into crisp, high-contrast tones legible on white surfaces.
+    /// </summary>
+    public static Color HarmonizeAccentColor(Color baseColor, bool isDark)
+    {
+        RgbToHsl(baseColor, out double h, out double s, out double l);
+
+        if (s < 0.08)
+        {
+            l = isDark ? Math.Clamp(l, 0.62, 0.78) : Math.Clamp(l, 0.28, 0.44);
+            return HslToRgb(h, s, l, baseColor.A);
+        }
+
+        if (isDark)
+        {
+            s = Math.Clamp(s, 0.55, 0.90);
+            l = Math.Clamp(l, 0.60, 0.74);
+        }
+        else
+        {
+            s = Math.Clamp(s, 0.55, 0.88);
+            l = Math.Clamp(l, 0.30, 0.44);
+        }
+
+        return HslToRgb(h, s, l, baseColor.A);
+    }
+
+    private static void RgbToHsl(Color c, out double h, out double s, out double l)
+    {
+        double r = c.R / 255.0;
+        double g = c.G / 255.0;
+        double b = c.B / 255.0;
+
+        double max = Math.Max(r, Math.Max(g, b));
+        double min = Math.Min(r, Math.Min(g, b));
+        double delta = max - min;
+
+        l = (max + min) / 2.0;
+
+        if (delta < 1e-6)
+        {
+            h = 0;
+            s = 0;
+            return;
+        }
+
+        s = l > 0.5 ? delta / (2.0 - max - min) : delta / (max + min);
+
+        if (Math.Abs(max - r) < 1e-6)
+            h = ((g - b) / delta) + (g < b ? 6.0 : 0.0);
+        else if (Math.Abs(max - g) < 1e-6)
+            h = ((b - r) / delta) + 2.0;
+        else
+            h = ((r - g) / delta) + 4.0;
+
+        h /= 6.0;
+    }
+
+    private static Color HslToRgb(double h, double s, double l, byte a = 255)
+    {
+        if (s < 1e-6)
+        {
+            byte v = (byte)Math.Clamp((int)Math.Round(l * 255.0), 0, 255);
+            return Color.FromArgb(a, v, v, v);
+        }
+
+        static double HueToRgb(double p, double q, double t)
+        {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1.0 / 6.0) return p + (q - p) * 6.0 * t;
+            if (t < 1.0 / 2.0) return q;
+            if (t < 2.0 / 3.0) return p + (q - p) * (2.0 / 3.0 - t) * 6.0;
+            return p;
+        }
+
+        double q = l < 0.5 ? l * (1.0 + s) : l + s - l * s;
+        double p = 2.0 * l - q;
+
+        byte r = (byte)Math.Clamp((int)Math.Round(HueToRgb(p, q, h + 1.0 / 3.0) * 255.0), 0, 255);
+        byte g = (byte)Math.Clamp((int)Math.Round(HueToRgb(p, q, h) * 255.0), 0, 255);
+        byte b = (byte)Math.Clamp((int)Math.Round(HueToRgb(p, q, h - 1.0 / 3.0) * 255.0), 0, 255);
+        return Color.FromArgb(a, r, g, b);
     }
 
     public static SolidColorBrush CreateFrozenBrush(Color color)

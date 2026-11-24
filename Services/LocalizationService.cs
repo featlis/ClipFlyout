@@ -416,6 +416,8 @@ public class LocalizationService
         { "Theme_Dark", new("ダーク", "Dark") },
         { "Setting_UseSystemAccent", new("Windows のアクセントカラーを使用", "Use Windows Accent Color") },
         { "Setting_UseSystemAccent_Desc", new("OS の個人用設定で選んだアクセントカラーに自動追従します", "Automatically sync with your Windows accent color") },
+        { "Setting_AutoAdjustAccent", new("カラーを自動調整", "Auto-adjust colors") },
+        { "Setting_AutoAdjustAccent_Desc", new("ダーク／ライトテーマに合わせてアクセントカラーの明度とコントラストを自動最適化します", "Automatically optimizes accent brightness and contrast for Dark & Light themes") },
         { "Setting_AccentColor", new("アクセントカラー", "Accent Color") },
         { "Setting_AccentColor_Desc", new("プライマリアクションや選択インジケーターの色を設定します", "Color used for primary actions and active indicators") },
         { "Color_Preset", new("プリセット", "Presets") },

@@ -77,6 +77,7 @@ public class AppSettings
     public double OpacityPercent { get; set; } = 85.0;
     public string AccentColor { get; set; } = "#0078D4";
     public bool UseSystemAccentColor { get; set; } = false;
+    public bool AutoAdjustAccentColor { get; set; } = true;
     public bool SuppressInFullscreen { get; set; } = true;
 
     // History

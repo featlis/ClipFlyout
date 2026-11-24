@@ -250,7 +250,7 @@ public partial class ToggleSwitch : UserControl
     private void UpdateVisualState(bool animate)
     {
         bool isDark = !ForceLightMode && ThemeService.Instance.IsDarkTheme;
-        Color accent = ThemeService.Instance.AccentColor;
+        Color accent = ThemeService.Instance.EffectiveAccentColor;
         RootGrid.Opacity = IsEnabled ? 1.0 : 0.45;
 
         Color targetTrackBg;

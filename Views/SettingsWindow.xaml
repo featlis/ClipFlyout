@@ -223,6 +223,10 @@
                         <controls:ToggleSwitch x:Name="ToggleSystemAccent" Toggled="SettingChanged_Event"/>
                     </controls:SettingsCard>
 
+                    <controls:SettingsCard x:Name="CardAutoAdjustAccent" IconGlyph="&#xE771;" Header="カラーを自動調整" Description="">
+                        <controls:ToggleSwitch x:Name="ToggleAutoAdjustAccent" Toggled="SettingChanged_Event"/>
+                    </controls:SettingsCard>
+
                     <!-- Accent Color Swatches & Custom RGB Card -->
                     <Border x:Name="AccentPickerCard"
                             Background="{DynamicResource CardBackgroundBrush}"

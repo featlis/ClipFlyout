@@ -233,6 +233,8 @@ public partial class SettingsWindow : Window
             CardTheme.Description = _loc.Get("Setting_Theme_Desc");
             CardSystemAccent.Header = _loc.Get("Setting_UseSystemAccent");
             CardSystemAccent.Description = _loc.Get("Setting_UseSystemAccent_Desc");
+            CardAutoAdjustAccent.Header = _loc.Get("Setting_AutoAdjustAccent");
+            CardAutoAdjustAccent.Description = _loc.Get("Setting_AutoAdjustAccent_Desc");
             LabelAccentColor.Text = _loc.Get("Setting_AccentColor");
             DescAccentColor.Text = _loc.Get("Setting_AccentColor_Desc");
             LabelColorR.Text = _loc.Get("Color_Red");
@@ -426,6 +428,7 @@ public partial class SettingsWindow : Window
 
             CmbTheme.SelectedIndex = (int)cfg.Theme;
             ToggleSystemAccent.IsOn = cfg.UseSystemAccentColor;
+            ToggleAutoAdjustAccent.IsOn = cfg.AutoAdjustAccentColor;
             SyncAccentControls(cfg.AccentColor);
             UpdateAccentPickerEnabledState();
 
@@ -663,6 +666,7 @@ public partial class SettingsWindow : Window
 
                 s.Theme = chosenTheme;
                 s.UseSystemAccentColor = ToggleSystemAccent.IsOn;
+                s.AutoAdjustAccentColor = ToggleAutoAdjustAccent.IsOn;
                 s.AccentColor = hexColor;
                 s.Placement = (FlyoutPlacement)Math.Max(0, CmbPlacement.SelectedIndex);
                 s.OpacityPercent = Math.Round(SliderOpacity.Value);
