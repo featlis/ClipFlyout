@@ -4,247 +4,63 @@
 
 # ClipFlyout
 
-**Windows 11 Fluent Design に準拠したクリップボード解析・フライアウトユーティリティ**  
-*A privacy-focused clipboard utility with native DWM acrylic flyouts and taskbar integration for Windows.*
+コピーしたテキストや画像の「ちょっとした変換」を、その場で済ませるための Windows 常駐アプリです。
+*Copy something — JSON, a color code, a timestamp, an image — and ClipFlyout offers the right action right where you are.*
 
-[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/featlis/ClipFlyout/releases)
+[![Release](https://img.shields.io/github/v/release/featlis/ClipFlyout)](https://github.com/featlis/ClipFlyout/releases/latest)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2011%20%7C%2010%20(x64)-0078D4.svg)](https://github.com/featlis/ClipFlyout)
 [![.NET](https://img.shields.io/badge/.NET-10.0%20WPF-512BD4.svg)](https://dotnet.microsoft.com/)
 
-<br />
-
 <img src="assets/preview.jpg" alt="ClipFlyout Desktop Preview" width="840" />
 
-<br />
-
-[日本語マニュアル](#日本語マニュアル) • [English Manual](#english-user-manual) • [開発者ガイド](#開発者ガイド) • [ライセンス](#ライセンス)
+[ダウンロード](https://github.com/featlis/ClipFlyout/releases/latest) ・ [マニュアル](docs/manual.md) ・ [English](README.en.md)
 
 </div>
 
----
+## 何をするアプリか
 
-## 日本語マニュアル
+JSON を整形したいだけなのに変換サイトを開く、カラーコードを RGB に直す、共有前に URL の追跡パラメータを消す、スクリーンショットの文字を起こす。そういう小さな作業のために手が止まるのが面倒で作りました。
 
-### 1. 概要
+ClipFlyout はコピーした内容の形式を判別し、画面端の小さな窓（フライアウト）に「できそうなこと」を並べます。ボタンを押せば結果がクリップボードに戻るので、そのまま貼るだけ。窓はフォーカスを奪わないので、入力中の作業は止まりません。最新の内容はタスクバー上のウィジェットにも表示され、コピーの履歴やよく使う定型文もトレイからすぐ呼び出せます。
 
-ClipFlyout は、クリップボードにコピーしたテキストや画像の形式をローカル環境で自動解析し、最適な変換・整形・保存アクションを画面端のすりガラス（アクリル）ウィンドウで提示する Windows 向け常駐ユーティリティです。
+## 使い方
 
-作業中のアプリケーションからウィンドウフォーカスを奪わないため、キーボード操作や入力を中断することなく、1クリックで必要な処理を実行できます。また、タスクバー上に最新のコピー内容を表示するタスクバーウィジェットも備えています。
+1. [Releases](https://github.com/featlis/ClipFlyout/releases/latest) からインストーラーをダウンロードして実行する（ZIP 版もあります）
+2. 普段どおり `Ctrl + C` でコピーする
+3. 画面端に出たフライアウトのボタンを押す（`↑` / `↓` + `Enter`、`1`〜`9` の数字キーでも選べます）
 
----
+フライアウトが消えたあとでも、`Alt + Shift + C` で直前のものを再表示できます。このショートカットは設定で変更できます。
 
-### 2. 主な機能
+## 拾ってくれるもの（抜粋）
 
-- **Windows 11 DWM アクリル効果**  
-  Windows 11 の Desktop Window Manager (DWM) が提供するネイティブアクリル（すりガラス効果）を採用。システムのダーク / ライトテーマに自動追従します。
-- **タスクバー直結ウィジェット**  
-  最新のコピー内容をタスクバー上にシームレスに表示します。タスクバーの自動非表示アニメーションに完全同期し、全画面アプリケーション起動時は自動で非表示になります。タスクバーの背景色をリアルタイム検出し、文字色を明色・暗色へ自動調整します。
-- **即時アクション & ペースト連携**  
-  カラーコード、タイムスタンプ、JSON、URL、CSV/TSV、Base64 などを自動判別。変換アクション実行後、次のフライアウトで即座にペーストボタンが提示されます。
-- **プライバシー保護・ローカル処理**  
-  外部サーバーへのデータ送信は一切行いません。1Password、Bitwarden、KeePass などの主要パスワード管理ツールからのコピーは自動検知して除外します。
-- **初回セットアップウィザード**  
-  初回起動時に設定案内ウィンドウが表示され、既定設定の適用または言語・基本動作の初期選択が可能です。
-- **画像 OCR & 開発者ツール (v2.1.0)**  
-  OS 内蔵 Windows OCR によるオンデバイス画像文字起こし、Windows / WSL パス変換＆ターミナル起動、安全な数式＆16進/2進変換電卓、UUID v4/v7 生成、SHA-256 ハッシュ計算、Base64 エンコードを備えています。
-- **定型文・クイック編集・直接ペースト (v2.1.0)**  
-  よく使う定型文の保存・検索・トレイ直接挿入、フライアウト内でのインライン編集、履歴・定型文行ホバー時の 1クリック直接ペースト＆削除、前のクリップ結合に対応しています。
-- **PowerToys スタイルの設定画面**  
-  Mica デザインに準拠した設定画面で、外観、表示位置、アクリル透明度、リコールショートカットのカスタマイズ、プロセス名単位の除外リスト、定型文管理、アップデート確認を集中管理できます。
+- **色**: `#RRGGBB` などのプレビュー、HEX / RGB / HSL / RGBA への変換
+- **日時**: Unix タイムスタンプ ⇄ 日時文字列・ISO 8601
+- **JSON**: インデント整形、1 行化
+- **URL**: 追跡パラメータ除去、QR コード生成、ドメインだけコピー
+- **テキスト**: CSV → Markdown 表 / JSON、Base64、JWT のペイロード表示、ケース変換、数式・進数変換、UUID の整形と新規生成（v4 / v7）、SHA-256
+- **ファイルとパス**: エクスプローラーでコピーしたファイルのパス取得、Windows ⇄ WSL パス変換、ターミナルで開く
+- **画像**: サイズとアスペクト比の確認、PNG / JPG / BMP で保存、Windows 標準 OCR による文字起こし
 
----
+対応形式は全部で 18 種類あります。一覧と設定項目の詳細は [マニュアル](docs/manual.md) に置いてあります。
 
-### 3. 対応データ型とアクション一覧
+## プライバシーについて
 
-| データ型 | 検出条件 | 提供される主なアクション |
-| :--- | :--- | :--- |
-| **カラーコード** | `#RGB`, `#RRGGBB`, `rgb()`, `hsl()` | カラープレビュー、HEX / RGB / HSL / RGBA 変換コピー |
-| **Unix タイムスタンプ** | 10桁（秒）または 13桁（ミリ秒）の数値 | ローカル日時文字列変換、ISO 8601 変換、現在Epochコピー |
-| **ISO 8601 日時** | `YYYY-MM-DDTHH:mm:ssZ` 等 | ローカル日時、Unix 秒 / ミリ秒変換コピー |
-| **ファイル / フォルダ** | エクスプローラーでコピーしたファイル・フォルダ | フルパス / 引用符付きパス / ファイル名コピー、エクスプローラーで開く |
-| **JSON テキスト** | JSON オブジェクト `{...}` または配列 `[...]` | インデント整形コピー、1行化（Minify）コピー |
-| **Web URL** | `http://` または `https://` リンク | 既定ブラウザで開く、QRコード画像生成コピー、ホストドメインコピー |
-| **クリーン URL** | UTM トラッカーや追跡パラメータを含むリンク | 追跡パラメータを除去したクリーン URL のコピー |
-| **メールアドレス** | メールアドレス形式の文字列 | 既定メールアプリ起動、ドメインコピー、ユーザー名コピー |
-| **Base64 / Data URI** | Base64 文字列、Data URI | プレーンテキスト復号、画像データ展開・クリップボード転送 |
-| **表データ (CSV / TSV)** | カンマまたはタブ区切りの表形式テキスト | Markdown テーブル形式への変換、JSON 配列への変換 |
-| **コードスニペット** | プログラミング言語構文・インデント構造 | インデント正規化（スペース2文字）、HTML 特殊文字エスケープ |
-| **識別子ケース変換** | camelCase, snake_case, PascalCase, kebab-case | キャメルケース・スネークケース・ケバブケース相互変換 |
-| **JWT トークン** | 署名付き JWT 文字列 | クレームペイロード（JSON）のデコード展開 |
-| **ファイルパス** | Windows / POSIX `/` / UNC / `/mnt/...` (WSL) パス | スラッシュ変換、WSL⇔Windows 変換、エスケープ、ターミナルを開く |
-| **数式 / 進数変換** | 四則演算、`0x...` (16進)、`0b...` (2進) | 10進数 / `0xHEX` / `0bBIN` 変換コピー（日付・電話番号・バージョン等は誤検出除外） |
-| **UUID / GUID** | ハイフン付き UUID / `{GUID}` | 小文字 / 大文字 / ハイフン除去コピー、UUID v4 / v7 新規生成 |
-| **クリップボード画像** | クリップボード内のビットマップ画像 | 解像度・アスペクト比の確認、PNG/JPG/BMP 保存、**オンデバイス OCR 文字起こし** |
-| **プレーンテキスト** | 上記に該当しない通常のテキスト | 前後空白トリム、文字数カウント、大文字/小文字、SHA-256、Base64 エンコード、前のクリップと結合 |
+変換はすべてこの PC の中で行い、クリップボードの内容を外部に送信することはありません。履歴の保存も既定ではオフで、オンにしたときだけ残ります。
 
----
+パスワードマネージャーからのコピーは対象外です。判定はコピー元ウィンドウのプロセス名で行っていて、1Password / Bitwarden / KeePass / KeePassXC / LastPass / Dashlane / Enpass / NordPass / RoboForm / Proton Pass に対応します（設定でオフにもでき、除外したいアプリを自分で追加もできます）。アプリ側で「履歴に残さない」と指定されたコピーも同様に対象外です。
 
-### 4. インストール方法
+アップデートは GitHub Releases からのみ取得し、実行前に SHA-256 チェックサムで検証します。
 
-#### インストーラー版（推奨）
-1. [GitHub Releases](https://github.com/featlis/ClipFlyout/releases/latest) から [`ClipFlyout-Setup-v2.2.0.exe`](https://github.com/featlis/ClipFlyout/releases/download/v2.2.0/ClipFlyout-Setup-v2.2.0.exe) をダウンロードします。
-2. インストーラーを実行します（標準ユーザー権限でインストール可能です）。
-3. インストール完了後、初回セットアップ画面が表示されます。
-
-#### ポータブル版（ZIP）
-1. `ClipFlyout-v2.2.0-win-x64.zip` をダウンロードし、任意のフォルダーに解凍します。
-2. フォルダー内の `ClipFlyout.exe` を起動します（設定はローカル AppData に保存されます）。
-
----
-
-### 5. 基本操作
-
-1. **アプリの常駐**  
-   起動後、システムトレイ（通知領域）に ClipFlyout のアイコンが表示されます。
-2. **コピー操作**  
-   任意のアプリケーションでテキストや画像をコピー（`Ctrl + C`）します。
-3. **フライアウトからのアクション実行**  
-   画面端に表示されるフライアウトのボタンをクリックすると、変換や整形が実行されます。
-4. **リコールショートカット**  
-   フライアウトが非表示になった後でも、**`Alt + Shift + C`** を押すと直前のフライアウトを再表示できます。
-5. **タスクバーウィジェットの利用**  
-   タスクバー上のウィジェットをクリックすると直前のフライアウトが表示されます。右クリックすると位置切り替えや非表示メニューが開きます。
-
----
-
-### 6. 設定項目
-
-タスクトレイアイコンを右クリックし、「設定」を選択すると設定画面が開きます。
-
-- **全般**:
-  - クリップボード監視の有効 / 無効
-  - タスクバーウィジェットの表示 / 非表示、表示位置（トレイ左、中央右、中央左、左端、タスクバー直上）、左右位置微調整スライダー（-300px 〜 +300px）、対象モニター選択
-  - パスワードマネージャー除外の有効 / 無効
-  - リコールショートカット（`Alt + Shift + C`）の有効 / 無効
-  - Windows ログオン時の自動起動
-  - テーマ切り替え（システム準拠 / ライト / ダーク）
-  - 表示言語（自動 / 日本語 / English）
-- **フライアウト外観 & 動作**:
-  - 表示位置（右下 / 右上 / 左上 / 左下 / カーソル付近）
-  - アクリル透明度（20% 〜 100%）
-  - アクセントカラー選択（プリセットおよび RGB カスタム指定）
-  - 表示継続時間（1.5秒 〜 10秒）
-  - カーソル離脱後の待機時間（0.5秒 〜 5秒）
-- **検出フィルター**:
-  - 13種類のデータ型検出ごとに個別の有効 / 無効を設定可能
-- **アップデート**:
-  - 設定画面内で GitHub Releases からの最新バージョン確認および更新インストールが可能
-
----
-
-### 7. トラブルシューティング
-
-- **フライアウトが表示されない**:  
-  タスクトレイメニューで「クリップボード連携」が有効になっているか確認してください。また、1Password や Bitwarden 等のパスワードマネージャーからのコピーは安全のため自動的に除外されます。
-- **タスクバーウィジェットの位置を調整したい**:  
-  ウィジェットを右クリックするか、設定画面の「タスクバーウィジェット」項目から配置プリセットおよび「左右微調整」スライダーを使用してください。
-- **すりガラス効果（アクリル）が適用されない**:  
-  Windows の「設定」>「アクセシビリティ」または「個人用設定」>「色」で「透明効果」が有効になっていることを確認してください。省電力モード時やリモートデスクトップ接続時は Windows 側の制約によりアクリル効果が無効化される場合があります。
-
----
-
-## English User Manual
-
-### 1. Overview
-
-ClipFlyout is a resident Windows utility that monitors clipboard changes locally, analyzes data formats in real time, and presents contextual formatting, conversion, and quick actions via an acrylic flyout.
-
-Because the flyout uses the non-activating window style, your active window focus remains uninterrupted while typing or browsing. ClipFlyout also features a lightweight taskbar widget displaying the latest copied item directly on your taskbar.
-
----
-
-### 2. Key Features
-
-- **Native Windows 11 Acrylic Backdrop**: Rendered through the Desktop Window Manager (DWM) with full dark and light theme tracking.
-- **Taskbar Widget**: Minimalist widget docked near your taskbar. Smoothly tracks taskbar auto-hide animation, suppresses itself during fullscreen applications, and automatically adjusts text contrast based on taskbar luminance.
-- **One-Click Actions & Auto-Paste**: Execute conversions instantly. Transform operations immediately present a "Paste" action on the subsequent flyout.
-- **Local & Privacy-First**: 100% local execution with no telemetry or network transmission. Automatically ignores copies originating from password managers (1Password, Bitwarden, KeePass).
-- **Initial Setup Wizard**: First-run onboarding window for selecting language and default configuration with a single click.
-- **Fluent Settings Interface**: Mica-backed settings window providing centralized control over appearance, flyout behavior, detection filters, and in-app updates.
-
----
-
-### 3. Supported Data Types & Actions
-
-| Data Type | Detection Criteria | Available Actions |
-| :--- | :--- | :--- |
-| **Color Code** | `#RGB`, `#RRGGBB`, `rgb()`, `hsl()` | Color swatch preview, Copy HEX / RGB / HSL / RGBA values |
-| **Unix Timestamp** | 10-digit (s) or 13-digit (ms) numbers | Convert to local date string, ISO 8601 UTC, Copy current epoch |
-| **ISO 8601 Date/Time** | `YYYY-MM-DDTHH:mm:ssZ` strings | Local time, Unix seconds / milliseconds copy |
-| **Files & Folders** | Explorer FileDropList items | Copy full / quoted paths, file names, reveal in Explorer |
-| **JSON Text** | JSON object `{...}` or array `[...]` | Format with indentation, Minify to single line |
-| **Web URL** | `http://` or `https://` links | Open in browser, Generate & copy QR code, Copy domain |
-| **Clean URL** | URLs containing tracking parameters | Strip tracking parameters (UTM, fbclid, etc.) and copy clean URL |
-| **Email Address** | Standard email format | Open default mail client, Copy domain, Copy username |
-| **Base64 / Data URI** | Base64 strings or Data URIs | Decode to plain text, Unpack image to clipboard |
-| **Table Data (CSV / TSV)** | Delimited tabular text | Convert to Markdown table, Convert to JSON array |
-| **Code Snippet** | Programming language syntax and structure | Normalize indentation (2 spaces), Escape HTML entities |
-| **Identifier Case** | camelCase, snake_case, PascalCase, kebab-case | Convert between common naming conventions |
-| **JWT Token** | Signed JWT string | Decode and inspect claims payload (JSON) |
-| **File Path** | Windows / `/` / UNC / WSL (`/mnt/...`) paths | Convert slashes, Windows ⇔ WSL mapping, escaped path, Open in Terminal |
-| **Math / Base Calc** | Arithmetic expressions, `0x...`, `0b...` literals | Copy decimal / `0xHEX` / `0bBIN` (strictly filters dates, phones, versions) |
-| **UUID / GUID** | Hyphenated or `{braced}` UUID strings | Copy lowercase / uppercase / compact, generate new UUID v4 or v7 |
-| **Clipboard Image** | Bitmap image on clipboard | Inspect resolution and aspect ratio, Save PNG/JPG/BMP, **On-device OCR text extraction** |
-| **Plain Text** | General text strings | Trim, stats, case transforms, UTF-8 SHA-256, Base64 encode, Join with Previous Clip |
-
----
-
-### 4. Installation & Usage
-
-1. Download `ClipFlyout-Setup-v2.2.0.exe` or portable `ClipFlyout-v2.2.0-win-x64.zip` from [GitHub Releases](https://github.com/featlis/ClipFlyout/releases/latest).
-2. Run the installer or extract the portable ZIP.
-3. Copy any supported content (`Ctrl + C`).
-4. The flyout appears near the designated screen corner without stealing keyboard focus. Use `Esc`, `↑`/`↓`, `Enter`, or `1`–`9` for fast keyboard control.
-5. Press **`Alt + Shift + C`** at any time to toggle/recall the most recent flyout.
-
----
-
-## 開発者ガイド
-
-### 開発要件
+## 動作環境
 
 - Windows 11 / 10 (x64)
-- [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- [Inno Setup 6](https://jrsoftware.org/isdl.php)（インストーラーパッケージ生成時のみ）
+- インストーラーは標準ユーザー権限でインストールできます。設定はローカルの AppData に保存されます
 
-### ビルドと単体テスト
+## 開発する人へ
 
-```powershell
-# ソリューションのビルド
-dotnet build ClipFlyout.csproj -c Release
-
-# 単体テストの実行 (174件のテストスイート)
-dotnet test tests/ClipFlyout.Tests/ClipFlyout.Tests.csproj -c Release
-```
-
-### 配布パッケージの生成
-
-```powershell
-# バージョンを指定してインストーラーとポータブルZIPを生成
-powershell -ExecutionPolicy Bypass -File scripts\build-installer.ps1 -Version 2.2.0
-```
-
-実行後、`dist/` ディレクトリに以下のファイルが出力されます：
-- `dist/ClipFlyout-Setup-v2.2.0.exe`（Inno Setup インストーラー）
-- `dist/ClipFlyout-v2.2.0-win-x64.zip`（自己完結型ポータブルパッケージ）
-- `dist/checksums-sha256.txt`（SHA-256 チェックサム一覧）
-
-### アーキテクチャ概要
-
-- **`Services/ClipboardMonitor.cs`**: `AddClipboardFormatListener` (Win32 API) によるイベント駆動型クリップボード監視。`FileDropList` / PNG アルファ / テキスト対応、`CanIncludeInClipboardHistory` DWORD 検証、シーケンス番号＋非同期リトライ機構を実装。
-- **`Services/DataTypeDetector.cs`**: 優先度順の正規表現および構文解析エンジン。1MB 以上の巨大データに対する O(1) 保護リミットと誤検知防止フィルタを内包。
-- **`Services/FlyoutWindowManager.cs`**: `WS_EX_NOACTIVATE` 属性による非アクティブウィンドウ制御、Per-Monitor V2 DPI 対応配置、全画面アプリ自動抑制、軽量フックによる `Esc` / 外クリック即閉じ・キーボード操作を実装。
-- **`Views/TaskbarWidgetWindow.xaml.cs`**: イベント駆動＋500ms ガードによる超軽量タスクバーウィジェット。スタートメニュー・全画面アプリ時の自動回避とレジストリ基準の高速文字色最適化を実装。
-- **`Views/SettingsWindow.xaml`**: 実 Mica 背景＋PowerToys スタイル左 NavigationView＋再利用可能 `SettingsCard` による Windows 11 ネイティブ設定画面。
-- **`Controls/ToggleSwitch.xaml.cs`**: WinUI 3 準拠のホバー拡大・ストレッチアニメーション・WCAG コントラスト対応トグルスイッチ。
-
----
+.NET 10 / WPF 製です。ビルド手順とコードの構成は [開発者向けメモ](docs/development.md)、Issue や PR の流れは [CONTRIBUTING.md](CONTRIBUTING.md) を見てください。
 
 ## ライセンス
 
-- **プロジェクト**: ClipFlyout
-- **開発・著作**: [featlis](https://github.com/featlis) and contributors
-- **ライセンス**: [GNU General Public License version 3 (GPL-3.0-or-later)](LICENSE)
-
-本ソフトウェアは自由ソフトウェアです。フリーソフトウェア財団が公表した GNU General Public License version 3 (GPL-3.0-or-later) の条項に基づき、無償で自由に使用、研究、改変、再配布することができます。
+[GPL-3.0-or-later](LICENSE) — 開発: [featlis](https://github.com/featlis) and contributors
