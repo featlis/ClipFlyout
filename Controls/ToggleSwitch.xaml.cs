@@ -58,7 +58,15 @@ public partial class ToggleSwitch : UserControl
 
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
-        IsEnabledChanged += (_, _) => UpdateVisualState(false);
+        IsEnabledChanged += (_, _) =>
+        {
+            if (!IsEnabled && _isPressed)
+            {
+                _isPressed = false;
+                if (IsMouseCaptured) ReleaseMouseCapture();
+            }
+            UpdateVisualState(false);
+        };
         GotKeyboardFocus += (_, _) => FocusRing.Opacity = 0.7;
         LostKeyboardFocus += (_, _) => FocusRing.Opacity = 0;
         KeyDown += OnKeyDown;
@@ -71,7 +79,6 @@ public partial class ToggleSwitch : UserControl
         if (!_subscribed)
         {
             ThemeService.Instance.ThemeChanged += OnExternalThemeChanged;
-            SettingsService.Instance.SettingsChanged += OnExternalSettingsChanged;
             _subscribed = true;
         }
         UpdateVisualState(false);
@@ -82,7 +89,6 @@ public partial class ToggleSwitch : UserControl
         if (_subscribed)
         {
             ThemeService.Instance.ThemeChanged -= OnExternalThemeChanged;
-            SettingsService.Instance.SettingsChanged -= OnExternalSettingsChanged;
             _subscribed = false;
         }
         if (IsMouseCaptured)
@@ -94,14 +100,6 @@ public partial class ToggleSwitch : UserControl
     }
 
     private void OnExternalThemeChanged()
-    {
-        if (!Dispatcher.HasShutdownStarted)
-        {
-            Dispatcher.BeginInvoke(() => UpdateVisualState(false));
-        }
-    }
-
-    private void OnExternalSettingsChanged(Models.AppSettings _)
     {
         if (!Dispatcher.HasShutdownStarted)
         {
@@ -136,8 +134,9 @@ public partial class ToggleSwitch : UserControl
         }
     }
 
-    private void OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
+        base.OnMouseLeftButtonDown(e);
         if (!IsEnabled) return;
         _isPressed = true;
         CaptureMouse();
@@ -145,15 +144,16 @@ public partial class ToggleSwitch : UserControl
         e.Handled = true;
     }
 
-    private void OnPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
+        base.OnMouseLeftButtonUp(e);
         if (!IsEnabled || !_isPressed) return;
         _isPressed = false;
         if (IsMouseCaptured) ReleaseMouseCapture();
 
-        var pos = e.GetPosition(RootGrid);
-        bool inside = pos.X >= -4 && pos.X <= RootGrid.ActualWidth + 4 &&
-                      pos.Y >= -4 && pos.Y <= RootGrid.ActualHeight + 4;
+        var pos = e.GetPosition(this);
+        bool inside = pos.X >= -6 && pos.X <= ActualWidth + 6 &&
+                      pos.Y >= -6 && pos.Y <= ActualHeight + 6;
 
         if (inside)
         {
@@ -168,14 +168,26 @@ public partial class ToggleSwitch : UserControl
         e.Handled = true;
     }
 
-    private void OnMouseEnter(object sender, MouseEventArgs e)
+    protected override void OnLostMouseCapture(MouseEventArgs e)
     {
+        base.OnLostMouseCapture(e);
+        if (_isPressed)
+        {
+            _isPressed = false;
+            UpdateVisualState(true);
+        }
+    }
+
+    protected override void OnMouseEnter(MouseEventArgs e)
+    {
+        base.OnMouseEnter(e);
         _isHovered = true;
         UpdateVisualState(true);
     }
 
-    private void OnMouseLeave(object sender, MouseEventArgs e)
+    protected override void OnMouseLeave(MouseEventArgs e)
     {
+        base.OnMouseLeave(e);
         _isHovered = false;
         if (!_isPressed)
         {

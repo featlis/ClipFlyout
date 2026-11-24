@@ -3,15 +3,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Cursor="Hand"
              Focusable="True"
+             Background="Transparent"
              Height="24" Width="44"
              SnapsToDevicePixels="True"
              UseLayoutRounding="True">
     <Grid x:Name="RootGrid"
-          Background="Transparent"
-          PreviewMouseLeftButtonDown="OnPreviewMouseLeftButtonDown"
-          PreviewMouseLeftButtonUp="OnPreviewMouseLeftButtonUp"
-          MouseEnter="OnMouseEnter"
-          MouseLeave="OnMouseLeave">
+          Background="Transparent">
         <!-- Keyboard Focus Ring -->
         <Border x:Name="FocusRing"
                 Width="44" Height="24"

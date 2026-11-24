@@ -497,7 +497,7 @@
                             <Image x:Name="AboutAppIcon" Width="48" Height="48" RenderOptions.BitmapScalingMode="HighQuality" Margin="0,0,16,0" VerticalAlignment="Center"/>
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock Text="ClipFlyout" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                <TextBlock x:Name="AboutVersionText" Text="バージョン: v2.1.1" FontSize="12.5" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                                <TextBlock x:Name="AboutVersionText" Text="バージョン: v2.1.2" FontSize="12.5" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,0"/>
                                 <TextBlock x:Name="AboutRuntimeText" Text="ランタイム: .NET 10 / Windows 11 Fluent" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" Margin="0,2,0,0"/>
                                 <TextBlock x:Name="AboutAuthorText" Text="開発・著作: featlis" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" Margin="0,4,0,0"/>
                                 <TextBlock x:Name="AboutLicenseText" Text="ライセンス: GPL-3.0-or-later" FontSize="11.5" Foreground="{DynamicResource TextTertiaryBrush}" Margin="0,1,0,0" TextWrapping="Wrap"/>
