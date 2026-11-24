@@ -11,12 +11,24 @@ public class HotkeyService : IDisposable
     private HwndSource? _hwndSource;
     private bool _isRegistered;
     private bool _registrationFailed;
+    private uint _registeredMods;
+    private uint _registeredVk;
     private readonly object _lock = new();
 
     public event Action? HotkeyPressed;
 
     public bool IsRegistered => _isRegistered;
     public bool RegistrationFailed => _registrationFailed;
+
+    public bool MatchesCurrentSettings(Models.AppSettings cfg) =>
+        _registeredMods == (cfg.RecallHotkeyModifiers & 0x000Fu) &&
+        _registeredVk == cfg.RecallHotkeyKey;
+
+    public void Restart()
+    {
+        Stop();
+        Start();
+    }
 
     public void Start()
     {
@@ -46,10 +58,16 @@ public class HotkeyService : IDisposable
             _hwndSource = new HwndSource(parameters);
             _hwndSource.AddHook(HwndHook);
 
-            // Alt + Shift + C
-            uint modifiers = Win32.MOD_ALT | Win32.MOD_SHIFT | Win32.MOD_NOREPEAT;
-            if (Win32.RegisterHotKey(_hwndSource.Handle, HotkeyId, modifiers, (uint)'C'))
+            var cfg = SettingsService.Instance.Current;
+            uint baseMods = cfg.RecallHotkeyModifiers & 0x000Fu;
+            if (baseMods == 0) baseMods = Win32.MOD_ALT | Win32.MOD_SHIFT;
+            uint vk = cfg.RecallHotkeyKey != 0 ? cfg.RecallHotkeyKey : (uint)'C';
+            uint modifiers = baseMods | Win32.MOD_NOREPEAT;
+
+            if (Win32.RegisterHotKey(_hwndSource.Handle, HotkeyId, modifiers, vk))
             {
+                _registeredMods = baseMods;
+                _registeredVk = vk;
                 _isRegistered = true;
                 _registrationFailed = false;
             }
@@ -57,6 +75,8 @@ public class HotkeyService : IDisposable
             {
                 // Clean up HWND immediately on failure so repeated Start() calls never leak HWNDs
                 CleanupHwndLocked();
+                _registeredMods = 0;
+                _registeredVk = 0;
                 _isRegistered = false;
                 _registrationFailed = true;
             }

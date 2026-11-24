@@ -7,7 +7,7 @@
 **Windows 11 Fluent Design に準拠したクリップボード解析・フライアウトユーティリティ**  
 *A privacy-focused clipboard utility with native DWM acrylic flyouts and taskbar integration for Windows.*
 
-[![Version](https://img.shields.io/badge/version-2.0.1-blue.svg)](https://github.com/featlis/ClipFlyout/releases)
+[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/featlis/ClipFlyout/releases)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2011%20%7C%2010%20(x64)-0078D4.svg)](https://github.com/featlis/ClipFlyout)
 [![.NET](https://img.shields.io/badge/.NET-10.0%20WPF-512BD4.svg)](https://dotnet.microsoft.com/)
@@ -46,8 +46,12 @@ ClipFlyout は、クリップボードにコピーしたテキストや画像の
   外部サーバーへのデータ送信は一切行いません。1Password、Bitwarden、KeePass などの主要パスワード管理ツールからのコピーは自動検知して除外します。
 - **初回セットアップウィザード**  
   初回起動時に設定案内ウィンドウが表示され、既定設定の適用または言語・基本動作の初期選択が可能です。
+- **画像 OCR & 開発者ツール (v2.1.0)**  
+  OS 内蔵 Windows OCR によるオンデバイス画像文字起こし、Windows / WSL パス変換＆ターミナル起動、安全な数式＆16進/2進変換電卓、UUID v4/v7 生成、SHA-256 ハッシュ計算、Base64 エンコードを備えています。
+- **定型文・クイック編集・直接ペースト (v2.1.0)**  
+  よく使う定型文の保存・検索・トレイ直接挿入、フライアウト内でのインライン編集、履歴・定型文行ホバー時の 1クリック直接ペースト＆削除、前のクリップ結合に対応しています。
 - **PowerToys スタイルの設定画面**  
-  Mica デザインに準拠した設定画面で、外観、表示位置、アクリル透明度、検出フィルター、アップデート確認を集中管理できます。
+  Mica デザインに準拠した設定画面で、外観、表示位置、アクリル透明度、リコールショートカットのカスタマイズ、プロセス名単位の除外リスト、定型文管理、アップデート確認を集中管理できます。
 
 ---
 
@@ -68,20 +72,23 @@ ClipFlyout は、クリップボードにコピーしたテキストや画像の
 | **コードスニペット** | プログラミング言語構文・インデント構造 | インデント正規化（スペース2文字）、HTML 特殊文字エスケープ |
 | **識別子ケース変換** | camelCase, snake_case, PascalCase, kebab-case | キャメルケース・スネークケース・ケバブケース相互変換 |
 | **JWT トークン** | 署名付き JWT 文字列 | クレームペイロード（JSON）のデコード展開 |
-| **クリップボード画像** | クリップボード内のビットマップ画像 | 解像度・アスペクト比の確認、PNG ファイルとして保存 |
-| **プレーンテキスト** | 上記に該当しない通常のテキスト | 前後空白トリム、文字数 / 単語数 / 行数カウント、大文字 / 小文字変換 |
+| **ファイルパス** | Windows / POSIX `/` / UNC / `/mnt/...` (WSL) パス | スラッシュ変換、WSL⇔Windows 変換、エスケープ、ターミナルを開く |
+| **数式 / 進数変換** | 四則演算、`0x...` (16進)、`0b...` (2進) | 10進数 / `0xHEX` / `0bBIN` 変換コピー（日付・電話番号・バージョン等は誤検出除外） |
+| **UUID / GUID** | ハイフン付き UUID / `{GUID}` | 小文字 / 大文字 / ハイフン除去コピー、UUID v4 / v7 新規生成 |
+| **クリップボード画像** | クリップボード内のビットマップ画像 | 解像度・アスペクト比の確認、PNG/JPG/BMP 保存、**オンデバイス OCR 文字起こし** |
+| **プレーンテキスト** | 上記に該当しない通常のテキスト | 前後空白トリム、文字数カウント、大文字/小文字、SHA-256、Base64 エンコード、前のクリップと結合 |
 
 ---
 
 ### 4. インストール方法
 
 #### インストーラー版（推奨）
-1. [GitHub Releases](https://github.com/featlis/ClipFlyout/releases/latest) から [`ClipFlyout-Setup-v2.0.1.exe`](https://github.com/featlis/ClipFlyout/releases/download/v2.0.1/ClipFlyout-Setup-v2.0.1.exe) をダウンロードします。
+1. [GitHub Releases](https://github.com/featlis/ClipFlyout/releases/latest) から [`ClipFlyout-Setup-v2.1.0.exe`](https://github.com/featlis/ClipFlyout/releases/download/v2.1.0/ClipFlyout-Setup-v2.1.0.exe) をダウンロードします。
 2. インストーラーを実行します（標準ユーザー権限でインストール可能です）。
 3. インストール完了後、初回セットアップ画面が表示されます。
 
 #### ポータブル版（ZIP）
-1. `ClipFlyout-v2.0.1-win-x64.zip` をダウンロードし、任意のフォルダーに解凍します。
+1. `ClipFlyout-v2.1.0-win-x64.zip` をダウンロードし、任意のフォルダーに解凍します。
 2. フォルダー内の `ClipFlyout.exe` を起動します（設定はローカル AppData に保存されます）。
 
 ---
@@ -175,14 +182,17 @@ Because the flyout uses the non-activating window style, your active window focu
 | **Code Snippet** | Programming language syntax and structure | Normalize indentation (2 spaces), Escape HTML entities |
 | **Identifier Case** | camelCase, snake_case, PascalCase, kebab-case | Convert between common naming conventions |
 | **JWT Token** | Signed JWT string | Decode and inspect claims payload (JSON) |
-| **Clipboard Image** | Bitmap image on clipboard | Inspect resolution and aspect ratio, Save as PNG file |
-| **Plain Text** | General text strings | Trim whitespace, Character/word/line count, UPPERCASE / lowercase |
+| **File Path** | Windows / `/` / UNC / WSL (`/mnt/...`) paths | Convert slashes, Windows ⇔ WSL mapping, escaped path, Open in Terminal |
+| **Math / Base Calc** | Arithmetic expressions, `0x...`, `0b...` literals | Copy decimal / `0xHEX` / `0bBIN` (strictly filters dates, phones, versions) |
+| **UUID / GUID** | Hyphenated or `{braced}` UUID strings | Copy lowercase / uppercase / compact, generate new UUID v4 or v7 |
+| **Clipboard Image** | Bitmap image on clipboard | Inspect resolution and aspect ratio, Save PNG/JPG/BMP, **On-device OCR text extraction** |
+| **Plain Text** | General text strings | Trim, stats, case transforms, UTF-8 SHA-256, Base64 encode, Join with Previous Clip |
 
 ---
 
 ### 4. Installation & Usage
 
-1. Download `ClipFlyout-Setup-v2.0.1.exe` or portable `ClipFlyout-v2.0.1-win-x64.zip` from [GitHub Releases](https://github.com/featlis/ClipFlyout/releases/latest).
+1. Download `ClipFlyout-Setup-v2.1.0.exe` or portable `ClipFlyout-v2.1.0-win-x64.zip` from [GitHub Releases](https://github.com/featlis/ClipFlyout/releases/latest).
 2. Run the installer or extract the portable ZIP.
 3. Copy any supported content (`Ctrl + C`).
 4. The flyout appears near the designated screen corner without stealing keyboard focus. Use `Esc`, `↑`/`↓`, `Enter`, or `1`–`9` for fast keyboard control.
@@ -204,7 +214,7 @@ Because the flyout uses the non-activating window style, your active window focu
 # ソリューションのビルド
 dotnet build ClipFlyout.csproj -c Release
 
-# 単体テストの実行 (123件のテストスイート)
+# 単体テストの実行 (150件のテストスイート)
 dotnet test tests/ClipFlyout.Tests/ClipFlyout.Tests.csproj -c Release
 ```
 
@@ -212,12 +222,12 @@ dotnet test tests/ClipFlyout.Tests/ClipFlyout.Tests.csproj -c Release
 
 ```powershell
 # バージョンを指定してインストーラーとポータブルZIPを生成
-powershell -ExecutionPolicy Bypass -File scripts\build-installer.ps1 -Version 2.0.1
+powershell -ExecutionPolicy Bypass -File scripts\build-installer.ps1 -Version 2.1.0
 ```
 
 実行後、`dist/` ディレクトリに以下のファイルが出力されます：
-- `dist/ClipFlyout-Setup-v2.0.1.exe`（Inno Setup インストーラー）
-- `dist/ClipFlyout-v2.0.1-win-x64.zip`（自己完結型ポータブルパッケージ）
+- `dist/ClipFlyout-Setup-v2.1.0.exe`（Inno Setup インストーラー）
+- `dist/ClipFlyout-v2.1.0-win-x64.zip`（自己完結型ポータブルパッケージ）
 - `dist/checksums-sha256.txt`（SHA-256 チェックサム一覧）
 
 ### アーキテクチャ概要

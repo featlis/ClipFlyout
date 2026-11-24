@@ -1,19 +1,18 @@
 {
   "project": "ClipFlyout",
-  "version": "2.0.1",
-  "target_framework": "net10.0-windows",
+  "version": "2.1.0",
+  "target_framework": "net10.0-windows10.0.19041.0",
   "dpi_awareness": "PerMonitorV2 (app.manifest)",
   "architecture": {
-    "ui": "WPF (.NET 10) + WinUI 3 semantic token dictionaries (Tokens.Dark.xaml / Tokens.Light.xaml), PowerToys-style Left NavigationView + real Mica + reusable SettingsCard, genuine Win11 8px Acrylic Flyout (no conflicting Win10 AccentPolicy on Win11 22H2+), FluentDialog, WinUI 3 ToggleSwitch, zero-emoji Segoe Fluent Icons",
-    "security": "Fail-closed mandatory SHA-256 update verification, single-instance Mutex, strict http/https & mailto validation, Windows Cloud Clipboard DWORD metadata evaluation",
-    "performance": "Eliminated 30ms polling and 450ms GetPixel GPU stalls in TaskbarWidget; 150ms debounced slider saves; lazy Tray ContextMenu; frozen brushes; downscaled history thumbnails; O(1) bounded large-text detection",
+    "ui": "WPF (.NET 10 Windows SDK 10.0.19041) + WinUI 3 semantic token dictionaries (Tokens.Dark.xaml / Tokens.Light.xaml), Left NavigationView + real Mica + SettingsCard, genuine Win11 8px Acrylic Flyout with inline quick edit, History/Snippets segmented footer tabs, hover Paste/Delete actions, custom hotkey recorder, and fluent Snippets management page",
+    "security": "Fail-closed mandatory SHA-256 update verification, single-instance Mutex, strict http/https & mailto validation, Windows Cloud Clipboard DWORD metadata evaluation, built-in password manager + custom process exclusion list, 100% local on-device OCR via Windows.Media.Ocr",
+    "performance": "Event-driven clipboard & guard timers, 150ms debounced slider/text saves, lazy Tray ContextMenu with Snippets & Pause timer (15m / 1h / Resume), frozen brushes, downscaled history thumbnails, O(1) bounded large-text detection",
     "features": [
-      "Keyboard-first Flyout (Esc, Up/Down, Enter, 1-9 shortcuts) + Click-outside dismiss",
-      "Fullscreen app automatic flyout suppression",
-      "Pin/Favorite, Search, Clear, relative timestamps, optional JSON history persistence",
-      "New detectors: Explorer FileDropList, CSS rgb()/hsl() colors, ISO 8601 DateTime, JWT exp status",
-      "Windows System Accent sync + WCAG 2.1 contrasting foreground computation"
+      "On-device image & Base64 image OCR via Windows.Media.Ocr (JA/EN + CJK spacing cleanup)",
+      "Developer utilities: FilePath (/ conversion, WSL /mnt/ <-> Windows, escaped, Open Terminal), Safe Math & Hex/Binary evaluator, UUID/GUID formatter + v4/v7 generator, UTF-8 & file SHA-256, Base64 encode",
+      "Permanent Snippets CRUD (snippets.json), Flyout inline quick edit + direct paste, segmented History/Snippets tabs, hover 1-click Paste/Delete, Join with Previous Clip",
+      "Custom global Recall hotkey recorder, custom Excluded Apps process list, and Tray Pause Timer (15m / 1h / Resume)"
     ]
   },
-  "test_suite": "123 passing xUnit tests on net10.0-windows"
+  "test_suite": "150 passing xUnit tests on net10.0-windows10.0.19041.0"
 }

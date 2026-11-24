@@ -15,6 +15,7 @@ namespace ClipFlyout.Services;
 public class ClipboardMonitor : IClipboardMonitor
 {
     public event EventHandler<object>? ClipboardChanged;
+    public event Action? PauseStateChanged;
 
     private HwndSource? _hwndSource;
     private bool _isListening;
@@ -23,6 +24,8 @@ public class ClipboardMonitor : IClipboardMonitor
     private long _suppressedUntilTicks;
     private long _clipboardReadGeneration;
     private volatile bool _isEnabled = true;
+    private DateTimeOffset? _pauseUntilUtc;
+    private System.Windows.Threading.DispatcherTimer? _pauseTimer;
     private readonly object _lock = new();
     private readonly HashSet<uint> _suppressedSequenceNumbers = new();
 
@@ -30,6 +33,64 @@ public class ClipboardMonitor : IClipboardMonitor
     {
         get => _isEnabled;
         set => _isEnabled = value;
+    }
+
+    public bool IsPaused
+    {
+        get
+        {
+            if (_pauseUntilUtc is not DateTimeOffset until) return false;
+            if (until > DateTimeOffset.UtcNow) return true;
+
+            _pauseUntilUtc = null;
+            return false;
+        }
+    }
+
+    public DateTimeOffset? PauseUntilUtc => IsPaused ? _pauseUntilUtc : null;
+
+    public void PauseFor(TimeSpan duration)
+    {
+        if (duration <= TimeSpan.Zero)
+        {
+            Resume();
+            return;
+        }
+
+        _pauseUntilUtc = DateTimeOffset.UtcNow.Add(duration);
+
+        var app = WpfApplication.Current;
+        if (app?.Dispatcher != null && !app.Dispatcher.HasShutdownStarted)
+        {
+            void ArmTimer()
+            {
+                _pauseTimer?.Stop();
+                _pauseTimer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromSeconds(Math.Clamp(duration.TotalSeconds, 1, 86400))
+                };
+                _pauseTimer.Tick += (_, _) => Resume();
+                _pauseTimer.Start();
+            }
+
+            if (app.Dispatcher.CheckAccess()) ArmTimer();
+            else app.Dispatcher.BeginInvoke(ArmTimer);
+        }
+
+        PauseStateChanged?.Invoke();
+    }
+
+    public void Resume()
+    {
+        _pauseUntilUtc = null;
+        var app = WpfApplication.Current;
+        if (app?.Dispatcher != null && !app.Dispatcher.HasShutdownStarted)
+        {
+            void StopTimer() => _pauseTimer?.Stop();
+            if (app.Dispatcher.CheckAccess()) StopTimer();
+            else app.Dispatcher.BeginInvoke(StopTimer);
+        }
+        PauseStateChanged?.Invoke();
     }
 
     public void Start()
@@ -149,10 +210,46 @@ public class ClipboardMonitor : IClipboardMonitor
 
     internal static bool IsSensitiveProcessName(string processName)
     {
-        return !string.IsNullOrWhiteSpace(processName) && SensitiveProcessNames.Contains(processName);
+        return !string.IsNullOrWhiteSpace(processName) && SensitiveProcessNames.Contains(NormalizeProcessName(processName));
     }
 
-    private static bool IsSensitiveApp(IntPtr hwnd)
+    public static bool IsProcessExcluded(string? processName, bool ignorePasswordManagers, string? customExcludedApps)
+    {
+        if (string.IsNullOrWhiteSpace(processName)) return false;
+
+        string cleanProc = NormalizeProcessName(processName);
+        if (string.IsNullOrEmpty(cleanProc)) return false;
+
+        if (ignorePasswordManagers && SensitiveProcessNames.Contains(cleanProc))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(customExcludedApps)) return false;
+
+        string[] entries = customExcludedApps.Split(new[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        foreach (string raw in entries)
+        {
+            string entry = NormalizeProcessName(raw);
+            if (!string.IsNullOrEmpty(entry) && string.Equals(entry, cleanProc, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static string NormalizeProcessName(string name)
+    {
+        string trimmed = name.Trim();
+        if (trimmed.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed[..^4].TrimEnd();
+        }
+        return trimmed;
+    }
+
+    private static bool IsExcludedWindow(IntPtr hwnd, Models.AppSettings cfg)
     {
         if (hwnd == IntPtr.Zero) return false;
         try
@@ -160,7 +257,7 @@ public class ClipboardMonitor : IClipboardMonitor
             Win32.GetWindowThreadProcessId(hwnd, out uint pid);
             if (pid == 0) return false;
             using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
-            return SensitiveProcessNames.Contains(proc.ProcessName);
+            return IsProcessExcluded(proc.ProcessName, cfg.IgnorePasswordManagers, cfg.ExcludedApps);
         }
         catch
         {
@@ -234,6 +331,16 @@ public class ClipboardMonitor : IClipboardMonitor
     {
         if (msg == Win32.WM_CLIPBOARDUPDATE)
         {
+            bool wasPaused = _pauseUntilUtc.HasValue;
+            if (IsPaused)
+            {
+                return IntPtr.Zero;
+            }
+            if (wasPaused)
+            {
+                PauseStateChanged?.Invoke();
+            }
+
             if (!_isEnabled)
             {
                 return IntPtr.Zero;
@@ -280,16 +387,19 @@ public class ClipboardMonitor : IClipboardMonitor
 
     private async Task ReadClipboardAsync(long generation, IntPtr ownerHwnd)
     {
-        // Check sensitive process off the synchronous WndProc hot path
-        if (SettingsService.Instance.Current.IgnorePasswordManagers)
+        var cfg = SettingsService.Instance.Current;
+        if (IsPaused) return;
+
+        // Check excluded/sensitive process off the synchronous WndProc hot path
+        if (cfg.IgnorePasswordManagers || !string.IsNullOrWhiteSpace(cfg.ExcludedApps))
         {
-            bool sensitive = await Task.Run(() => IsSensitiveApp(ownerHwnd)).ConfigureAwait(false);
-            if (sensitive) return;
+            bool excluded = await Task.Run(() => IsExcludedWindow(ownerHwnd, cfg)).ConfigureAwait(false);
+            if (excluded) return;
         }
 
         for (int attempt = 0; attempt < 5; attempt++)
         {
-            if (generation != Volatile.Read(ref _clipboardReadGeneration) || !_isEnabled)
+            if (generation != Volatile.Read(ref _clipboardReadGeneration) || !_isEnabled || IsPaused)
             {
                 return;
             }
@@ -333,14 +443,17 @@ public class ClipboardMonitor : IClipboardMonitor
     {
         try
         {
+            if (!_isEnabled || IsPaused) return null;
+
             var app = WpfApplication.Current;
             if (app == null || app.Dispatcher.HasShutdownStarted) return null;
 
-            bool ignorePm = SettingsService.Instance.Current.IgnorePasswordManagers;
-            if (ignorePm)
+            var cfg = SettingsService.Instance.Current;
+            bool ignorePm = cfg.IgnorePasswordManagers;
+            if (ignorePm || !string.IsNullOrWhiteSpace(cfg.ExcludedApps))
             {
                 IntPtr owner = Win32.GetClipboardOwner();
-                if (owner != IntPtr.Zero && IsSensitiveApp(owner))
+                if (owner != IntPtr.Zero && IsExcludedWindow(owner, cfg))
                 {
                     return null;
                 }
@@ -439,6 +552,12 @@ public class ClipboardMonitor : IClipboardMonitor
 
     public void Dispose()
     {
+        var app = WpfApplication.Current;
+        if (app?.Dispatcher != null && !app.Dispatcher.HasShutdownStarted)
+        {
+            if (app.Dispatcher.CheckAccess()) _pauseTimer?.Stop();
+            else app.Dispatcher.BeginInvoke(() => _pauseTimer?.Stop());
+        }
         Stop();
     }
 }

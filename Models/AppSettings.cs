@@ -64,7 +64,10 @@ public class AppSettings
     public double WidgetOffsetX { get; set; } = 0.0;
     public WidgetTextColorMode WidgetTextColor { get; set; } = WidgetTextColorMode.Auto;
     public bool IgnorePasswordManagers { get; set; } = true;
+    public string ExcludedApps { get; set; } = string.Empty;
     public bool EnableRecallHotkey { get; set; } = true;
+    public uint RecallHotkeyModifiers { get; set; } = 0x0001u | 0x0004u; // MOD_ALT | MOD_SHIFT
+    public uint RecallHotkeyKey { get; set; } = 0x43u; // 'C'
     public bool IsFirstRun { get; set; } = true;
 
     // Flyout Visuals & Behavior
@@ -100,6 +103,39 @@ public class AppSettings
     public bool EnableCleanUrl { get; set; } = true;
     public bool EnableCaseConverter { get; set; } = true;
     public bool EnableJwtDetector { get; set; } = true;
+    public bool EnableOcr { get; set; } = true;
+    public bool DetectFilePath { get; set; } = true;
+    public bool DetectMath { get; set; } = true;
+    public bool DetectUuid { get; set; } = true;
+
+    public static string FormatHotkeyDisplay(uint modifiers, uint virtualKey)
+    {
+        var parts = new System.Collections.Generic.List<string>(5);
+        if ((modifiers & 0x0002u) != 0) parts.Add("Ctrl");
+        if ((modifiers & 0x0001u) != 0) parts.Add("Alt");
+        if ((modifiers & 0x0004u) != 0) parts.Add("Shift");
+        if ((modifiers & 0x0008u) != 0) parts.Add("Win");
+
+        var key = System.Windows.Input.KeyInterop.KeyFromVirtualKey((int)virtualKey);
+        string keyLabel = key switch
+        {
+            >= System.Windows.Input.Key.D0 and <= System.Windows.Input.Key.D9 => ((char)('0' + (key - System.Windows.Input.Key.D0))).ToString(),
+            System.Windows.Input.Key.OemComma => ",",
+            System.Windows.Input.Key.OemPeriod => ".",
+            System.Windows.Input.Key.OemMinus => "-",
+            System.Windows.Input.Key.OemPlus => "=",
+            System.Windows.Input.Key.OemQuestion => "/",
+            System.Windows.Input.Key.OemSemicolon => ";",
+            System.Windows.Input.Key.OemQuotes => "'",
+            System.Windows.Input.Key.OemOpenBrackets => "[",
+            System.Windows.Input.Key.OemCloseBrackets => "]",
+            System.Windows.Input.Key.OemPipe => "\\",
+            System.Windows.Input.Key.OemTilde => "`",
+            _ => key.ToString()
+        };
+        parts.Add(keyLabel);
+        return string.Join("+", parts);
+    }
 
     public AppSettings Clone()
     {
@@ -165,6 +201,23 @@ public class AppSettings
         if (normalized.LastUpdateCheckUtc > DateTimeOffset.UtcNow.AddHours(1))
         {
             normalized.LastUpdateCheckUtc = null;
+        }
+
+        uint validMods = normalized.RecallHotkeyModifiers & (0x0001u | 0x0002u | 0x0004u | 0x0008u);
+        if (validMods == 0 || normalized.RecallHotkeyKey == 0 || normalized.RecallHotkeyKey > 0xFE)
+        {
+            normalized.RecallHotkeyModifiers = 0x0001u | 0x0004u;
+            normalized.RecallHotkeyKey = 0x43u;
+        }
+        else
+        {
+            normalized.RecallHotkeyModifiers = validMods;
+        }
+
+        normalized.ExcludedApps ??= string.Empty;
+        if (normalized.ExcludedApps.Length > 2048)
+        {
+            normalized.ExcludedApps = normalized.ExcludedApps[..2048];
         }
 
         return normalized;

@@ -124,6 +124,13 @@
                             <TextBlock x:Name="NavHistoryText" Text="履歴とプライバシー" VerticalAlignment="Center"/>
                         </StackPanel>
                     </RadioButton>
+
+                    <RadioButton x:Name="NavSnippets" Style="{DynamicResource FluentNavButtonStyle}" Checked="NavItem_Checked" Tag="6">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE8A4;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Width="24" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="NavSnippetsText" Text="定型文" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
                 </StackPanel>
 
                 <!-- Bottom Pinned Nav Item (Updates & About) -->
@@ -169,7 +176,20 @@
                     </controls:SettingsCard>
 
                     <controls:SettingsCard x:Name="CardRecallHotkey" IconGlyph="&#xE765;" Header="リコールショートカット (Alt+Shift+C)" Description="">
-                        <controls:ToggleSwitch x:Name="ToggleRecallHotkey" Toggled="SettingChanged_Event"/>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button x:Name="BtnRecordHotkey"
+                                    Style="{DynamicResource FluentButtonStyle}"
+                                    Content="Alt+Shift+C"
+                                    MinWidth="112"
+                                    Margin="0,0,8,0"
+                                    Click="BtnRecordHotkey_Click"/>
+                            <Button x:Name="BtnResetHotkey"
+                                    Style="{DynamicResource FluentButtonStyle}"
+                                    Content="既定に戻す"
+                                    Margin="0,0,12,0"
+                                    Click="BtnResetHotkey_Click"/>
+                            <controls:ToggleSwitch x:Name="ToggleRecallHotkey" Toggled="SettingChanged_Event"/>
+                        </StackPanel>
                     </controls:SettingsCard>
 
                     <Border x:Name="HotkeyConflictBanner"
@@ -388,6 +408,18 @@
                     <controls:SettingsCard x:Name="CardJwt" IconGlyph="&#xE8D7;" Header="JWT トークン" Description="">
                         <controls:ToggleSwitch x:Name="ToggleJwt" Toggled="SettingChanged_Event"/>
                     </controls:SettingsCard>
+                    <controls:SettingsCard x:Name="CardEnableOcr" IconGlyph="&#xE8A5;" Header="画像 OCR" Description="">
+                        <controls:ToggleSwitch x:Name="ToggleEnableOcr" Toggled="SettingChanged_Event"/>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard x:Name="CardDetectFilePath" IconGlyph="&#xE8B7;" Header="ファイルパス変換" Description="">
+                        <controls:ToggleSwitch x:Name="ToggleDetectFilePath" Toggled="SettingChanged_Event"/>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard x:Name="CardDetectMath" IconGlyph="&#xE8EF;" Header="数式 &amp; 進数変換" Description="">
+                        <controls:ToggleSwitch x:Name="ToggleDetectMath" Toggled="SettingChanged_Event"/>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard x:Name="CardDetectUuid" IconGlyph="&#xE8D7;" Header="UUID / GUID" Description="">
+                        <controls:ToggleSwitch x:Name="ToggleDetectUuid" Toggled="SettingChanged_Event"/>
+                    </controls:SettingsCard>
                 </StackPanel>
             </ScrollViewer>
 
@@ -396,6 +428,14 @@
                 <StackPanel Margin="28,4,28,28">
                     <controls:SettingsCard x:Name="CardIgnorePasswordManagers" IconGlyph="&#xE72E;" Header="パスワード管理ツールのコピーを除外" Description="">
                         <controls:ToggleSwitch x:Name="ToggleIgnorePasswordManagers" Toggled="SettingChanged_Event"/>
+                    </controls:SettingsCard>
+
+                    <controls:SettingsCard x:Name="CardExcludedApps" IconGlyph="&#xE8F8;" Header="除外するアプリ (プロセス名)" Description="">
+                        <TextBox x:Name="TxtExcludedApps"
+                                 Style="{DynamicResource FluentTextBoxStyle}"
+                                 Width="230"
+                                 VerticalAlignment="Center"
+                                 TextChanged="ExcludedApps_TextChanged"/>
                     </controls:SettingsCard>
 
                     <controls:SettingsCard x:Name="CardPersistHistory" IconGlyph="&#xE74E;" Header="テキスト履歴をローカルに保存" Description="">
@@ -457,7 +497,7 @@
                             <Image x:Name="AboutAppIcon" Width="48" Height="48" RenderOptions.BitmapScalingMode="HighQuality" Margin="0,0,16,0" VerticalAlignment="Center"/>
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock Text="ClipFlyout" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                <TextBlock x:Name="AboutVersionText" Text="バージョン: v2.0.1" FontSize="12.5" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                                <TextBlock x:Name="AboutVersionText" Text="バージョン: v2.1.0" FontSize="12.5" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,0"/>
                                 <TextBlock x:Name="AboutRuntimeText" Text="ランタイム: .NET 10 / Windows 11 Fluent" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" Margin="0,2,0,0"/>
                                 <TextBlock x:Name="AboutAuthorText" Text="開発・著作: featlis" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" Margin="0,4,0,0"/>
                                 <TextBlock x:Name="AboutLicenseText" Text="ライセンス: GPL-3.0-or-later" FontSize="11.5" Foreground="{DynamicResource TextTertiaryBrush}" Margin="0,1,0,0" TextWrapping="Wrap"/>
@@ -472,6 +512,130 @@
                     <controls:SettingsCard x:Name="CardReset" IconGlyph="&#xE777;" Header="設定を初期値に戻す" Description="">
                         <Button x:Name="ResetDefaultsButton" Style="{DynamicResource FluentButtonStyle}" Content="初期値に戻す" Click="ResetDefaultsButton_Click"/>
                     </controls:SettingsCard>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- PAGE 6: SNIPPETS -->
+            <ScrollViewer x:Name="PageSnippets" Grid.Row="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="28,0,28,28">
+                    <TextBlock x:Name="LblSnippetEditorHeader" Style="{DynamicResource SectionGroupHeaderStyle}" Margin="2,4,0,8" Text="定型文の追加 / 編集"/>
+
+                    <Border Background="{DynamicResource CardBackgroundBrush}"
+                            BorderBrush="{DynamicResource CardStrokeBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="16,14"
+                            Margin="0,0,0,12">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,8">
+                                <TextBox x:Name="TxtSnippetTitle"
+                                         Style="{DynamicResource FluentTextBoxStyle}"
+                                         TextChanged="TxtSnippetField_TextChanged"/>
+                                <TextBlock x:Name="TxtSnippetTitlePlaceholder"
+                                           Text="タイトル（省略時は本文から自動生成）"
+                                           FontSize="12.5"
+                                           Margin="12,0"
+                                           VerticalAlignment="Center"
+                                           IsHitTestVisible="False"
+                                           Foreground="{DynamicResource TextTertiaryBrush}"/>
+                            </Grid>
+
+                            <Grid>
+                                <TextBox x:Name="TxtSnippetContent"
+                                         Style="{DynamicResource FluentTextBoxStyle}"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         Height="82"
+                                         VerticalContentAlignment="Top"
+                                         Padding="10,8"
+                                         VerticalScrollBarVisibility="Auto"
+                                         TextChanged="TxtSnippetField_TextChanged"/>
+                                <TextBlock x:Name="TxtSnippetContentPlaceholder"
+                                           Text="よく使うテキスト・コマンド・署名などを入力..."
+                                           FontSize="12.5"
+                                           Margin="12,9,12,0"
+                                           VerticalAlignment="Top"
+                                           IsHitTestVisible="False"
+                                           Foreground="{DynamicResource TextTertiaryBrush}"/>
+                            </Grid>
+
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                <Button x:Name="BtnCancelSnippetEdit"
+                                        Style="{DynamicResource FluentButtonStyle}"
+                                        Content="キャンセル"
+                                        Margin="0,0,8,0"
+                                        Visibility="Collapsed"
+                                        Click="BtnCancelSnippetEdit_Click"/>
+                                <Button x:Name="BtnSaveSnippet"
+                                        Style="{DynamicResource FluentAccentButtonStyle}"
+                                        Content="追加"
+                                        MinWidth="84"
+                                        Click="BtnSaveSnippet_Click"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock x:Name="LblSavedSnippetsHeader" Style="{DynamicResource SectionGroupHeaderStyle}" Text="保存済みの定型文 (0)"/>
+                    <TextBlock x:Name="TxtNoSnippetsSettings"
+                               Text="定型文はまだありません"
+                               FontSize="12.5"
+                               Margin="2,4,0,0"
+                               Foreground="{DynamicResource TextTertiaryBrush}"
+                               Visibility="Collapsed"/>
+
+                    <ItemsControl x:Name="SnippetsSettingsList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{DynamicResource CardBackgroundBrush}"
+                                        BorderBrush="{DynamicResource CardStrokeBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="14,10"
+                                        Margin="0,0,0,6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontSize="13.5"
+                                                       FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="{Binding Preview}"
+                                                       FontSize="12"
+                                                       Margin="0,2,0,0"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button Style="{DynamicResource FluentButtonStyle}"
+                                                    Content="{Binding CopyLabel}"
+                                                    Height="30"
+                                                    Padding="10,0"
+                                                    Margin="0,0,6,0"
+                                                    Tag="{Binding Item}"
+                                                    Click="SnippetRowCopy_Click"/>
+                                            <Button Style="{DynamicResource FluentButtonStyle}"
+                                                    Content="{Binding EditLabel}"
+                                                    Height="30"
+                                                    Padding="10,0"
+                                                    Margin="0,0,6,0"
+                                                    Tag="{Binding Item}"
+                                                    Click="SnippetRowEdit_Click"/>
+                                            <Button Style="{DynamicResource FluentButtonStyle}"
+                                                    Content="{Binding DeleteLabel}"
+                                                    Height="30"
+                                                    Padding="10,0"
+                                                    Tag="{Binding Item}"
+                                                    Click="SnippetRowDelete_Click"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </ScrollViewer>
         </Grid>

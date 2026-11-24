@@ -35,6 +35,7 @@ public class TrayIconService : IDisposable
     public static bool IsContextMenuActive { get; private set; }
 
     public event Action<DetectionResult>? HistoryItemSelected;
+    public event Action<Models.SnippetItem>? SnippetSelected;
     public event Action? RecallRequested;
     public event Action? BeforeMenuOpen;
 
@@ -90,6 +91,7 @@ public class TrayIconService : IDisposable
 
         _settings.SettingsChanged += _settingsChangedHandler;
         _loc.LanguageChanged += _languageChangedHandler;
+        _clipboardMonitor.PauseStateChanged += UpdateToolTip;
         UpdateToolTip();
     }
 
@@ -100,29 +102,40 @@ public class TrayIconService : IDisposable
 
         void Apply()
         {
-            bool enabled = _settings.Current.IsMonitoringEnabled;
-            _taskbarIcon.ToolTipText = enabled ? _loc.Get("Tray_TitleActive") : _loc.Get("Tray_TitlePaused");
+            if (_clipboardMonitor.IsPaused && _clipboardMonitor.PauseUntilUtc is DateTimeOffset until)
+            {
+                int mins = Math.Max(1, (int)Math.Ceiling((until - DateTimeOffset.UtcNow).TotalMinutes));
+                _taskbarIcon.ToolTipText = _loc.Get("Tray_TitlePausedUntil", mins);
+            }
+            else
+            {
+                bool enabled = _settings.Current.IsMonitoringEnabled;
+                _taskbarIcon.ToolTipText = enabled ? _loc.Get("Tray_TitleActive") : _loc.Get("Tray_TitlePaused");
+            }
         }
 
         if (app.Dispatcher.CheckAccess()) Apply();
         else app.Dispatcher.BeginInvoke(Apply);
     }
 
-    public void OpenSettings()
+    public void OpenSettings() => OpenSettings(openSnippetsTab: false);
+
+    public void OpenSettings(bool openSnippetsTab)
     {
         var app = WpfApplication.Current;
         if (app == null || app.Dispatcher.HasShutdownStarted) return;
 
-        if (app.Dispatcher.CheckAccess()) ShowSettingsInternal();
-        else app.Dispatcher.Invoke(ShowSettingsInternal);
+        if (app.Dispatcher.CheckAccess()) ShowSettingsInternal(openSnippetsTab);
+        else app.Dispatcher.Invoke(() => ShowSettingsInternal(openSnippetsTab));
     }
 
-    private void ShowSettingsInternal()
+    private void ShowSettingsInternal(bool openSnippetsTab = false)
     {
         if (_settingsWindow == null || !_settingsWindow.IsLoaded)
         {
             _settingsWindow = new SettingsWindow(_hotkeyFailedProvider);
             _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+            if (openSnippetsTab) _settingsWindow.SelectSnippetsTab();
             _settingsWindow.Show();
         }
         else
@@ -131,6 +144,7 @@ public class TrayIconService : IDisposable
             {
                 _settingsWindow.WindowState = WindowState.Normal;
             }
+            if (openSnippetsTab) _settingsWindow.SelectSnippetsTab();
             _settingsWindow.Activate();
         }
     }
@@ -251,6 +265,30 @@ public class TrayIconService : IDisposable
         }
         _contextMenu.Items.Add(historyMenu);
 
+        // Snippets Submenu
+        var snippetsMenu = MakeItem(_loc.Get("Tray_Snippets"));
+        var snippets = SnippetService.Instance.GetItems();
+        if (snippets.Count == 0)
+        {
+            snippetsMenu.Items.Add(MakeItem(_loc.Get("Snippets_Empty"), isEnabled: false));
+        }
+        else
+        {
+            foreach (var s in snippets.Take(12))
+            {
+                string rawLabel = string.IsNullOrWhiteSpace(s.Title)
+                    ? SnippetService.BuildDefaultTitle(s.Content)
+                    : s.Title;
+                if (rawLabel.Length > 36) rawLabel = rawLabel[..36] + "…";
+                string label = rawLabel.Replace("_", "__");
+                var capturedSnippet = s;
+                snippetsMenu.Items.Add(MakeItem(label, () => SnippetSelected?.Invoke(capturedSnippet)));
+            }
+        }
+        snippetsMenu.Items.Add(MakeSeparator());
+        snippetsMenu.Items.Add(MakeItem(_loc.Get("Tray_ManageSnippets"), () => OpenSettings(openSnippetsTab: true)));
+        _contextMenu.Items.Add(snippetsMenu);
+
         _contextMenu.Items.Add(MakeSeparator());
 
         // Toggle Monitoring
@@ -259,11 +297,31 @@ public class TrayIconService : IDisposable
             () =>
             {
                 bool next = !_settings.Current.IsMonitoringEnabled;
+                if (next && _clipboardMonitor.IsPaused) _clipboardMonitor.Resume();
                 _clipboardMonitor.IsEnabled = next;
                 _settings.UpdateSettings(s => s.IsMonitoringEnabled = next);
             },
             isCheckable: true,
             isChecked: cfg.IsMonitoringEnabled));
+
+        // Temporary Pause Submenu
+        var pauseMenu = MakeItem(_loc.Get("Tray_PauseMenu"));
+        pauseMenu.Items.Add(MakeItem(_loc.Get("Tray_Pause15m"), () => _clipboardMonitor.PauseFor(TimeSpan.FromMinutes(15))));
+        pauseMenu.Items.Add(MakeItem(_loc.Get("Tray_Pause1h"), () => _clipboardMonitor.PauseFor(TimeSpan.FromHours(1))));
+        pauseMenu.Items.Add(MakeSeparator());
+        pauseMenu.Items.Add(MakeItem(
+            _loc.Get("Tray_Resume"),
+            () =>
+            {
+                _clipboardMonitor.Resume();
+                if (!_settings.Current.IsMonitoringEnabled)
+                {
+                    _clipboardMonitor.IsEnabled = true;
+                    _settings.UpdateSettings(s => s.IsMonitoringEnabled = true);
+                }
+            },
+            isEnabled: _clipboardMonitor.IsPaused || !cfg.IsMonitoringEnabled));
+        _contextMenu.Items.Add(pauseMenu);
 
         // Theme Submenu
         var themeMenu = MakeItem(_loc.Get("Tray_Theme"));
@@ -346,6 +404,7 @@ public class TrayIconService : IDisposable
     public void Dispose()
     {
         _leftClickTimer.Stop();
+        _clipboardMonitor.PauseStateChanged -= UpdateToolTip;
         _settings.SettingsChanged -= _settingsChangedHandler;
         _loc.LanguageChanged -= _languageChangedHandler;
         _settingsWindow?.Close();

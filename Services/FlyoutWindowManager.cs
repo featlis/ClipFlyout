@@ -36,6 +36,7 @@ public class FlyoutWindowManager : IDisposable
 
     public FlyoutWindow Window => _window;
     public DetectionResult? LastResult => _lastResult;
+    public IntPtr LastExternalForegroundHwnd => _lastExternalForegroundHwnd;
     public bool IsShowing => _isShowing;
 
     public event Action? SettingsRequested;
@@ -55,6 +56,8 @@ public class FlyoutWindowManager : IDisposable
             SettingsRequested?.Invoke();
         };
         _window.HistoryItemSelected += result => ShowFlyout(result, recordHistory: false, interactive: true);
+        _window.QuickTextRequested += OnQuickTextRequested;
+        _window.QuickPasteResultRequested += OnQuickPasteResultRequested;
         _window.InteractiveInputModeChanged += active =>
         {
             if (active) _autoHideTimer?.Stop();
@@ -64,6 +67,7 @@ public class FlyoutWindowManager : IDisposable
 
         executor.ActionExecuted += OnActionExecuted;
         executor.TransformedActionExecuted += OnTransformedActionExecuted;
+        executor.ActionFailed += OnActionFailed;
         executor.BeforeModalDialog += HideFlyout;
 
         _autoHideTimer = new DispatcherTimer
@@ -526,6 +530,51 @@ public class FlyoutWindowManager : IDisposable
     {
         _autoHideTimer.Stop();
         _window.ShowToastFeedback(message);
+    }
+
+    private void OnActionFailed(string message)
+    {
+        _autoHideTimer.Stop();
+        _window.ShowToastFeedback(message, isError: true, autoClose: false);
+        if (!_isButtonHovered && !_window.IsMouseOver && !IsCursorOverFlyout() && _isShowing)
+        {
+            StartHoverLeaveTimer();
+        }
+    }
+
+    private void OnQuickTextRequested(string text, bool pasteImmediately)
+    {
+        _executor.CopyText(text, "Toast_Copied");
+        if (pasteImmediately)
+        {
+            IntPtr target = _lastExternalForegroundHwnd;
+            HideFlyout();
+            _executor.PasteToActiveWindow(notifyToast: false, targetHwnd: target);
+        }
+    }
+
+    private void OnQuickPasteResultRequested(DetectionResult result)
+    {
+        if (result.RawData is string text)
+        {
+            _executor.CopyText(text, "Toast_Copied");
+        }
+        else if (result.RawData is string[] paths && paths.Length > 0)
+        {
+            _executor.CopyText(string.Join(Environment.NewLine, paths), "Toast_Copied");
+        }
+        else if (result.ImagePreview != null)
+        {
+            _executor.CopyImage(result.ImagePreview, "Toast_Copied");
+        }
+        else
+        {
+            return;
+        }
+
+        IntPtr target = _lastExternalForegroundHwnd;
+        HideFlyout();
+        _executor.PasteToActiveWindow(notifyToast: false, targetHwnd: target);
     }
 
     private void OnTransformedActionExecuted(string transformedText, string label)

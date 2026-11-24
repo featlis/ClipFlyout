@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -22,6 +23,8 @@ public partial class SettingsWindow : Window
     private bool _isInitializing = true;
     private bool _isSyncingColor;
     private bool _isSaving;
+    private bool _isRecordingHotkey;
+    private string? _editingSnippetId;
     private IntPtr _hwnd = IntPtr.Zero;
     private UpdateRelease? _pendingUpdate;
     private bool _isCheckingUpdates;
@@ -29,6 +32,7 @@ public partial class SettingsWindow : Window
     private readonly Action _themeChangedHandler;
     private readonly Action _languageChangedHandler;
     private readonly Action _historyChangedHandler;
+    private readonly Action _snippetsChangedHandler;
     private readonly Action<AppSettings> _settingsChangedHandler;
     private readonly Func<bool>? _hotkeyFailedProvider;
 
@@ -71,6 +75,11 @@ public partial class SettingsWindow : Window
             if (!Dispatcher.HasShutdownStarted)
                 Dispatcher.BeginInvoke(UpdateHistoryCountLabel);
         };
+        _snippetsChangedHandler = () =>
+        {
+            if (!Dispatcher.HasShutdownStarted)
+                Dispatcher.BeginInvoke(RefreshSnippetsList);
+        };
         _settingsChangedHandler = _ =>
         {
             if (!_isSaving && !Dispatcher.HasShutdownStarted)
@@ -88,8 +97,10 @@ public partial class SettingsWindow : Window
 
         SourceInitialized += OnSourceInitialized;
         Loaded += SettingsWindow_Loaded;
+        PreviewKeyDown += SettingsWindow_PreviewKeyDown;
         Closing += (_, _) =>
         {
+            _isRecordingHotkey = false;
             if (_sliderDebounceTimer.IsEnabled)
             {
                 _sliderDebounceTimer.Stop();
@@ -102,12 +113,14 @@ public partial class SettingsWindow : Window
             ThemeService.Instance.ThemeChanged -= _themeChangedHandler;
             _loc.LanguageChanged -= _languageChangedHandler;
             HistoryService.Instance.HistoryChanged -= _historyChangedHandler;
+            SnippetService.Instance.SnippetsChanged -= _snippetsChangedHandler;
             _settings.SettingsChanged -= _settingsChangedHandler;
         };
 
         ThemeService.Instance.ThemeChanged += _themeChangedHandler;
         _loc.LanguageChanged += _languageChangedHandler;
         HistoryService.Instance.HistoryChanged += _historyChangedHandler;
+        SnippetService.Instance.SnippetsChanged += _snippetsChangedHandler;
         _settings.SettingsChanged += _settingsChangedHandler;
 
         // Hydrate localization & values upfront so offscreen/first-frame renders look crisp immediately
@@ -141,6 +154,14 @@ public partial class SettingsWindow : Window
         }
     }
 
+    public void SelectSnippetsTab()
+    {
+        if (NavSnippets != null)
+        {
+            NavSnippets.IsChecked = true;
+        }
+    }
+
     private void NavItem_Checked(object sender, RoutedEventArgs e)
     {
         if (!IsLoaded && PageGeneral == null) return;
@@ -153,6 +174,7 @@ public partial class SettingsWindow : Window
         PageDetectors.Visibility = page == 3 ? Visibility.Visible : Visibility.Collapsed;
         PageHistory.Visibility = page == 4 ? Visibility.Visible : Visibility.Collapsed;
         PageAbout.Visibility = page == 5 ? Visibility.Visible : Visibility.Collapsed;
+        PageSnippets.Visibility = page == 6 ? Visibility.Visible : Visibility.Collapsed;
 
         PageHeaderTitle.Text = page switch
         {
@@ -161,10 +183,12 @@ public partial class SettingsWindow : Window
             2 => _loc.Get("Nav_Widget"),
             3 => _loc.Get("Nav_Detectors"),
             4 => _loc.Get("Nav_History"),
+            6 => _loc.Get("Nav_Snippets"),
             _ => _loc.Get("Nav_About")
         };
 
         if (page == 4) UpdateHistoryCountLabel();
+        if (page == 6) RefreshSnippetsList();
     }
 
     private void ApplyLocalization()
@@ -181,6 +205,7 @@ public partial class SettingsWindow : Window
             NavWidgetText.Text = _loc.Get("Nav_Widget");
             NavDetectorsText.Text = _loc.Get("Nav_Detectors");
             NavHistoryText.Text = _loc.Get("Nav_History");
+            NavSnippetsText.Text = _loc.Get("Nav_Snippets");
             NavAboutText.Text = _loc.Get("Nav_About");
 
             // Update active page header
@@ -189,6 +214,7 @@ public partial class SettingsWindow : Window
             else if (NavWidget.IsChecked == true) PageHeaderTitle.Text = _loc.Get("Nav_Widget");
             else if (NavDetectors.IsChecked == true) PageHeaderTitle.Text = _loc.Get("Nav_Detectors");
             else if (NavHistory.IsChecked == true) PageHeaderTitle.Text = _loc.Get("Nav_History");
+            else if (NavSnippets.IsChecked == true) PageHeaderTitle.Text = _loc.Get("Nav_Snippets");
             else if (NavAbout.IsChecked == true) PageHeaderTitle.Text = _loc.Get("Nav_About");
 
             // Page 0: General
@@ -196,9 +222,9 @@ public partial class SettingsWindow : Window
             CardMonitoring.Description = _loc.Get("Setting_Monitoring_Desc");
             CardStartup.Header = _loc.Get("Setting_Startup");
             CardStartup.Description = _loc.Get("Setting_Startup_Desc");
-            CardRecallHotkey.Header = _loc.Get("Setting_EnableRecallHotkey");
+            UpdateHotkeyLabels();
             CardRecallHotkey.Description = _loc.Get("Setting_EnableRecallHotkey_Desc");
-            HotkeyConflictText.Text = _loc.Get("Setting_HotkeyConflict");
+            BtnResetHotkey.Content = _loc.Get("Hotkey_Reset");
             CardLanguage.Header = _loc.Get("Setting_Language");
             CardLanguage.Description = _loc.Get("Setting_Language_Desc");
 
@@ -277,10 +303,20 @@ public partial class SettingsWindow : Window
             CardCaseConverter.Description = _loc.Get("Detector_CaseConverter_Desc");
             CardJwt.Header = _loc.Get("Detector_Jwt");
             CardJwt.Description = _loc.Get("Detector_Jwt_Desc");
+            CardEnableOcr.Header = _loc.Get("Detector_Ocr");
+            CardEnableOcr.Description = _loc.Get("Detector_Ocr_Desc");
+            CardDetectFilePath.Header = _loc.Get("Detector_FilePath");
+            CardDetectFilePath.Description = _loc.Get("Detector_FilePath_Desc");
+            CardDetectMath.Header = _loc.Get("Detector_Math");
+            CardDetectMath.Description = _loc.Get("Detector_Math_Desc");
+            CardDetectUuid.Header = _loc.Get("Detector_Uuid");
+            CardDetectUuid.Description = _loc.Get("Detector_Uuid_Desc");
 
             // Page 4: History & Privacy
             CardIgnorePasswordManagers.Header = _loc.Get("Setting_IgnorePasswordManagers");
             CardIgnorePasswordManagers.Description = _loc.Get("Setting_IgnorePasswordManagers_Desc");
+            CardExcludedApps.Header = _loc.Get("Setting_ExcludedApps");
+            CardExcludedApps.Description = _loc.Get("Setting_ExcludedApps_Desc");
             CardPersistHistory.Header = _loc.Get("Setting_PersistHistory");
             CardPersistHistory.Description = _loc.Get("Setting_PersistHistory_Desc");
             CardClearHistory.Header = _loc.Get("Setting_ClearHistory");
@@ -288,6 +324,17 @@ public partial class SettingsWindow : Window
             CardLocalProcessing.Header = _loc.Get("About_Privacy_Title");
             CardLocalProcessing.Description = _loc.Get("About_Privacy_Desc");
             UpdateHistoryCountLabel();
+
+            // Page 6: Snippets
+            LblSnippetEditorHeader.Text = _loc.Get("Snippets_Editor_Header");
+            TxtSnippetTitlePlaceholder.Text = _loc.Get("Snippets_Title_Placeholder");
+            TxtSnippetContentPlaceholder.Text = _loc.Get("Snippets_Content_Placeholder");
+            BtnSaveSnippet.Content = string.IsNullOrEmpty(_editingSnippetId)
+                ? _loc.Get("Snippets_Save")
+                : _loc.Get("Snippets_Update");
+            BtnCancelSnippetEdit.Content = _loc.Get("Snippets_CancelEdit");
+            TxtNoSnippetsSettings.Text = _loc.Get("Snippets_Empty");
+            RefreshSnippetsList();
 
             // Page 5: Updates & About
             GroupUpdatesHeader.Text = _loc.Get("Section_Updates");
@@ -374,6 +421,7 @@ public partial class SettingsWindow : Window
             ToggleMonitoring.IsOn = cfg.IsMonitoringEnabled;
             ToggleStartup.IsOn = cfg.LaunchOnStartup;
             ToggleRecallHotkey.IsOn = cfg.EnableRecallHotkey;
+            UpdateHotkeyLabels();
             CmbLanguage.SelectedIndex = (int)cfg.Language;
 
             CmbTheme.SelectedIndex = (int)cfg.Theme;
@@ -414,8 +462,13 @@ public partial class SettingsWindow : Window
             ToggleCleanUrl.IsOn = cfg.EnableCleanUrl;
             ToggleCaseConverter.IsOn = cfg.EnableCaseConverter;
             ToggleJwt.IsOn = cfg.EnableJwtDetector;
+            ToggleEnableOcr.IsOn = cfg.EnableOcr;
+            ToggleDetectFilePath.IsOn = cfg.DetectFilePath;
+            ToggleDetectMath.IsOn = cfg.DetectMath;
+            ToggleDetectUuid.IsOn = cfg.DetectUuid;
 
             ToggleIgnorePasswordManagers.IsOn = cfg.IgnorePasswordManagers;
+            TxtExcludedApps.Text = cfg.ExcludedApps;
             TogglePersistHistory.IsOn = cfg.PersistHistory;
             ToggleAutoUpdate.IsOn = cfg.AutomaticallyInstallUpdates;
         }
@@ -639,8 +692,13 @@ public partial class SettingsWindow : Window
                 s.EnableCleanUrl = ToggleCleanUrl.IsOn;
                 s.EnableCaseConverter = ToggleCaseConverter.IsOn;
                 s.EnableJwtDetector = ToggleJwt.IsOn;
+                s.EnableOcr = ToggleEnableOcr.IsOn;
+                s.DetectFilePath = ToggleDetectFilePath.IsOn;
+                s.DetectMath = ToggleDetectMath.IsOn;
+                s.DetectUuid = ToggleDetectUuid.IsOn;
 
                 s.IgnorePasswordManagers = ToggleIgnorePasswordManagers.IsOn;
+                s.ExcludedApps = TxtExcludedApps.Text.Trim();
                 s.PersistHistory = TogglePersistHistory.IsOn;
                 s.AutomaticallyInstallUpdates = ToggleAutoUpdate.IsOn;
             });
@@ -783,6 +841,196 @@ public partial class SettingsWindow : Window
             LoadValuesFromSettings();
             ApplyLocalization();
             UpdateHotkeyConflictBanner();
+        }
+    }
+
+    private sealed record SnippetSettingsRow(
+        SnippetItem Item,
+        string Title,
+        string Preview,
+        string EditLabel,
+        string CopyLabel,
+        string DeleteLabel);
+
+    private void UpdateHotkeyLabels()
+    {
+        var cfg = _settings.Current;
+        string display = AppSettings.FormatHotkeyDisplay(cfg.RecallHotkeyModifiers, cfg.RecallHotkeyKey);
+        CardRecallHotkey.Header = _loc.Get("Setting_EnableRecallHotkey", display);
+        HotkeyConflictText.Text = _loc.Get("Setting_HotkeyConflict", display);
+        BtnRecordHotkey.Content = _isRecordingHotkey ? _loc.Get("Hotkey_Record_Recording") : display;
+    }
+
+    private void BtnRecordHotkey_Click(object sender, RoutedEventArgs e)
+    {
+        _isRecordingHotkey = !_isRecordingHotkey;
+        UpdateHotkeyLabels();
+    }
+
+    private void BtnResetHotkey_Click(object sender, RoutedEventArgs e)
+    {
+        _isRecordingHotkey = false;
+        _isSaving = true;
+        try
+        {
+            _settings.UpdateSettings(s =>
+            {
+                s.RecallHotkeyModifiers = Win32.MOD_ALT | Win32.MOD_SHIFT;
+                s.RecallHotkeyKey = (uint)'C';
+            });
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+        UpdateHotkeyLabels();
+        UpdateHotkeyConflictBanner();
+    }
+
+    private void SettingsWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (!_isRecordingHotkey) return;
+
+        e.Handled = true;
+        Key actualKey = e.Key == Key.System ? e.SystemKey : e.Key;
+
+        if (actualKey == Key.Escape)
+        {
+            _isRecordingHotkey = false;
+            UpdateHotkeyLabels();
+            return;
+        }
+
+        if (actualKey is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt
+            or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin
+            or Key.DeadCharProcessed or Key.ImeProcessed or Key.None)
+        {
+            return;
+        }
+
+        uint mods = 0;
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) mods |= Win32.MOD_CONTROL;
+        if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0) mods |= Win32.MOD_ALT;
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) mods |= Win32.MOD_SHIFT;
+        if ((Keyboard.Modifiers & ModifierKeys.Windows) != 0 ||
+            Keyboard.IsKeyDown(Key.LWin) || Keyboard.IsKeyDown(Key.RWin))
+        {
+            mods |= Win32.MOD_WIN;
+        }
+
+        int vk = KeyInterop.VirtualKeyFromKey(actualKey);
+        if (mods == 0 || vk <= 0 || vk > 0xFE) return;
+
+        _isRecordingHotkey = false;
+        _isSaving = true;
+        try
+        {
+            _settings.UpdateSettings(s =>
+            {
+                s.RecallHotkeyModifiers = mods;
+                s.RecallHotkeyKey = (uint)vk;
+            });
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+
+        UpdateHotkeyLabels();
+        UpdateHotkeyConflictBanner();
+    }
+
+    private void ExcludedApps_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_isInitializing) return;
+        _sliderDebounceTimer.Stop();
+        _sliderDebounceTimer.Start();
+    }
+
+    private void RefreshSnippetsList()
+    {
+        if (SnippetsSettingsList == null) return;
+        var items = SnippetService.Instance.GetItems();
+        LblSavedSnippetsHeader.Text = _loc.Get("Snippets_List_Header", items.Count);
+        TxtNoSnippetsSettings.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        string editLbl = _loc.Get("Snippets_Edit");
+        string copyLbl = _loc.Get("Snippets_Copy");
+        string delLbl = _loc.Get("Snippets_Delete");
+
+        SnippetsSettingsList.ItemsSource = items.Select(s => new SnippetSettingsRow(
+            s,
+            string.IsNullOrWhiteSpace(s.Title) ? SnippetService.BuildDefaultTitle(s.Content) : s.Title,
+            HistoryService.NormalizeSingleLine(s.Content),
+            editLbl,
+            copyLbl,
+            delLbl
+        )).ToList();
+    }
+
+    private void TxtSnippetField_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        TxtSnippetTitlePlaceholder.Visibility = string.IsNullOrEmpty(TxtSnippetTitle.Text) ? Visibility.Visible : Visibility.Collapsed;
+        TxtSnippetContentPlaceholder.Visibility = string.IsNullOrEmpty(TxtSnippetContent.Text) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void BtnSaveSnippet_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(TxtSnippetContent.Text)) return;
+
+        SnippetService.Instance.AddOrUpdate(TxtSnippetTitle.Text, TxtSnippetContent.Text, _editingSnippetId);
+        ResetSnippetEditor();
+        RefreshSnippetsList();
+    }
+
+    private void BtnCancelSnippetEdit_Click(object sender, RoutedEventArgs e)
+    {
+        ResetSnippetEditor();
+    }
+
+    private void ResetSnippetEditor()
+    {
+        _editingSnippetId = null;
+        TxtSnippetTitle.Text = string.Empty;
+        TxtSnippetContent.Text = string.Empty;
+        BtnSaveSnippet.Content = _loc.Get("Snippets_Save");
+        BtnCancelSnippetEdit.Visibility = Visibility.Collapsed;
+    }
+
+    private void SnippetRowEdit_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: SnippetItem item })
+        {
+            _editingSnippetId = item.Id;
+            TxtSnippetTitle.Text = item.Title;
+            TxtSnippetContent.Text = item.Content;
+            BtnSaveSnippet.Content = _loc.Get("Snippets_Update");
+            BtnCancelSnippetEdit.Visibility = Visibility.Visible;
+            TxtSnippetContent.Focus();
+        }
+    }
+
+    private void SnippetRowCopy_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: SnippetItem item })
+        {
+            try
+            {
+                Clipboard.SetDataObject(item.Content, true);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private void SnippetRowDelete_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: SnippetItem item })
+        {
+            if (_editingSnippetId == item.Id) ResetSnippetEditor();
+            SnippetService.Instance.Delete(item.Id);
+            RefreshSnippetsList();
         }
     }
 }

@@ -161,6 +161,24 @@ public partial class DataTypeDetector : IDataTypeDetector
                 if (jwtResult != null) return jwtResult;
             }
 
+            // 2e-3. UUID / GUID
+            if (cfg.DetectUuid && DeveloperToolsHelper.TryParseUuid(trimmed, out var guid))
+            {
+                return DetectUuid(trimmed, guid);
+            }
+
+            // 2e-4. File / Directory Path (Windows / WSL / UNC)
+            if (cfg.DetectFilePath && DeveloperToolsHelper.TryParsePath(trimmed, out var pathInfo))
+            {
+                return DetectFilePath(trimmed, pathInfo);
+            }
+
+            // 2e-5. Safe Math & Hex/Binary Evaluator
+            if (cfg.DetectMath && DeveloperToolsHelper.TryEvaluateMath(trimmed, out var mathResult))
+            {
+                return DetectMath(trimmed, mathResult);
+            }
+
             // 2f. Base64
             if (cfg.DetectBase64 && trimmed.Length <= MaxBase64Length &&
                 (trimmed.StartsWith("data:", StringComparison.OrdinalIgnoreCase) || LooksLikeBase64(trimmed)))
@@ -282,6 +300,33 @@ public partial class DataTypeDetector : IDataTypeDetector
             )
         };
 
+        if (paths.Length == 1 && !firstPath.StartsWith(@"\\", StringComparison.Ordinal))
+        {
+            if (DeveloperToolsHelper.ResolveExistingDirectory(firstPath) != null)
+            {
+                actions.Add(new(
+                    "Action_OpenTerminal",
+                    _loc.Get("Action_OpenTerminal"),
+                    "Terminal24",
+                    _loc.Get("Action_OpenTerminal_Desc"),
+                    () => _executor.OpenTerminal(firstPath),
+                    IconGlyph: "\uE756"
+                ));
+            }
+
+            if (File.Exists(firstPath))
+            {
+                actions.Add(new(
+                    "Action_CopyFileSha256",
+                    _loc.Get("Action_CopySha256"),
+                    "Hash24",
+                    _loc.Get("Action_CopyFileSha256_Desc"),
+                    () => _ = _executor.CopyFileSha256Async(firstPath),
+                    IconGlyph: "\uE72E"
+                ));
+            }
+        }
+
         return new DetectionResult(
             Type: ClipDataType.FileDrop,
             RawData: paths,
@@ -319,6 +364,18 @@ public partial class DataTypeDetector : IDataTypeDetector
                 Subtitle: $"{width} × {height} ({gcdRatio})"
             )
         };
+
+        if (_settings.Current.EnableOcr)
+        {
+            actions.Add(new(
+                "Action_ExtractOcr",
+                _loc.Get("Action_ExtractOcr"),
+                "Ocr24",
+                _loc.Get("Action_ExtractOcr_Desc"),
+                () => _ = _executor.ExtractTextFromImageAsync(bitmap),
+                IconGlyph: "\uE8A5"
+            ));
+        }
 
         return new DetectionResult(
             Type: ClipDataType.Image,
@@ -657,6 +714,18 @@ public partial class DataTypeDetector : IDataTypeDetector
                     IsPrimary: true,
                     Subtitle: FormatByteSize(bytes.Length)
                 ));
+
+                if (_settings.Current.EnableOcr)
+                {
+                    actions.Add(new(
+                        "Action_ExtractOcr",
+                        _loc.Get("Action_ExtractOcr"),
+                        "Ocr24",
+                        _loc.Get("Action_ExtractOcr_Desc"),
+                        () => _ = _executor.ExtractTextFromImageBytesAsync(bytes),
+                        IconGlyph: "\uE8A5"
+                    ));
+                }
             }
 
             string? decodedText = TryDecodeUtf8Text(bytes);
@@ -1158,8 +1227,41 @@ public partial class DataTypeDetector : IDataTypeDetector
                     _executor.CopyTransformedText(escaped, _loc.Get("Toast_Copied"));
                 },
                 Subtitle: "&lt; &gt; &amp;"
+            ),
+            new(
+                "Action_CopySha256",
+                _loc.Get("Action_CopySha256"),
+                "Hash24",
+                _loc.Get("Action_CopySha256_Desc"),
+                () => _executor.CopyTransformedText(DeveloperToolsHelper.ComputeUtf8Sha256(codeText), _loc.Get("Toast_Sha256Copied")),
+                IconGlyph: "\uE72E"
             )
         };
+
+        if (codeText.Length <= 262144)
+        {
+            actions.Add(new(
+                "Action_EncodeBase64",
+                _loc.Get("Action_EncodeBase64"),
+                "Code24",
+                _loc.Get("Action_EncodeBase64_Desc"),
+                () => _executor.CopyTransformedText(DeveloperToolsHelper.EncodeUtf8Base64(codeText), _loc.Get("Toast_Base64Encoded")),
+                IconGlyph: "\uE785"
+            ));
+        }
+
+        string? prevCodeText = HistoryService.Instance.GetSecondLatestText(codeText);
+        if (!string.IsNullOrEmpty(prevCodeText))
+        {
+            actions.Add(new(
+                "Action_JoinPrevious",
+                _loc.Get("Action_JoinPrevious"),
+                "Convert24",
+                _loc.Get("Action_JoinPrevious_Desc"),
+                () => _executor.CopyTransformedText(DeveloperToolsHelper.JoinClips(prevCodeText, codeText), _loc.Get("Toast_ClipsJoined")),
+                IconGlyph: "\uE8AB"
+            ));
+        }
 
         string snippet = codeText.Length > 180 ? codeText[..180] + "…" : codeText;
 
@@ -1288,6 +1390,40 @@ public partial class DataTypeDetector : IDataTypeDetector
                 actions.Add(new("Action_ToConstantCase", "CONSTANT_CASE", "Case24", _loc.Get("Action_ToConstantCase_Desc"), () => _executor.CopyTransformedText(constant, _loc.Get("Toast_Copied")), Subtitle: constant));
         }
 
+        actions.Add(new(
+            "Action_CopySha256",
+            _loc.Get("Action_CopySha256"),
+            "Hash24",
+            _loc.Get("Action_CopySha256_Desc"),
+            () => _executor.CopyTransformedText(DeveloperToolsHelper.ComputeUtf8Sha256(text), _loc.Get("Toast_Sha256Copied")),
+            IconGlyph: "\uE72E"
+        ));
+
+        if (text.Length <= 262144)
+        {
+            actions.Add(new(
+                "Action_EncodeBase64",
+                _loc.Get("Action_EncodeBase64"),
+                "Code24",
+                _loc.Get("Action_EncodeBase64_Desc"),
+                () => _executor.CopyTransformedText(DeveloperToolsHelper.EncodeUtf8Base64(text), _loc.Get("Toast_Base64Encoded")),
+                IconGlyph: "\uE785"
+            ));
+        }
+
+        string? prevText = HistoryService.Instance.GetSecondLatestText(text);
+        if (!string.IsNullOrEmpty(prevText))
+        {
+            actions.Add(new(
+                "Action_JoinPrevious",
+                _loc.Get("Action_JoinPrevious"),
+                "Convert24",
+                _loc.Get("Action_JoinPrevious_Desc"),
+                () => _executor.CopyTransformedText(DeveloperToolsHelper.JoinClips(prevText, text), _loc.Get("Toast_ClipsJoined")),
+                IconGlyph: "\uE8AB"
+            ));
+        }
+
         string cleanSnippet = HistoryService.NormalizeSingleLine(trimmed);
         string snippet = cleanSnippet.Length > 180 ? cleanSnippet[..180] + "…" : cleanSnippet;
 
@@ -1299,6 +1435,220 @@ public partial class DataTypeDetector : IDataTypeDetector
             PreviewBody: snippet,
             AvailableActions: actions,
             BadgeText: "Text"
+        );
+    }
+
+    private DetectionResult DetectUuid(string raw, Guid guid)
+    {
+        string lower = guid.ToString("D");
+        string upper = lower.ToUpperInvariant();
+        string compact = guid.ToString("N");
+        int version = (guid.ToByteArray()[7] >> 4) & 0x0F;
+        string verLabel = version is >= 1 and <= 8 ? $"UUID v{version}" : "GUID";
+
+        var actions = new List<ActionItem>
+        {
+            new(
+                "Action_CopyUuidLower",
+                _loc.Get("Action_CopyUuidLower"),
+                "Key24",
+                _loc.Get("Action_CopyUuidLower_Desc"),
+                () => _executor.CopyText(lower, "Toast_Copied"),
+                IsPrimary: true,
+                Subtitle: lower
+            ),
+            new(
+                "Action_CopyUuidUpper",
+                _loc.Get("Action_CopyUuidUpper"),
+                "Key24",
+                _loc.Get("Action_CopyUuidUpper_Desc"),
+                () => _executor.CopyText(upper, "Toast_Copied"),
+                Subtitle: upper
+            ),
+            new(
+                "Action_CopyUuidCompact",
+                _loc.Get("Action_CopyUuidCompact"),
+                "Key24",
+                _loc.Get("Action_CopyUuidCompact_Desc"),
+                () => _executor.CopyText(compact, "Toast_Copied"),
+                Subtitle: compact
+            ),
+            new(
+                "Action_NewUuidV4",
+                _loc.Get("Action_NewUuidV4"),
+                "Key24",
+                _loc.Get("Action_NewUuidV4_Desc"),
+                () => _executor.CopyTransformedText(DeveloperToolsHelper.NewUuidV4(), _loc.Get("Toast_UuidGenerated")),
+                Subtitle: "v4 (Random)"
+            ),
+            new(
+                "Action_NewUuidV7",
+                _loc.Get("Action_NewUuidV7"),
+                "Key24",
+                _loc.Get("Action_NewUuidV7_Desc"),
+                () => _executor.CopyTransformedText(DeveloperToolsHelper.NewUuidV7(), _loc.Get("Toast_UuidGenerated")),
+                Subtitle: "v7 (Time-ordered)"
+            )
+        };
+
+        return new DetectionResult(
+            Type: ClipDataType.Uuid,
+            RawData: raw,
+            PreviewTitle: _loc.Get("Type_Uuid"),
+            PreviewSubtitle: verLabel,
+            PreviewBody: lower,
+            AvailableActions: actions,
+            BadgeText: "UUID"
+        );
+    }
+
+    private DetectionResult DetectFilePath(string raw, PathInfo info)
+    {
+        var actions = new List<ActionItem>();
+        bool winIsPrimary = info.Kind is DetectedPathKind.WslMount or DetectedPathKind.WindowsForwardSlash;
+
+        if (winIsPrimary)
+        {
+            actions.Add(new(
+                "Action_CopyWindowsPath",
+                _loc.Get("Action_CopyWindowsPath"),
+                "File24",
+                _loc.Get("Action_CopyWindowsPath_Desc"),
+                () => _executor.CopyTransformedText(info.BackslashPath, _loc.Get("Toast_Copied")),
+                IsPrimary: true,
+                Subtitle: info.BackslashPath
+            ));
+        }
+
+        if (!string.Equals(info.ForwardSlashPath, info.CleanPath, StringComparison.Ordinal))
+        {
+            actions.Add(new(
+                "Action_CopyForwardPath",
+                _loc.Get("Action_CopyForwardPath"),
+                "Code24",
+                _loc.Get("Action_CopyForwardPath_Desc"),
+                () => _executor.CopyTransformedText(info.ForwardSlashPath, _loc.Get("Toast_Copied")),
+                IsPrimary: actions.Count == 0,
+                Subtitle: info.ForwardSlashPath
+            ));
+        }
+
+        if (info.WslPath != null && info.Kind != DetectedPathKind.WslMount)
+        {
+            actions.Add(new(
+                "Action_CopyWslPath",
+                _loc.Get("Action_CopyWslPath"),
+                "Terminal24",
+                _loc.Get("Action_CopyWslPath_Desc"),
+                () => _executor.CopyTransformedText(info.WslPath, _loc.Get("Toast_Copied")),
+                IsPrimary: actions.Count == 0,
+                Subtitle: info.WslPath,
+                IconGlyph: "\uE756"
+            ));
+        }
+
+        actions.Add(new(
+            "Action_CopyEscapedPath",
+            _loc.Get("Action_CopyEscapedPath"),
+            "Code24",
+            _loc.Get("Action_CopyEscapedPath_Desc"),
+            () => _executor.CopyTransformedText(info.EscapedBackslashPath, _loc.Get("Toast_Copied")),
+            IsPrimary: actions.Count == 0,
+            Subtitle: info.EscapedBackslashPath
+        ));
+
+        if (!string.IsNullOrEmpty(info.ExistingDirectory))
+        {
+            actions.Add(new(
+                "Action_OpenFolder",
+                _loc.Get("Action_OpenFolder"),
+                "Folder24",
+                _loc.Get("Action_OpenFolder_Desc"),
+                () => _executor.OpenContainingFolder(info.BackslashPath)
+            ));
+            actions.Add(new(
+                "Action_OpenTerminal",
+                _loc.Get("Action_OpenTerminal"),
+                "Terminal24",
+                _loc.Get("Action_OpenTerminal_Desc"),
+                () => _executor.OpenTerminal(info.BackslashPath),
+                IconGlyph: "\uE756"
+            ));
+        }
+
+        string kindLabel = info.Kind switch
+        {
+            DetectedPathKind.WslMount => "WSL (/mnt/...)",
+            DetectedPathKind.Unc => "UNC",
+            DetectedPathKind.WindowsForwardSlash => "POSIX /",
+            _ => "Windows"
+        };
+
+        return new DetectionResult(
+            Type: ClipDataType.FilePath,
+            RawData: raw,
+            PreviewTitle: _loc.Get("Type_FilePath"),
+            PreviewSubtitle: !string.IsNullOrEmpty(info.ExistingDirectory)
+                ? _loc.Get("Sub_FilePath_Exists", kindLabel)
+                : kindLabel,
+            PreviewBody: info.CleanPath,
+            AvailableActions: actions,
+            BadgeText: "Path"
+        );
+    }
+
+    private DetectionResult DetectMath(string raw, MathEvalResult eval)
+    {
+        var actions = new List<ActionItem>
+        {
+            new(
+                "Action_CopyMathResult",
+                _loc.Get("Action_CopyMathResult"),
+                "Convert24",
+                _loc.Get("Action_CopyMathResult_Desc"),
+                () => _executor.CopyText(eval.FormattedValue, "Toast_Copied"),
+                IsPrimary: true,
+                Subtitle: eval.FormattedValue,
+                IconGlyph: "\uE8EF"
+            )
+        };
+
+        if (eval.HexValue != null && !string.Equals(eval.HexValue, raw, StringComparison.OrdinalIgnoreCase))
+        {
+            actions.Add(new(
+                "Action_CopyHexValue",
+                _loc.Get("Action_CopyHexValue"),
+                "Code24",
+                _loc.Get("Action_CopyHexValue_Desc"),
+                () => _executor.CopyText(eval.HexValue, "Toast_Copied"),
+                Subtitle: eval.HexValue
+            ));
+        }
+
+        if (eval.BinaryValue != null && !string.Equals(eval.BinaryValue, raw, StringComparison.OrdinalIgnoreCase))
+        {
+            actions.Add(new(
+                "Action_CopyBinaryValue",
+                _loc.Get("Action_CopyBinaryValue"),
+                "Code24",
+                _loc.Get("Action_CopyBinaryValue_Desc"),
+                () => _executor.CopyText(eval.BinaryValue, "Toast_Copied"),
+                Subtitle: eval.BinaryValue
+            ));
+        }
+
+        string body = eval.HexValue != null
+            ? $"{raw} = {eval.FormattedValue}\nHEX: {eval.HexValue}  •  BIN: {eval.BinaryValue}"
+            : $"{raw} = {eval.FormattedValue}";
+
+        return new DetectionResult(
+            Type: ClipDataType.MathExpression,
+            RawData: raw,
+            PreviewTitle: eval.FormattedValue,
+            PreviewSubtitle: _loc.Get("Sub_Math_Expr", raw),
+            PreviewBody: body,
+            AvailableActions: actions,
+            BadgeText: eval.IsBaseLiteralOnly ? "Hex/Bin" : "Math"
         );
     }
 

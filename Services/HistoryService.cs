@@ -196,6 +196,40 @@ public class HistoryService
         }
     }
 
+    public bool Remove(DetectionResult target)
+    {
+        if (target == null) return false;
+        bool removed;
+        lock (_lock)
+        {
+            removed = _items.RemoveAll(i => AreResultsEqual(i.Result, target)) > 0;
+        }
+
+        if (removed)
+        {
+            PersistIfEnabled();
+            HistoryChanged?.Invoke();
+        }
+        return removed;
+    }
+
+    public string? GetSecondLatestText(string currentText)
+    {
+        lock (_lock)
+        {
+            foreach (var item in _items.OrderByDescending(i => i.Timestamp))
+            {
+                if (item.Result.RawData is string s &&
+                    !string.IsNullOrEmpty(s) &&
+                    !string.Equals(s, currentText, StringComparison.Ordinal))
+                {
+                    return s;
+                }
+            }
+            return null;
+        }
+    }
+
     public void Clear(bool includePinned = false)
     {
         lock (_lock)

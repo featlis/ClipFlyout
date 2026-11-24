@@ -191,7 +191,7 @@
         <Setter Property="SelectionBrush" Value="{DynamicResource FluentAccentBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="9,0"/>
-        <Setter Property="Height" Value="32"/>
+        <Setter Property="MinHeight" Value="32"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="SnapsToDevicePixels" Value="True"/>
@@ -206,7 +206,7 @@
                         <Grid>
                             <ScrollViewer x:Name="PART_ContentHost"
                                           Margin="{TemplateBinding Padding}"
-                                          VerticalAlignment="Center"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                           Focusable="False"/>
                             <Border x:Name="BottomAccentLine"
                                     Height="2"
@@ -227,6 +227,9 @@
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="RootBorder" Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                        <Trigger Property="AcceptsReturn" Value="True">
+                            <Setter TargetName="PART_ContentHost" Property="VerticalAlignment" Value="Stretch"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

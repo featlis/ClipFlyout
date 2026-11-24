@@ -14,9 +14,11 @@ using ClipFlyout.Services;
 
 namespace ClipFlyout.Views;
 
-public record RecentHistoryEntry(string IconGlyph, string DisplayText, DetectionResult Result, bool IsPinned)
+public record RecentHistoryEntry(string IconGlyph, string DisplayText, DetectionResult? Result, bool IsPinned, Models.SnippetItem? Snippet = null)
 {
     public Visibility PinVisibility => IsPinned ? Visibility.Visible : Visibility.Collapsed;
+    public string QuickPasteTooltip => LocalizationService.Instance.Get("Flyout_QuickPaste_Tooltip");
+    public string QuickDeleteTooltip => LocalizationService.Instance.Get("Flyout_QuickDelete_Tooltip");
 }
 
 public partial class FlyoutWindow : Window
@@ -25,6 +27,7 @@ public partial class FlyoutWindow : Window
     private List<ActionItem> _currentActions = [];
     private int _selectedActionIndex = -1;
     private bool _isClosing;
+    private bool _showingSnippetsTab;
     private IntPtr _hwnd = IntPtr.Zero;
     private long _presentationGeneration;
 
@@ -34,7 +37,9 @@ public partial class FlyoutWindow : Window
     private bool? _lastDwmTransparency;
 
     public static bool IsFlyoutOpen { get; private set; }
-    public bool IsTextInputActive => HistorySearchContainer.Visibility == Visibility.Visible && HistorySearchBox.IsKeyboardFocused;
+    public bool IsTextInputActive =>
+        (HistorySearchContainer.Visibility == Visibility.Visible && HistorySearchBox.IsKeyboardFocused) ||
+        (InlineEditPanel.Visibility == Visibility.Visible && InlineEditBox.IsKeyboardFocused);
     public event Action<bool>? InteractiveInputModeChanged;
 
     public event Action? MouseEntered;
@@ -44,9 +49,12 @@ public partial class FlyoutWindow : Window
     public event Action? ButtonMouseLeft;
     public event Action? SettingsRequested;
     public event Action<DetectionResult>? HistoryItemSelected;
+    public event Action<string, bool>? QuickTextRequested;
+    public event Action<DetectionResult>? QuickPasteResultRequested;
 
     private readonly Action _themeChangedHandler;
     private readonly Action<AppSettings> _settingsChangedHandler;
+    private readonly Action _snippetsChangedHandler;
 
     public FlyoutWindow()
     {
@@ -65,6 +73,10 @@ public partial class FlyoutWindow : Window
         SettingsButton.MouseLeave += (_, _) => ButtonMouseLeft?.Invoke();
         PinButton.MouseEnter += (_, _) => ButtonMouseEntered?.Invoke();
         PinButton.MouseLeave += (_, _) => ButtonMouseLeft?.Invoke();
+        SaveSnippetButton.MouseEnter += (_, _) => ButtonMouseEntered?.Invoke();
+        SaveSnippetButton.MouseLeave += (_, _) => ButtonMouseLeft?.Invoke();
+        EditToggleButton.MouseEnter += (_, _) => ButtonMouseEntered?.Invoke();
+        EditToggleButton.MouseLeave += (_, _) => ButtonMouseLeft?.Invoke();
 
         _themeChangedHandler = () =>
         {
@@ -80,14 +92,23 @@ public partial class FlyoutWindow : Window
                 Dispatcher.BeginInvoke(ApplyTheme);
             }
         };
+        _snippetsChangedHandler = () =>
+        {
+            if (!Dispatcher.HasShutdownStarted && !Dispatcher.HasShutdownFinished && IsVisible)
+            {
+                Dispatcher.BeginInvoke(() => RefreshHistoryList(HistorySearchBox.Text));
+            }
+        };
 
         ThemeService.Instance.ThemeChanged += _themeChangedHandler;
         SettingsService.Instance.SettingsChanged += _settingsChangedHandler;
+        SnippetService.Instance.SnippetsChanged += _snippetsChangedHandler;
         Closed += (_, _) =>
         {
             IsFlyoutOpen = false;
             ThemeService.Instance.ThemeChanged -= _themeChangedHandler;
             SettingsService.Instance.SettingsChanged -= _settingsChangedHandler;
+            SnippetService.Instance.SnippetsChanged -= _snippetsChangedHandler;
         };
 
         new WindowInteropHelper(this).EnsureHandle();
@@ -145,8 +166,11 @@ public partial class FlyoutWindow : Window
         {
             exStyle &= ~Win32.WS_EX_NOACTIVATE;
             Win32.SetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE, (IntPtr)exStyle);
-            Win32.SetForegroundWindow(_hwnd);
-            Activate();
+            if (IsVisible)
+            {
+                Win32.SetForegroundWindow(_hwnd);
+                Activate();
+            }
         }
         else
         {
@@ -196,7 +220,9 @@ public partial class FlyoutWindow : Window
                 ClipDataType.UnixTimestamp or ClipDataType.IsoDateTime => (Color.FromArgb(46, 6, 182, 212), Color.FromRgb(103, 232, 249)),
                 ClipDataType.Base64 => (Color.FromArgb(46, 99, 102, 241), Color.FromRgb(165, 180, 252)),
                 ClipDataType.TableData => (Color.FromArgb(46, 16, 185, 129), Color.FromRgb(110, 231, 183)),
-                ClipDataType.FileDrop => (Color.FromArgb(46, 234, 179, 8), Color.FromRgb(253, 224, 71)),
+                ClipDataType.FileDrop or ClipDataType.FilePath => (Color.FromArgb(46, 234, 179, 8), Color.FromRgb(253, 224, 71)),
+                ClipDataType.MathExpression => (Color.FromArgb(46, 6, 182, 212), Color.FromRgb(103, 232, 249)),
+                ClipDataType.Uuid => (Color.FromArgb(46, 139, 92, 246), Color.FromRgb(216, 180, 254)),
                 _ => (Color.FromArgb(42, 160, 160, 160), Color.FromRgb(220, 220, 220))
             }
             : type switch
@@ -210,7 +236,9 @@ public partial class FlyoutWindow : Window
                 ClipDataType.UnixTimestamp or ClipDataType.IsoDateTime => (Color.FromRgb(232, 251, 254), Color.FromRgb(14, 116, 144)),
                 ClipDataType.Base64 => (Color.FromRgb(238, 242, 255), Color.FromRgb(67, 56, 202)),
                 ClipDataType.TableData => (Color.FromRgb(230, 250, 241), Color.FromRgb(4, 120, 87)),
-                ClipDataType.FileDrop => (Color.FromRgb(254, 249, 225), Color.FromRgb(161, 98, 7)),
+                ClipDataType.FileDrop or ClipDataType.FilePath => (Color.FromRgb(254, 249, 225), Color.FromRgb(161, 98, 7)),
+                ClipDataType.MathExpression => (Color.FromRgb(232, 251, 254), Color.FromRgb(14, 116, 144)),
+                ClipDataType.Uuid => (Color.FromRgb(243, 232, 255), Color.FromRgb(107, 33, 168)),
                 _ => (Color.FromRgb(238, 238, 238), Color.FromRgb(68, 68, 68))
             };
 
@@ -257,6 +285,8 @@ public partial class FlyoutWindow : Window
 
         ActionsScrollViewer.Visibility = Visibility.Visible;
         InlineFeedbackBar.Visibility = Visibility.Collapsed;
+        InlineEditPanel.Visibility = Visibility.Collapsed;
+        InlineEditBox.Text = string.Empty;
         HistorySearchContainer.Visibility = Visibility.Collapsed;
         HistorySearchBox.Text = string.Empty;
         HistorySearchPlaceholder.Visibility = Visibility.Visible;
@@ -270,13 +300,24 @@ public partial class FlyoutWindow : Window
             ? loc.FormatRelativeTime(recordedAt.Value)
             : loc.Get("Flyout_Time_JustNow");
 
+        bool hasEditableText = result.RawData is string;
+        SaveSnippetButton.Visibility = hasEditableText ? Visibility.Visible : Visibility.Collapsed;
+        EditToggleButton.Visibility = hasEditableText ? Visibility.Visible : Visibility.Collapsed;
+        SaveSnippetButton.ToolTip = loc.Get("Flyout_SaveSnippet_Tooltip");
+        EditToggleButton.ToolTip = loc.Get("Flyout_Edit_Tooltip");
+        BtnEditCopy.Content = loc.Get("Flyout_Edit_Copy");
+        BtnEditPaste.Content = loc.Get("Flyout_Edit_Paste");
+        BtnEditSaveSnippet.Content = loc.Get("Flyout_Edit_Save");
+        SnippetsTabHeader.Text = loc.Get("Flyout_Tab_Snippets");
+        SnippetsEmptyText.Text = loc.Get("Snippets_Empty");
+
         PinButton.Visibility = canPin ? Visibility.Visible : Visibility.Collapsed;
         PinButton.ToolTip = loc.Get("Flyout_Pin_Tooltip");
         SearchToggleButton.ToolTip = loc.Get("Flyout_Search_Tooltip");
         HistorySearchPlaceholder.Text = loc.Get("Flyout_Search_Placeholder");
         SettingsButton.ToolTip = loc.Get("Flyout_Settings_Tooltip");
         CloseButton.ToolTip = loc.Get("Flyout_Close_Tooltip");
-        RecentHeader.Text = loc.Get("Flyout_Recent_Header");
+        RecentHeader.Text = loc.Get("Flyout_Tab_History");
         ClearHistoryButton.Content = loc.Get("Flyout_ClearHistory");
         UpdatePinButtonVisual();
 
@@ -321,12 +362,40 @@ public partial class FlyoutWindow : Window
     {
         try
         {
+            var loc = LocalizationService.Instance;
+            bool hasAnyHistory = HistoryService.Instance.Count > 1;
+            bool hasSnippets = SnippetService.Instance.Count > 0;
+            SearchToggleButton.Visibility = (hasAnyHistory || hasSnippets) ? Visibility.Visible : Visibility.Collapsed;
+
+            UpdateFooterTabVisuals();
+
+            if (_showingSnippetsTab)
+            {
+                var snippets = string.IsNullOrWhiteSpace(query)
+                    ? SnippetService.Instance.GetItems()
+                    : SnippetService.Instance.Search(query);
+
+                var snippetEntries = snippets
+                    .Take(string.IsNullOrWhiteSpace(query) ? 5 : 8)
+                    .Select(s => new RecentHistoryEntry(
+                        "\uE8A4",
+                        string.IsNullOrWhiteSpace(s.Title) ? SnippetService.BuildDefaultTitle(s.Content) : s.Title,
+                        null,
+                        false,
+                        s))
+                    .ToList();
+
+                ClearHistoryButton.Visibility = Visibility.Collapsed;
+                SnippetsEmptyText.Visibility = snippetEntries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+                RecentHistoryItemsControl.ItemsSource = snippetEntries;
+                RecentHistoryPanel.Visibility = Visibility.Visible;
+                return;
+            }
+
+            SnippetsEmptyText.Visibility = Visibility.Collapsed;
             var items = string.IsNullOrWhiteSpace(query)
                 ? HistoryService.Instance.GetItems()
                 : HistoryService.Instance.Search(query);
-
-            bool hasAnyHistory = HistoryService.Instance.Count > 1;
-            SearchToggleButton.Visibility = hasAnyHistory ? Visibility.Visible : Visibility.Collapsed;
 
             var entries = items
                 .Where(h => _currentResult == null || !HistoryService.AreResultsEqual(h.Result, _currentResult))
@@ -340,16 +409,15 @@ public partial class FlyoutWindow : Window
                 .ToList();
 
             bool hasUnpinned = entries.Any(e => !e.IsPinned);
-            var loc = LocalizationService.Instance;
-            RecentHeader.Text = (!hasUnpinned && entries.Count > 0)
-                ? loc.Get("Flyout_Pinned_Header")
-                : loc.Get("Flyout_Recent_Header");
+            RecentHeader.Text = loc.Get("Flyout_Tab_History");
             ClearHistoryButton.Visibility = hasUnpinned ? Visibility.Visible : Visibility.Collapsed;
 
-            if (entries.Count > 0 || !string.IsNullOrWhiteSpace(query))
+            if (entries.Count > 0 || hasSnippets || !string.IsNullOrWhiteSpace(query))
             {
                 RecentHistoryItemsControl.ItemsSource = entries;
-                RecentHistoryPanel.Visibility = Visibility.Visible;
+                RecentHistoryPanel.Visibility = (entries.Count > 0 || hasSnippets || !string.IsNullOrWhiteSpace(query))
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
             }
             else
             {
@@ -360,6 +428,21 @@ public partial class FlyoutWindow : Window
         {
             RecentHistoryPanel.Visibility = Visibility.Collapsed;
         }
+    }
+
+    private void UpdateFooterTabVisuals()
+    {
+        var activeBg = TryFindResource("SubtleFillHoverBrush") as Brush ?? Brushes.Transparent;
+        var primaryFg = TryFindResource("TextPrimaryBrush") as Brush ?? Brushes.White;
+        var tertiaryFg = TryFindResource("TextTertiaryBrush") as Brush ?? Brushes.Gray;
+
+        TabHistoryButton.Background = _showingSnippetsTab ? Brushes.Transparent : activeBg;
+        RecentHeader.Foreground = _showingSnippetsTab ? tertiaryFg : primaryFg;
+        RecentHeader.FontWeight = _showingSnippetsTab ? FontWeights.Normal : FontWeights.SemiBold;
+
+        TabSnippetsButton.Background = _showingSnippetsTab ? activeBg : Brushes.Transparent;
+        SnippetsTabHeader.Foreground = _showingSnippetsTab ? primaryFg : tertiaryFg;
+        SnippetsTabHeader.FontWeight = _showingSnippetsTab ? FontWeights.SemiBold : FontWeights.Normal;
     }
 
     private void UpdatePinButtonVisual()
@@ -387,6 +470,9 @@ public partial class FlyoutWindow : Window
             ClipDataType.Base64 => loc.Get("Type_Base64"),
             ClipDataType.TableData => loc.Get("Type_TableData"),
             ClipDataType.FileDrop => loc.Get("Type_FileDrop"),
+            ClipDataType.FilePath => loc.Get("Type_FilePath"),
+            ClipDataType.MathExpression => loc.Get("Type_MathExpression"),
+            ClipDataType.Uuid => loc.Get("Type_Uuid"),
             _ => loc.Get("Type_PlainText")
         };
     }
@@ -404,6 +490,9 @@ public partial class FlyoutWindow : Window
         ClipDataType.Base64 => "\uE785",
         ClipDataType.TableData => "\uE8FD",
         ClipDataType.FileDrop => "\uE8B7",
+        ClipDataType.FilePath => "\uE8B7",
+        ClipDataType.MathExpression => "\uE8EF",
+        ClipDataType.Uuid => "\uE8D7",
         _ => "\uE8C8"
     };
 
@@ -447,6 +536,7 @@ public partial class FlyoutWindow : Window
         opacityAnim.Completed += (_, _) =>
         {
             if (generation != _presentationGeneration) return;
+            InlineEditPanel.Visibility = Visibility.Collapsed;
             Hide();
             IsFlyoutOpen = false;
             _isClosing = false;
@@ -519,7 +609,7 @@ public partial class FlyoutWindow : Window
         }
     }
 
-    public void ShowToastFeedback(string message, bool isError = false)
+    public void ShowToastFeedback(string message, bool isError = false, bool autoClose = true)
     {
         long generation = _presentationGeneration;
         bool err = isError ||
@@ -551,7 +641,15 @@ public partial class FlyoutWindow : Window
             {
                 if (generation == _presentationGeneration && IsVisible)
                 {
-                    CloseRequested?.Invoke();
+                    if (autoClose)
+                    {
+                        CloseRequested?.Invoke();
+                    }
+                    else
+                    {
+                        InlineFeedbackBar.Visibility = Visibility.Collapsed;
+                        ActionsScrollViewer.Visibility = Visibility.Visible;
+                    }
                 }
             });
         });
@@ -625,8 +723,124 @@ public partial class FlyoutWindow : Window
     {
         if (sender is FrameworkElement { Tag: RecentHistoryEntry entry })
         {
-            HistoryItemSelected?.Invoke(entry.Result);
+            if (entry.Snippet != null)
+            {
+                QuickTextRequested?.Invoke(entry.Snippet.Content, false);
+            }
+            else if (entry.Result != null)
+            {
+                HistoryItemSelected?.Invoke(entry.Result);
+            }
         }
+    }
+
+    private void QuickPasteRowButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: RecentHistoryEntry entry })
+        {
+            if (entry.Snippet != null)
+            {
+                QuickTextRequested?.Invoke(entry.Snippet.Content, true);
+            }
+            else if (entry.Result != null)
+            {
+                QuickPasteResultRequested?.Invoke(entry.Result);
+            }
+        }
+    }
+
+    private void QuickDeleteRowButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: RecentHistoryEntry entry })
+        {
+            if (entry.Snippet != null)
+            {
+                SnippetService.Instance.Delete(entry.Snippet.Id);
+            }
+            else if (entry.Result != null)
+            {
+                HistoryService.Instance.Remove(entry.Result);
+            }
+            RefreshHistoryList(HistorySearchBox.Text);
+        }
+    }
+
+    private void TabHistoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        _showingSnippetsTab = false;
+        RefreshHistoryList(HistorySearchBox.Text);
+    }
+
+    private void TabSnippetsButton_Click(object sender, RoutedEventArgs e)
+    {
+        _showingSnippetsTab = true;
+        RefreshHistoryList(HistorySearchBox.Text);
+    }
+
+    private void SaveSnippetButton_Click(object sender, RoutedEventArgs e)
+    {
+        string? text = InlineEditPanel.Visibility == Visibility.Visible
+            ? InlineEditBox.Text
+            : _currentResult?.RawData as string;
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        SnippetService.Instance.AddOrUpdate(string.Empty, text);
+        ShowToastFeedback(LocalizationService.Instance.Get("Toast_SnippetSaved"), isError: false, autoClose: false);
+        RefreshHistoryList(HistorySearchBox.Text);
+    }
+
+    private void EditToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (InlineEditPanel.Visibility == Visibility.Visible)
+        {
+            InlineEditPanel.Visibility = Visibility.Collapsed;
+            SetInteractiveInputMode(HistorySearchContainer.Visibility == Visibility.Visible);
+        }
+        else if (_currentResult?.RawData is string rawText)
+        {
+            InlineEditBox.Text = rawText;
+            InlineEditPanel.Visibility = Visibility.Visible;
+            SetInteractiveInputMode(true);
+            InlineEditBox.CaretIndex = rawText.Length;
+            Keyboard.Focus(InlineEditBox);
+        }
+    }
+
+    private void InlineEditBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        SetInteractiveInputMode(true);
+    }
+
+    private void InlineEditBox_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (!InlineEditPanel.IsMouseOver && HistorySearchContainer.Visibility != Visibility.Visible)
+        {
+            SetInteractiveInputMode(false);
+        }
+    }
+
+    private void BtnEditCopy_Click(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrEmpty(InlineEditBox.Text))
+        {
+            QuickTextRequested?.Invoke(InlineEditBox.Text, false);
+        }
+    }
+
+    private void BtnEditPaste_Click(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrEmpty(InlineEditBox.Text))
+        {
+            QuickTextRequested?.Invoke(InlineEditBox.Text, true);
+        }
+    }
+
+    private void BtnEditSaveSnippet_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(InlineEditBox.Text)) return;
+        SnippetService.Instance.AddOrUpdate(string.Empty, InlineEditBox.Text);
+        ShowToastFeedback(LocalizationService.Instance.Get("Toast_SnippetSaved"), isError: false, autoClose: false);
+        RefreshHistoryList(HistorySearchBox.Text);
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)

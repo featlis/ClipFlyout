@@ -108,6 +108,12 @@ public partial class App : WpfApplication
             _trayIconService = new TrayIconService(_clipboardMonitor, () => _hotkeyService?.RegistrationFailed == true);
             _trayIconService.BeforeMenuOpen += () => _windowManager?.CaptureExternalForegroundWindow();
             _trayIconService.HistoryItemSelected += result => _windowManager?.ShowFlyout(result, recordHistory: false, interactive: true);
+            _trayIconService.SnippetSelected += snippet =>
+            {
+                _actionExecutor?.CopyText(snippet.Content, "Toast_Copied");
+                IntPtr target = _windowManager?.LastExternalForegroundHwnd ?? IntPtr.Zero;
+                _actionExecutor?.PasteToActiveWindow(notifyToast: false, targetHwnd: target);
+            };
             _trayIconService.RecallRequested += () => _windowManager?.ToggleOrRecallFlyout();
 
             _taskbarWidget = new TaskbarWidgetWindow();
@@ -237,9 +243,16 @@ public partial class App : WpfApplication
                 }
                 if (_hotkeyService != null)
                 {
-                    if (cfg.EnableRecallHotkey && !_hotkeyService.IsRegistered)
+                    if (cfg.EnableRecallHotkey)
                     {
-                        _hotkeyService.Start();
+                        if (!_hotkeyService.IsRegistered)
+                        {
+                            _hotkeyService.Start();
+                        }
+                        else if (!_hotkeyService.MatchesCurrentSettings(cfg))
+                        {
+                            _hotkeyService.Restart();
+                        }
                     }
                     else if (!cfg.EnableRecallHotkey && _hotkeyService.IsRegistered)
                     {

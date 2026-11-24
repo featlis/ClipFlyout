@@ -16,5 +16,8 @@ public enum ClipDataType
     Base64,
     TableData,
     FileDrop,
-    IsoDateTime
+    IsoDateTime,
+    FilePath,
+    MathExpression,
+    Uuid
 }

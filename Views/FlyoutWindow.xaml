@@ -181,6 +181,28 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="SaveSnippetButton"
+                            Style="{DynamicResource FluentSubtleIconButtonStyle}"
+                            Width="26" Height="26"
+                            Margin="0,0,2,0"
+                            Visibility="Collapsed"
+                            Click="SaveSnippetButton_Click">
+                        <TextBlock Text="&#xE8A4;"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   FontSize="12"/>
+                    </Button>
+
+                    <Button x:Name="EditToggleButton"
+                            Style="{DynamicResource FluentSubtleIconButtonStyle}"
+                            Width="26" Height="26"
+                            Margin="0,0,2,0"
+                            Visibility="Collapsed"
+                            Click="EditToggleButton_Click">
+                        <TextBlock Text="&#xE70F;"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   FontSize="12"/>
+                    </Button>
+
                     <Button x:Name="PinButton"
                             Style="{DynamicResource FluentSubtleIconButtonStyle}"
                             Width="26" Height="26"
@@ -368,6 +390,57 @@
                 </Grid>
             </Border>
 
+            <!-- Inline Quick Edit Panel (Toggled from Header Edit Button) -->
+            <Border x:Name="InlineEditPanel"
+                    Visibility="Collapsed"
+                    Margin="0,0,0,8"
+                    Padding="8"
+                    CornerRadius="6"
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardStrokeBrush}"
+                    BorderThickness="1">
+                <StackPanel>
+                    <TextBox x:Name="InlineEditBox"
+                             Style="{DynamicResource FluentTextBoxStyle}"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             VerticalContentAlignment="Top"
+                             Height="68"
+                             MaxHeight="120"
+                             MinHeight="68"
+                             VerticalScrollBarVisibility="Auto"
+                             FontSize="12"
+                             Padding="8,7"
+                             GotKeyboardFocus="InlineEditBox_GotKeyboardFocus"
+                             LostKeyboardFocus="InlineEditBox_LostKeyboardFocus"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0" HorizontalAlignment="Right">
+                        <Button x:Name="BtnEditSaveSnippet"
+                                Style="{DynamicResource FluentButtonStyle}"
+                                Height="28"
+                                Padding="10,0"
+                                FontSize="11.5"
+                                Content="定型文保存"
+                                Margin="0,0,6,0"
+                                Click="BtnEditSaveSnippet_Click"/>
+                        <Button x:Name="BtnEditCopy"
+                                Style="{DynamicResource FluentButtonStyle}"
+                                Height="28"
+                                Padding="12,0"
+                                FontSize="11.5"
+                                Content="コピー"
+                                Margin="0,0,6,0"
+                                Click="BtnEditCopy_Click"/>
+                        <Button x:Name="BtnEditPaste"
+                                Style="{DynamicResource FluentAccentButtonStyle}"
+                                Height="28"
+                                Padding="12,0"
+                                FontSize="11.5"
+                                Content="貼り付け"
+                                Click="BtnEditPaste_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <!-- Actions List (Scrollable when > 5 actions, Zero-Jump Feedback Overlay) -->
             <Grid>
                 <ScrollViewer x:Name="ActionsScrollViewer"
@@ -422,22 +495,56 @@
                 </Border>
             </Grid>
 
-            <!-- Recent & Pinned History Section -->
+            <!-- Recent History & Snippets Segmented Footer Section -->
             <StackPanel x:Name="RecentHistoryPanel" Margin="0,6,0,0" Visibility="Collapsed">
                 <Border Height="1" Background="{DynamicResource DividerStrokeBrush}" Margin="0,0,0,7"/>
 
-                <Grid Margin="2,0,0,4">
+                <Grid Margin="2,0,0,5">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock x:Name="RecentHeader"
-                               Grid.Column="0"
-                               Text="最近の履歴"
-                               FontSize="11"
-                               FontWeight="SemiBold"
-                               VerticalAlignment="Center"
-                               Foreground="{DynamicResource TextTertiaryBrush}"/>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="TabHistoryButton"
+                                Padding="7,2"
+                                Margin="0,0,4,0"
+                                Background="{DynamicResource SubtleFillHoverBrush}"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                Click="TabHistoryButton_Click">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <TextBlock x:Name="RecentHeader"
+                                       Text="履歴"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        </Button>
+                        <Button x:Name="TabSnippetsButton"
+                                Padding="7,2"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                Click="TabSnippetsButton_Click">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <TextBlock x:Name="SnippetsTabHeader"
+                                       Text="定型文"
+                                       FontSize="11"
+                                       FontWeight="Normal"
+                                       Foreground="{DynamicResource TextTertiaryBrush}"/>
+                        </Button>
+                    </StackPanel>
                     <Button x:Name="ClearHistoryButton"
                             Grid.Column="1"
                             Content="クリア"
@@ -484,61 +591,89 @@
                                Foreground="{DynamicResource TextTertiaryBrush}"/>
                 </Grid>
 
+                <TextBlock x:Name="SnippetsEmptyText"
+                           Text="定型文はまだありません"
+                           FontSize="11.5"
+                           Margin="6,4,6,6"
+                           Foreground="{DynamicResource TextTertiaryBrush}"
+                           Visibility="Collapsed"/>
+
                 <ScrollViewer MaxHeight="116" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <ItemsControl x:Name="RecentHistoryItemsControl">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Button Height="28"
-                                        Margin="0,0,0,2"
-                                        Padding="0"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        HorizontalContentAlignment="Stretch"
-                                        Cursor="Hand"
-                                        Click="RecentItem_Click"
-                                        Tag="{Binding}">
-                                    <Button.Template>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border x:Name="histBorder" Background="Transparent" CornerRadius="4" Padding="6,2">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="20"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0"
-                                                               Text="{Binding IconGlyph}"
-                                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                                               FontSize="12"
-                                                               VerticalAlignment="Center"
-                                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                                    <TextBlock Grid.Column="1"
-                                                               Text="{Binding DisplayText}"
-                                                               FontSize="11.5"
-                                                               VerticalAlignment="Center"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                                    <TextBlock Grid.Column="2"
-                                                               Text="&#xE718;"
-                                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                                               FontSize="10"
-                                                               Margin="6,0,0,0"
-                                                               VerticalAlignment="Center"
-                                                               Foreground="{DynamicResource FluentAccentBrush}"
-                                                               Visibility="{Binding PinVisibility}"/>
-                                                </Grid>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="histBorder" Property="Background" Value="{DynamicResource SubtleFillHoverBrush}"/>
-                                                </Trigger>
-                                                <Trigger Property="IsPressed" Value="True">
-                                                    <Setter TargetName="histBorder" Property="Background" Value="{DynamicResource SubtleFillPressedBrush}"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Button.Template>
-                                </Button>
+                                <Border x:Name="rowBorder" Background="Transparent" CornerRadius="4" Padding="4,2" Margin="0,0,0,2">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0"
+                                                Height="24"
+                                                Padding="2,0"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                HorizontalContentAlignment="Stretch"
+                                                Cursor="Hand"
+                                                Click="RecentItem_Click"
+                                                Tag="{Binding}">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Grid Background="Transparent">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="20"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="{Binding IconGlyph}"
+                                                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                                   FontSize="12"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding DisplayText}"
+                                                                   FontSize="11.5"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                    </Grid>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <StackPanel x:Name="hoverActions" Orientation="Horizontal" Visibility="Collapsed" Margin="4,0,0,0">
+                                                <Button Style="{DynamicResource FluentSubtleIconButtonStyle}"
+                                                        Width="22" Height="22"
+                                                        Margin="0,0,2,0"
+                                                        ToolTip="{Binding QuickPasteTooltip}"
+                                                        Click="QuickPasteRowButton_Click"
+                                                        Tag="{Binding}">
+                                                    <TextBlock Text="&#xE77F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11"/>
+                                                </Button>
+                                                <Button Style="{DynamicResource FluentSubtleIconButtonStyle}"
+                                                        Width="22" Height="22"
+                                                        ToolTip="{Binding QuickDeleteTooltip}"
+                                                        Click="QuickDeleteRowButton_Click"
+                                                        Tag="{Binding}">
+                                                    <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11"/>
+                                                </Button>
+                                            </StackPanel>
+                                            <TextBlock Text="&#xE718;"
+                                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                       FontSize="10"
+                                                       Margin="4,0,2,0"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource FluentAccentBrush}"
+                                                       Visibility="{Binding PinVisibility}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <Trigger SourceName="rowBorder" Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="rowBorder" Property="Background" Value="{DynamicResource SubtleFillHoverBrush}"/>
+                                        <Setter TargetName="hoverActions" Property="Visibility" Value="Visible"/>
+                                    </Trigger>
+                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
