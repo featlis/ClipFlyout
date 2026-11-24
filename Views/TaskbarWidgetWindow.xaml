@@ -2,10 +2,11 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="ClipFlyout Taskbar Widget"
-        SizeToContent="Width"
-        MinWidth="108"
+        WindowStartupLocation="Manual"
+        Width="172"
+        MinWidth="136"
         MaxWidth="228"
-        Height="38"
+        Height="36"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -14,14 +15,16 @@
         ResizeMode="NoResize"
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
         FontFamily="Segoe UI Variable Text, Segoe UI, sans-serif">
 
     <Border x:Name="RootPill"
-            CornerRadius="5"
+            CornerRadius="6"
             BorderThickness="1"
-            BorderBrush="Transparent"
-            Background="#01000000"
-            Padding="10,0"
+            BorderBrush="#1A000000"
+            Background="#C8FFFFFF"
+            Padding="6,0,8,0"
             Cursor="Hand"
             MouseEnter="RootPill_MouseEnter"
             MouseLeave="RootPill_MouseLeave"
@@ -61,37 +64,70 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Data-Type Fluent Icon Glyph -->
-            <TextBlock x:Name="FluentTypeIcon"
-                       Grid.Column="0"
-                       Text="&#xE8C8;"
+            <!-- Leading Semantic Type Chip / Color Swatch / Image Thumbnail -->
+            <Grid Grid.Column="0" Width="24" Height="24" Margin="0,0,8,0" VerticalAlignment="Center">
+                <Border x:Name="IconBadge"
+                        Width="24" Height="24"
+                        CornerRadius="5"
+                        Background="#1A0078D4">
+                    <TextBlock x:Name="FluentTypeIcon"
+                               Text="&#xE8C8;"
+                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                               FontSize="12"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </Border>
+
+                <Border x:Name="ColorBox"
+                        Width="22" Height="22"
+                        CornerRadius="5"
+                        BorderThickness="1"
+                        BorderBrush="#38808080"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Visibility="Collapsed"/>
+
+                <Border x:Name="ImageThumbBorder"
+                        Width="24" Height="24"
+                        CornerRadius="5"
+                        BorderThickness="1"
+                        BorderBrush="#30808080"
+                        RenderOptions.BitmapScalingMode="HighQuality"
+                        Visibility="Collapsed"/>
+            </Grid>
+
+            <!-- Native Windows 11 2-Line Micro-Pill Content -->
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock x:Name="ClipPreviewText"
+                           Text="ClipFlyout"
+                           FontSize="11.5"
+                           FontWeight="SemiBold"
+                           LineHeight="14"
+                           LineStackingStrategy="BlockLineHeight"
+                           HorizontalAlignment="Left"
+                           TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="ClipMetaText"
+                           Text="クリップボード空"
+                           FontSize="9.5"
+                           FontWeight="Normal"
+                           LineHeight="12"
+                           LineStackingStrategy="BlockLineHeight"
+                           HorizontalAlignment="Left"
+                           TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+
+            <!-- Subtle Flyout Up-Chevron Cue -->
+            <TextBlock x:Name="ChevronIcon"
+                       Grid.Column="2"
+                       Text="&#xE70E;"
                        FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                       FontSize="13.5"
+                       FontSize="8.5"
+                       Margin="7,0,0,0"
                        VerticalAlignment="Center"
-                       Margin="0,0,7,0"/>
-
-            <!-- Live Color Swatch (shown for Color items) -->
-            <Border x:Name="ColorBox"
-                    Grid.Column="0"
-                    Width="15" Height="15"
-                    CornerRadius="3.5"
-                    BorderThickness="1"
-                    BorderBrush="#40808080"
-                    Margin="0,0,7,0"
-                    VerticalAlignment="Center"
-                    Visibility="Collapsed"/>
-
-            <!-- Crisp Single-Line Snippet (No muddy Vista DropShadow!) -->
-            <TextBlock x:Name="ClipPreviewText"
-                       Grid.Column="1"
-                       Text="クリップボード空"
-                       FontSize="12.5"
-                       FontWeight="Normal"
-                       HorizontalAlignment="Left"
-                       TextTrimming="CharacterEllipsis"
-                       VerticalAlignment="Center"/>
+                       Opacity="0.5"/>
         </Grid>
     </Border>
 </Window>

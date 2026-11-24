@@ -464,6 +464,7 @@ public class LocalizationService
         { "Widget_TextColor_Light", new("常に白 (ダーク向け)", "Always White (Dark Taskbar)") },
         { "Widget_TextColor_Dark", new("常に黒 (ライト向け)", "Always Black (Light Taskbar)") },
         { "Widget_Empty", new("クリップボード空", "Clipboard empty") },
+        { "Widget_Paused", new("一時停止中", "Paused") },
         { "Widget_ClickHint", new("クリックでフライアウトを開く", "Click to open flyout") },
         { "Widget_Hide", new("タスクバーウィジェットを非表示", "Hide Taskbar Widget") },
         { "Widget_Position_Header", new("配置位置", "Position") },

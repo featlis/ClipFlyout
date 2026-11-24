@@ -28,7 +28,35 @@ public static class Win32
     public const uint SWP_SHOWWINDOW = 0x0040;
     public const int WM_WINDOWPOSCHANGING = 0x0046;
     public const int WM_SETTINGCHANGE = 0x001A;
+    public const int WM_DPICHANGED = 0x02E0;
     public const int WM_SETICON = 0x0080;
+
+    // WinEvent hook (zero-polling foreground/taskbar tracking)
+    public const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
+    public const uint WINEVENT_OUTOFCONTEXT = 0x0000;
+
+    public delegate void WinEventDelegate(
+        IntPtr hWinEventHook,
+        uint eventType,
+        IntPtr hwnd,
+        int idObject,
+        int idChild,
+        uint dwEventThread,
+        uint dwmsEventTime);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr SetWinEventHook(
+        uint eventMin,
+        uint eventMax,
+        IntPtr hmodWinEventProc,
+        WinEventDelegate lpfnWinEventProc,
+        uint idProcess,
+        uint idThread,
+        uint dwFlags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool UnhookWinEvent(IntPtr hWinEventHook);
     public const int WM_GETICON = 0x007F;
     public const int ICON_SMALL = 0;
     public const int ICON_BIG = 1;
@@ -356,21 +384,27 @@ public static class Win32
 
     /// <summary>
     /// Detects whether a fullscreen game, presentation, or borderless fullscreen video is currently active.
+    /// When targetMonitor is supplied, only returns true if the fullscreen window is on that monitor.
     /// </summary>
-    public static bool IsFullscreenAppActive(IntPtr excludeHwnd = default)
+    public static bool IsFullscreenAppActive(IntPtr excludeHwnd = default, IntPtr targetMonitor = default)
     {
         try
         {
+            IntPtr fg = GetForegroundWindow();
+
             if (SHQueryUserNotificationState(out var state) == 0)
             {
                 if (state == QUERY_USER_NOTIFICATION_STATE.QUNS_RUNNING_D3D_FULL_SCREEN ||
                     state == QUERY_USER_NOTIFICATION_STATE.QUNS_PRESENTATION_MODE)
                 {
-                    return true;
+                    if (targetMonitor == IntPtr.Zero || fg == IntPtr.Zero ||
+                        MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST) == targetMonitor)
+                    {
+                        return true;
+                    }
                 }
             }
 
-            IntPtr fg = GetForegroundWindow();
             if (fg == IntPtr.Zero || fg == excludeHwnd || fg == GetDesktopWindow() || fg == GetShellWindow())
             {
                 return false;
@@ -392,6 +426,11 @@ public static class Win32
             if (GetWindowRect(fg, out var fgRect))
             {
                 IntPtr hMon = MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST);
+                if (targetMonitor != IntPtr.Zero && hMon != targetMonitor)
+                {
+                    return false;
+                }
+
                 var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
                 if (GetMonitorInfo(hMon, ref mi))
                 {
@@ -411,6 +450,25 @@ public static class Win32
         {
         }
 
+        return false;
+    }
+
+    public static bool IsTaskbarWindow(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero) return false;
+        try
+        {
+            var sb = new StringBuilder(64);
+            if (GetClassName(hwnd, sb, sb.Capacity) > 0)
+            {
+                string cls = sb.ToString();
+                return cls.Equals("Shell_TrayWnd", StringComparison.OrdinalIgnoreCase) ||
+                       cls.Equals("Shell_SecondaryTrayWnd", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        catch
+        {
+        }
         return false;
     }
 

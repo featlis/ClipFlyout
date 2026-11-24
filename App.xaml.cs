@@ -133,6 +133,7 @@ public partial class App : WpfApplication
             };
             _taskbarWidget.RecallRequested += () => _windowManager?.ToggleOrRecallFlyout();
             _taskbarWidget.SettingsRequested += () => _trayIconService?.OpenSettings();
+            _clipboardMonitor.PauseStateChanged += () => _taskbarWidget?.SetPausedState(_clipboardMonitor.IsPaused);
             _windowManager.SetTaskbarWidgetHwndProvider(() => _taskbarWidget?.Handle ?? IntPtr.Zero);
 
             _actionExecutor.ClipboardUpdatedInternally += payload =>
