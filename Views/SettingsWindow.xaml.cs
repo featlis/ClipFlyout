@@ -21,6 +21,7 @@ public partial class SettingsWindow : Window
     private readonly DispatcherTimer _sliderDebounceTimer;
     private bool _isInitializing = true;
     private bool _isSyncingColor;
+    private bool _isSaving;
     private IntPtr _hwnd = IntPtr.Zero;
     private UpdateRelease? _pendingUpdate;
     private bool _isCheckingUpdates;
@@ -28,6 +29,7 @@ public partial class SettingsWindow : Window
     private readonly Action _themeChangedHandler;
     private readonly Action _languageChangedHandler;
     private readonly Action _historyChangedHandler;
+    private readonly Action<AppSettings> _settingsChangedHandler;
     private readonly Func<bool>? _hotkeyFailedProvider;
 
     public SettingsWindow(Func<bool>? hotkeyFailedProvider = null)
@@ -69,20 +71,44 @@ public partial class SettingsWindow : Window
             if (!Dispatcher.HasShutdownStarted)
                 Dispatcher.BeginInvoke(UpdateHistoryCountLabel);
         };
+        _settingsChangedHandler = _ =>
+        {
+            if (!_isSaving && !Dispatcher.HasShutdownStarted)
+            {
+                Dispatcher.BeginInvoke(() =>
+                {
+                    if (!_isSaving)
+                    {
+                        LoadValuesFromSettings();
+                        UpdateHotkeyConflictBanner();
+                    }
+                });
+            }
+        };
 
         SourceInitialized += OnSourceInitialized;
         Loaded += SettingsWindow_Loaded;
+        Closing += (_, _) =>
+        {
+            if (_sliderDebounceTimer.IsEnabled)
+            {
+                _sliderDebounceTimer.Stop();
+                SaveAllSettings();
+            }
+        };
         Closed += (_, _) =>
         {
             _sliderDebounceTimer.Stop();
             ThemeService.Instance.ThemeChanged -= _themeChangedHandler;
             _loc.LanguageChanged -= _languageChangedHandler;
             HistoryService.Instance.HistoryChanged -= _historyChangedHandler;
+            _settings.SettingsChanged -= _settingsChangedHandler;
         };
 
         ThemeService.Instance.ThemeChanged += _themeChangedHandler;
         _loc.LanguageChanged += _languageChangedHandler;
         HistoryService.Instance.HistoryChanged += _historyChangedHandler;
+        _settings.SettingsChanged += _settingsChangedHandler;
 
         // Hydrate localization & values upfront so offscreen/first-frame renders look crisp immediately
         ApplyLocalization();
@@ -572,58 +598,70 @@ public partial class SettingsWindow : Window
         var chosenTheme = (AppThemeMode)Math.Max(0, CmbTheme.SelectedIndex);
         string hexColor = $"#{(byte)Math.Round(SliderColorR.Value):X2}{(byte)Math.Round(SliderColorG.Value):X2}{(byte)Math.Round(SliderColorB.Value):X2}";
 
-        _settings.UpdateSettings(s =>
+        _isSaving = true;
+        try
         {
-            s.IsMonitoringEnabled = ToggleMonitoring.IsOn;
-            s.LaunchOnStartup = ToggleStartup.IsOn;
-            s.EnableRecallHotkey = ToggleRecallHotkey.IsOn;
-            s.Language = chosenLang;
+            _settings.UpdateSettings(s =>
+            {
+                s.IsMonitoringEnabled = ToggleMonitoring.IsOn;
+                s.LaunchOnStartup = ToggleStartup.IsOn;
+                s.EnableRecallHotkey = ToggleRecallHotkey.IsOn;
+                s.Language = chosenLang;
 
-            s.Theme = chosenTheme;
-            s.UseSystemAccentColor = ToggleSystemAccent.IsOn;
-            s.AccentColor = hexColor;
-            s.Placement = (FlyoutPlacement)Math.Max(0, CmbPlacement.SelectedIndex);
-            s.OpacityPercent = Math.Round(SliderOpacity.Value);
-            s.DisplayDurationSeconds = Math.Round(SliderDuration.Value, 1);
-            s.HoverLeaveDurationSeconds = Math.Round(SliderHoverDuration.Value, 1);
-            s.SuppressInFullscreen = ToggleSuppressFullscreen.IsOn;
+                s.Theme = chosenTheme;
+                s.UseSystemAccentColor = ToggleSystemAccent.IsOn;
+                s.AccentColor = hexColor;
+                s.Placement = (FlyoutPlacement)Math.Max(0, CmbPlacement.SelectedIndex);
+                s.OpacityPercent = Math.Round(SliderOpacity.Value);
+                s.DisplayDurationSeconds = Math.Round(SliderDuration.Value, 1);
+                s.HoverLeaveDurationSeconds = Math.Round(SliderHoverDuration.Value, 1);
+                s.SuppressInFullscreen = ToggleSuppressFullscreen.IsOn;
 
-            s.ShowTaskbarWidget = ToggleShowWidget.IsOn;
-            s.WidgetPosition = (WidgetPositionMode)Math.Max(0, CmbWidgetPosition.SelectedIndex);
-            s.WidgetAutoAlign = ToggleWidgetAutoAlign.IsOn;
-            s.WidgetMonitor = (WidgetMonitorTarget)Math.Max(0, CmbWidgetMonitor.SelectedIndex);
-            s.WidgetTextColor = (WidgetTextColorMode)Math.Max(0, CmbWidgetTextColor.SelectedIndex);
-            s.WidgetOffsetX = Math.Round(SliderWidgetOffset.Value);
+                s.ShowTaskbarWidget = ToggleShowWidget.IsOn;
+                s.WidgetPosition = (WidgetPositionMode)Math.Max(0, CmbWidgetPosition.SelectedIndex);
+                s.WidgetAutoAlign = ToggleWidgetAutoAlign.IsOn;
+                s.WidgetMonitor = (WidgetMonitorTarget)Math.Max(0, CmbWidgetMonitor.SelectedIndex);
+                s.WidgetTextColor = (WidgetTextColorMode)Math.Max(0, CmbWidgetTextColor.SelectedIndex);
+                s.WidgetOffsetX = Math.Round(SliderWidgetOffset.Value);
 
-            s.DetectHexColor = ToggleDetectHex.IsOn;
-            s.DetectUrl = ToggleDetectUrl.IsOn;
-            s.DetectFileDrop = ToggleDetectFileDrop.IsOn;
-            s.DetectImage = ToggleDetectImage.IsOn;
-            s.DetectJson = ToggleDetectJson.IsOn;
-            s.DetectEmail = ToggleDetectEmail.IsOn;
-            s.DetectTimestamp = ToggleDetectTimestamp.IsOn;
-            s.DetectIsoDateTime = ToggleDetectIsoDate.IsOn;
-            s.DetectBase64 = ToggleDetectBase64.IsOn;
-            s.DetectTable = ToggleDetectTable.IsOn;
-            s.DetectCode = ToggleDetectCode.IsOn;
-            s.DetectPlainText = ToggleDetectPlainText.IsOn;
-            s.EnableCleanUrl = ToggleCleanUrl.IsOn;
-            s.EnableCaseConverter = ToggleCaseConverter.IsOn;
-            s.EnableJwtDetector = ToggleJwt.IsOn;
+                s.DetectHexColor = ToggleDetectHex.IsOn;
+                s.DetectUrl = ToggleDetectUrl.IsOn;
+                s.DetectFileDrop = ToggleDetectFileDrop.IsOn;
+                s.DetectImage = ToggleDetectImage.IsOn;
+                s.DetectJson = ToggleDetectJson.IsOn;
+                s.DetectEmail = ToggleDetectEmail.IsOn;
+                s.DetectTimestamp = ToggleDetectTimestamp.IsOn;
+                s.DetectIsoDateTime = ToggleDetectIsoDate.IsOn;
+                s.DetectBase64 = ToggleDetectBase64.IsOn;
+                s.DetectTable = ToggleDetectTable.IsOn;
+                s.DetectCode = ToggleDetectCode.IsOn;
+                s.DetectPlainText = ToggleDetectPlainText.IsOn;
+                s.EnableCleanUrl = ToggleCleanUrl.IsOn;
+                s.EnableCaseConverter = ToggleCaseConverter.IsOn;
+                s.EnableJwtDetector = ToggleJwt.IsOn;
 
-            s.IgnorePasswordManagers = ToggleIgnorePasswordManagers.IsOn;
-            s.PersistHistory = TogglePersistHistory.IsOn;
-            s.AutomaticallyInstallUpdates = ToggleAutoUpdate.IsOn;
-        });
+                s.IgnorePasswordManagers = ToggleIgnorePasswordManagers.IsOn;
+                s.PersistHistory = TogglePersistHistory.IsOn;
+                s.AutomaticallyInstallUpdates = ToggleAutoUpdate.IsOn;
+            });
 
-        if (!TogglePersistHistory.IsOn)
-        {
-            HistoryService.Instance.DeletePersistedFile();
+            if (!TogglePersistHistory.IsOn)
+            {
+                HistoryService.Instance.DeletePersistedFile();
+            }
+            else
+            {
+                HistoryService.Instance.FlushPersistence();
+            }
+
+            if (_loc.CurrentLanguage != chosenLang)
+            {
+                _loc.CurrentLanguage = chosenLang;
+            }
         }
-
-        if (_loc.CurrentLanguage != chosenLang)
+        finally
         {
-            _loc.CurrentLanguage = chosenLang;
+            _isSaving = false;
         }
     }
 
@@ -731,10 +769,20 @@ public partial class SettingsWindow : Window
         if (confirmed)
         {
             var defaults = new AppSettings { IsFirstRun = false };
-            _settings.SaveSettings(defaults);
+            _isSaving = true;
+            try
+            {
+                _settings.SaveSettings(defaults);
+            }
+            finally
+            {
+                _isSaving = false;
+            }
+            HistoryService.Instance.DeletePersistedFile();
             _loc.CurrentLanguage = defaults.Language;
             LoadValuesFromSettings();
             ApplyLocalization();
+            UpdateHotkeyConflictBanner();
         }
     }
 }

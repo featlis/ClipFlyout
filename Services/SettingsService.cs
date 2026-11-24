@@ -188,15 +188,17 @@ public class SettingsService
                 {
                     key.DeleteValue("ClipFlyout", false);
                 }
+            }
 
-                string startupDir = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
-                if (!string.IsNullOrEmpty(startupDir))
-                {
-                    string linkPath1 = Path.Combine(startupDir, "ClipFlyout.lnk");
-                    if (File.Exists(linkPath1)) { try { File.Delete(linkPath1); } catch { } }
-                    string linkPath2 = Path.Combine(startupDir, "ClipFlyout.exe.lnk");
-                    if (File.Exists(linkPath2)) { try { File.Delete(linkPath2); } catch { } }
-                }
+            // Always remove legacy Inno Setup Startup folder .lnk so Windows never launches
+            // ClipFlyout twice alongside HKCU\...\Run\ClipFlyout.
+            string startupDir = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+            if (!string.IsNullOrEmpty(startupDir))
+            {
+                string linkPath1 = Path.Combine(startupDir, "ClipFlyout.lnk");
+                if (File.Exists(linkPath1)) { try { File.Delete(linkPath1); } catch { } }
+                string linkPath2 = Path.Combine(startupDir, "ClipFlyout.exe.lnk");
+                if (File.Exists(linkPath2)) { try { File.Delete(linkPath2); } catch { } }
             }
         }
         catch (Exception ex)

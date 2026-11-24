@@ -336,10 +336,20 @@ public class ClipboardMonitor : IClipboardMonitor
             var app = WpfApplication.Current;
             if (app == null || app.Dispatcher.HasShutdownStarted) return null;
 
+            bool ignorePm = SettingsService.Instance.Current.IgnorePasswordManagers;
+            if (ignorePm)
+            {
+                IntPtr owner = Win32.GetClipboardOwner();
+                if (owner != IntPtr.Zero && IsSensitiveApp(owner))
+                {
+                    return null;
+                }
+            }
+
             object? result = null;
             if (app.Dispatcher.CheckAccess())
             {
-                if (!SettingsService.Instance.Current.IgnorePasswordManagers || !IsExcludedByClipboardFormats())
+                if (!ignorePm || !IsExcludedByClipboardFormats())
                 {
                     result = ExtractClipboardPayloadOnUiThread();
                 }
@@ -348,7 +358,7 @@ public class ClipboardMonitor : IClipboardMonitor
             {
                 app.Dispatcher.Invoke(() =>
                 {
-                    if (!SettingsService.Instance.Current.IgnorePasswordManagers || !IsExcludedByClipboardFormats())
+                    if (!ignorePm || !IsExcludedByClipboardFormats())
                     {
                         result = ExtractClipboardPayloadOnUiThread();
                     }
@@ -364,7 +374,18 @@ public class ClipboardMonitor : IClipboardMonitor
 
     private static object? ExtractClipboardPayloadOnUiThread()
     {
-        // 1. Explorer FileDropList (files/folders copied in File Explorer)
+        // 1. Text payload FIRST (rich editors/browsers sometimes attach both text and virtual FileDrop;
+        //    Windows Explorer file copies never set CF_UNICODETEXT, so Explorer FileDropList still triggers cleanly below)
+        if (WpfClipboard.ContainsText())
+        {
+            string text = WpfClipboard.GetText();
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                return text;
+            }
+        }
+
+        // 2. Explorer FileDropList (files/folders copied in File Explorer)
         if (WpfClipboard.ContainsFileDropList())
         {
             var files = WpfClipboard.GetFileDropList();
@@ -377,16 +398,6 @@ public class ClipboardMonitor : IClipboardMonitor
                 {
                     return valid;
                 }
-            }
-        }
-
-        // 2. Text payload
-        if (WpfClipboard.ContainsText())
-        {
-            string text = WpfClipboard.GetText();
-            if (!string.IsNullOrWhiteSpace(text))
-            {
-                return text;
             }
         }
 

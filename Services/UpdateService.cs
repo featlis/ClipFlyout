@@ -44,7 +44,8 @@ public sealed class UpdateService
             return null;
         }
 
-        string? installerUrl = null;
+        string? setupUrl = null;
+        string? fallbackExeUrl = null;
         string? checksumsUrl = null;
         string? releaseNotesUrl = root.TryGetProperty("html_url", out var htmlUrlElem) && htmlUrlElem.ValueKind == JsonValueKind.String
             ? htmlUrlElem.GetString()
@@ -65,15 +66,21 @@ public sealed class UpdateService
                 {
                     checksumsUrl = url;
                 }
-                else if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
-                    (name.StartsWith("ClipFlyout-Setup", StringComparison.OrdinalIgnoreCase) ||
-                     name.StartsWith("ClipFlyout", StringComparison.OrdinalIgnoreCase)))
+                else if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                 {
-                    installerUrl = url;
+                    if (name.StartsWith("ClipFlyout-Setup", StringComparison.OrdinalIgnoreCase))
+                    {
+                        setupUrl = url;
+                    }
+                    else if (name.StartsWith("ClipFlyout", StringComparison.OrdinalIgnoreCase))
+                    {
+                        fallbackExeUrl ??= url;
+                    }
                 }
             }
         }
 
+        string? installerUrl = setupUrl ?? fallbackExeUrl;
         return installerUrl is null ? null : new UpdateRelease(latestVersion, installerUrl, checksumsUrl, releaseNotesUrl);
     }
 

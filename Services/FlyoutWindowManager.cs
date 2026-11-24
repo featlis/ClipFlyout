@@ -21,7 +21,10 @@ public class FlyoutWindowManager : IDisposable
     private bool _isButtonHovered;
     private bool _keyboardActiveMode;
     private DetectionResult? _lastResult;
+    private IntPtr _lastExternalForegroundHwnd;
     private (double Left, double Top, double Right, double Bottom) _currentWorkArea;
+    private (int Left, int Top, int Right, int Bottom) _currentPhysWorkArea;
+    private double _currentTargetDpi = 1.0;
 
     // Lightweight hooks active ONLY while flyout is visible (0 overhead when hidden)
     private IntPtr _mouseHook = IntPtr.Zero;
@@ -52,10 +55,16 @@ public class FlyoutWindowManager : IDisposable
             SettingsRequested?.Invoke();
         };
         _window.HistoryItemSelected += result => ShowFlyout(result, recordHistory: false, interactive: true);
+        _window.InteractiveInputModeChanged += active =>
+        {
+            if (active) _autoHideTimer?.Stop();
+            else if (_isShowing) StartHoverLeaveTimer();
+        };
         _window.SizeChanged += OnWindowSizeChanged;
 
         executor.ActionExecuted += OnActionExecuted;
         executor.TransformedActionExecuted += OnTransformedActionExecuted;
+        executor.BeforeModalDialog += HideFlyout;
 
         _autoHideTimer = new DispatcherTimer
         {
@@ -67,9 +76,60 @@ public class FlyoutWindowManager : IDisposable
     public void SetTaskbarWidgetHwndProvider(Func<IntPtr> provider) => _taskbarWidgetHwndProvider = provider;
     public void SetCurrentClipboardFallbackProvider(Func<DetectionResult?> provider) => _currentClipboardFallbackProvider = provider;
 
+    public void CaptureExternalForegroundWindow()
+    {
+        IntPtr fg = Win32.GetForegroundWindow();
+        if (Win32.IsValidExternalTargetWindow(fg))
+        {
+            _lastExternalForegroundHwnd = fg;
+        }
+    }
+
+    public void ClearLastResultIfUnpinned()
+    {
+        if (_lastResult != null && !HistoryService.Instance.IsPinned(_lastResult))
+        {
+            _lastResult = null;
+        }
+    }
+
     private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (!_isShowing) return;
+
+        if (_currentPhysWorkArea.Right > _currentPhysWorkArea.Left && e.NewSize.Height > 0)
+        {
+            IntPtr hwnd = new WindowInteropHelper(_window).Handle;
+            if (hwnd != IntPtr.Zero && Win32.GetWindowRect(hwnd, out var curRect))
+            {
+                var placement = _settings.Current.Placement;
+                int physW = Math.Max(1, curRect.Right - curRect.Left);
+                int physH = (int)Math.Round(e.NewSize.Height * _currentTargetDpi);
+                int newPhysTop = curRect.Top;
+
+                if (placement == FlyoutPlacement.BottomRight || placement == FlyoutPlacement.BottomLeft)
+                {
+                    if (e.PreviousSize.Height > 0)
+                    {
+                        int deltaPhysH = (int)Math.Round((e.NewSize.Height - e.PreviousSize.Height) * _currentTargetDpi);
+                        newPhysTop = curRect.Top - deltaPhysH;
+                    }
+                    else
+                    {
+                        newPhysTop = _currentPhysWorkArea.Bottom - physH - (int)Math.Round(16 * _currentTargetDpi);
+                    }
+                }
+
+                int margin = (int)Math.Round(12 * _currentTargetDpi);
+                int minTop = _currentPhysWorkArea.Top + margin;
+                int maxTop = Math.Max(minTop, _currentPhysWorkArea.Bottom - physH - margin);
+                newPhysTop = Math.Clamp(newPhysTop, minTop, maxTop);
+
+                Win32.SetWindowPos(hwnd, IntPtr.Zero, curRect.Left, newPhysTop, 0, 0,
+                    Win32.SWP_NOSIZE | Win32.SWP_NOZORDER | Win32.SWP_NOACTIVATE);
+                return;
+            }
+        }
 
         if (_currentWorkArea.Bottom > _currentWorkArea.Top && e.NewSize.Height > 0)
         {
@@ -102,6 +162,8 @@ public class FlyoutWindowManager : IDisposable
             return;
         }
 
+        CaptureExternalForegroundWindow();
+
         // Suppress automatic flyouts during fullscreen games, videos, or presentations
         if (!interactive && _settings.Current.SuppressInFullscreen)
         {
@@ -125,15 +187,17 @@ public class FlyoutWindowManager : IDisposable
         _keyboardActiveMode = interactive;
 
         // 1. Populate content and measure full desired size
-        _window.Present(result);
+        _window.Present(result, canPin: recordHistory || HistoryService.Instance.GetTimestamp(result).HasValue);
         double measuredHeight = _window.MeasureContentHeight();
 
-        // 2. Position window based on target monitor DPI & measured size
+        // 2. Position window based on target monitor physical pixels & measured size
         UpdateWindowPosition(measuredHeight);
 
         // 3. Mark showing BEFORE ShowFlyout so SizeChanged stays consistent
         _isShowing = true;
         _window.ShowFlyout();
+        // Re-apply physical position right after Show() to guarantee cross-DPI placement
+        UpdateWindowPosition(measuredHeight);
         InstallDismissHooks();
 
         // 4. Start auto-hide countdown (longer grace period if opened interactively)
@@ -249,16 +313,19 @@ public class FlyoutWindowManager : IDisposable
                 var info = Marshal.PtrToStructure<Win32.KBDLLHOOKSTRUCT>(lParam);
                 uint vk = info.vkCode;
 
-                // Escape ALWAYS dismisses an open flyout
+                // Escape dismisses open flyout, but only eats keystroke when user interacted with flyout
+                // so passive auto-flyouts never swallow Esc in Vim/VSCode/Excel.
                 if (vk == Win32.VK_ESCAPE)
                 {
+                    bool eat = _keyboardActiveMode || IsCursorOverFlyout() || _window.IsTextInputActive;
                     _window.Dispatcher.BeginInvoke(HideFlyout);
-                    return (IntPtr)1;
+                    if (eat) return (IntPtr)1;
+                    return Win32.CallNextHookEx(_keyboardHook, nCode, wParam, lParam);
                 }
 
                 // Navigation & quick-fire keys apply ONLY when hovering flyout or opened interactively
-                // (never hijack typing inside VS Code / browser right after Ctrl+C!)
-                bool canCaptureNav = (_keyboardActiveMode || IsCursorOverFlyout()) && !_window.HistorySearchBox.IsKeyboardFocused;
+                // and NEVER while typing inside search/edit boxes!
+                bool canCaptureNav = (_keyboardActiveMode || IsCursorOverFlyout()) && !_window.IsTextInputActive;
                 if (canCaptureNav)
                 {
                     if (vk == Win32.VK_DOWN)
@@ -276,10 +343,13 @@ public class FlyoutWindowManager : IDisposable
                         _window.Dispatcher.BeginInvoke(() => _window.ExecuteSelectedAction());
                         return (IntPtr)1;
                     }
-                    // Number keys '1'..'9' (0x31..0x39) without Ctrl/Alt modifiers
-                    bool ctrlOrAlt = (Win32.GetAsyncKeyState(Win32.VK_CONTROL) & 0x8000) != 0 ||
-                                     (Win32.GetAsyncKeyState(Win32.VK_MENU) & 0x8000) != 0;
-                    if (!ctrlOrAlt && vk >= 0x31 && vk <= 0x39)
+                    // Number keys '1'..'9' (0x31..0x39) without Ctrl/Alt/Shift/Win modifiers
+                    bool anyModifierHeld = (Win32.GetAsyncKeyState(Win32.VK_CONTROL) & 0x8000) != 0 ||
+                                           (Win32.GetAsyncKeyState(Win32.VK_MENU) & 0x8000) != 0 ||
+                                           (Win32.GetAsyncKeyState(Win32.VK_SHIFT) & 0x8000) != 0 ||
+                                           (Win32.GetAsyncKeyState(Win32.VK_LWIN) & 0x8000) != 0 ||
+                                           (Win32.GetAsyncKeyState(Win32.VK_RWIN) & 0x8000) != 0;
+                    if (!anyModifierHeld && vk >= 0x31 && vk <= 0x39)
                     {
                         int idx = (int)(vk - 0x31);
                         _window.Dispatcher.BeginInvoke(() => _window.ExecuteActionByIndex(idx));
@@ -317,14 +387,19 @@ public class FlyoutWindowManager : IDisposable
         if (Win32.GetMonitorInfo(hMonitor, ref monitorInfo))
         {
             IntPtr hwnd = new WindowInteropHelper(_window).Handle;
-            // Pass resolved hMonitor so mixed-DPI multi-monitor setups use the TARGET monitor's DPI!
             double dpiScale = Win32.GetMonitorDpiScale(hMonitor, hwnd);
+            _currentTargetDpi = dpiScale;
 
-            double workLeft = monitorInfo.rcWork.Left / dpiScale;
-            double workTop = monitorInfo.rcWork.Top / dpiScale;
-            double workRight = monitorInfo.rcWork.Right / dpiScale;
-            double workBottom = monitorInfo.rcWork.Bottom / dpiScale;
+            int physWorkLeft = monitorInfo.rcWork.Left;
+            int physWorkTop = monitorInfo.rcWork.Top;
+            int physWorkRight = monitorInfo.rcWork.Right;
+            int physWorkBottom = monitorInfo.rcWork.Bottom;
+            _currentPhysWorkArea = (physWorkLeft, physWorkTop, physWorkRight, physWorkBottom);
 
+            double workLeft = physWorkLeft / dpiScale;
+            double workTop = physWorkTop / dpiScale;
+            double workRight = physWorkRight / dpiScale;
+            double workBottom = physWorkBottom / dpiScale;
             _currentWorkArea = (workLeft, workTop, workRight, workBottom);
 
             double maxAllowedHeight = Math.Max(180, workBottom - workTop - 24);
@@ -334,50 +409,64 @@ public class FlyoutWindowManager : IDisposable
             }
             targetHeight = Math.Min(targetHeight, maxAllowedHeight);
 
-            double cursorX = cursorPos.X / dpiScale;
-            double cursorY = cursorPos.Y / dpiScale;
+            int physW = (int)Math.Round(targetWidth * dpiScale);
+            int physH = (int)Math.Round(targetHeight * dpiScale);
+            int pad16 = (int)Math.Round(16 * dpiScale);
+            int pad12 = (int)Math.Round(12 * dpiScale);
 
-            double targetLeft;
-            double targetTop;
+            int targetPhysX;
+            int targetPhysY;
 
             switch (_settings.Current.Placement)
             {
                 case FlyoutPlacement.TopRight:
-                    targetLeft = workRight - targetWidth - 16;
-                    targetTop = workTop + 16;
+                    targetPhysX = physWorkRight - physW - pad16;
+                    targetPhysY = physWorkTop + pad16;
                     break;
 
                 case FlyoutPlacement.TopLeft:
-                    targetLeft = workLeft + 16;
-                    targetTop = workTop + 16;
+                    targetPhysX = physWorkLeft + pad16;
+                    targetPhysY = physWorkTop + pad16;
                     break;
 
                 case FlyoutPlacement.BottomLeft:
-                    targetLeft = workLeft + 16;
-                    targetTop = workBottom - targetHeight - 16;
+                    targetPhysX = physWorkLeft + pad16;
+                    targetPhysY = physWorkBottom - physH - pad16;
                     break;
 
                 case FlyoutPlacement.NearCursor:
-                    targetLeft = cursorX + 16;
-                    targetTop = cursorY + 16;
-                    if (targetLeft + targetWidth > workRight - 12) targetLeft = cursorX - targetWidth - 16;
-                    if (targetTop + targetHeight > workBottom - 12) targetTop = cursorY - targetHeight - 16;
+                    targetPhysX = cursorPos.X + pad16;
+                    targetPhysY = cursorPos.Y + pad16;
+                    if (targetPhysX + physW > physWorkRight - pad12) targetPhysX = cursorPos.X - physW - pad16;
+                    if (targetPhysY + physH > physWorkBottom - pad12) targetPhysY = cursorPos.Y - physH - pad16;
                     break;
 
                 case FlyoutPlacement.BottomRight:
                 default:
-                    targetLeft = workRight - targetWidth - 16;
-                    targetTop = workBottom - targetHeight - 16;
+                    targetPhysX = physWorkRight - physW - pad16;
+                    targetPhysY = physWorkBottom - physH - pad16;
                     break;
             }
 
-            double minLeft = workLeft + 12;
-            double maxLeft = Math.Max(minLeft, workRight - targetWidth - 12);
-            double minTop = workTop + 12;
-            double maxTop = Math.Max(minTop, workBottom - targetHeight - 12);
+            int minPhysX = physWorkLeft + pad12;
+            int maxPhysX = Math.Max(minPhysX, physWorkRight - physW - pad12);
+            int minPhysY = physWorkTop + pad12;
+            int maxPhysY = Math.Max(minPhysY, physWorkBottom - physH - pad12);
 
-            _window.Left = Math.Clamp(targetLeft, minLeft, maxLeft);
-            _window.Top = Math.Clamp(targetTop, minTop, maxTop);
+            targetPhysX = Math.Clamp(targetPhysX, minPhysX, maxPhysX);
+            targetPhysY = Math.Clamp(targetPhysY, minPhysY, maxPhysY);
+
+            if (hwnd != IntPtr.Zero)
+            {
+                // Position using exact physical virtual-desktop pixels so mixed-DPI monitors never overshoot
+                Win32.SetWindowPos(hwnd, IntPtr.Zero, targetPhysX, targetPhysY, 0, 0,
+                    Win32.SWP_NOSIZE | Win32.SWP_NOZORDER | Win32.SWP_NOACTIVATE);
+            }
+            else
+            {
+                _window.Left = targetPhysX / dpiScale;
+                _window.Top = targetPhysY / dpiScale;
+            }
         }
         else
         {
@@ -459,8 +548,9 @@ public class FlyoutWindowManager : IDisposable
                 () =>
                 {
                     HideFlyout();
-                    // Wait briefly so flyout dismissal finishes before sending Ctrl+V
-                    _ = Task.Delay(140).ContinueWith(_ => _executor.PasteToActiveWindow(notifyToast: false));
+                    IntPtr targetHwnd = _lastExternalForegroundHwnd;
+                    // Wait briefly so flyout dismissal finishes before restoring focus & sending Ctrl+V
+                    _ = Task.Delay(140).ContinueWith(_ => _executor.PasteToActiveWindow(notifyToast: false, targetHwnd));
                 },
                 IsPrimary: true,
                 Subtitle: "Ctrl+V"
@@ -492,7 +582,7 @@ public class FlyoutWindowManager : IDisposable
 
     private void AutoHideTimer_Tick(object? sender, EventArgs e)
     {
-        if (_isButtonHovered || _window.IsMouseOver || IsCursorOverFlyout() || _window.HistorySearchBox.IsKeyboardFocused)
+        if (_isButtonHovered || _window.IsMouseOver || IsCursorOverFlyout() || _window.IsTextInputActive)
         {
             // Keep checking periodically instead of stopping forever (prevents stuck-open flyout)
             _autoHideTimer.Interval = TimeSpan.FromMilliseconds(800);

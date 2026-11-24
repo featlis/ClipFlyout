@@ -27,6 +27,7 @@ public class TrayIconService : IDisposable
     private readonly Func<bool>? _hotkeyFailedProvider;
     private SettingsWindow? _settingsWindow;
     private bool _isCheckingUpdates;
+    private readonly System.Windows.Threading.DispatcherTimer _leftClickTimer;
 
     private readonly Action<AppSettings> _settingsChangedHandler;
     private readonly Action _languageChangedHandler;
@@ -35,6 +36,7 @@ public class TrayIconService : IDisposable
 
     public event Action<DetectionResult>? HistoryItemSelected;
     public event Action? RecallRequested;
+    public event Action? BeforeMenuOpen;
 
     public TrayIconService(IClipboardMonitor clipboardMonitor, Func<bool>? hotkeyFailedProvider = null)
     {
@@ -57,11 +59,30 @@ public class TrayIconService : IDisposable
             ToolTipText = "ClipFlyout"
         };
 
+        _leftClickTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(220)
+        };
+        _leftClickTimer.Tick += (_, _) =>
+        {
+            _leftClickTimer.Stop();
+            RecallRequested?.Invoke();
+        };
+
         // Clean Windows 11 tray UX:
-        // Left-click -> toggle/recall flyout; Right-click -> Fluent menu; Double-click -> Settings
-        _taskbarIcon.TrayLeftMouseUp += (_, _) => RecallRequested?.Invoke();
+        // Left-click -> toggle/recall flyout (delayed slightly to avoid flashing on double-click);
+        // Right-click -> Fluent menu; Double-click -> Settings
+        _taskbarIcon.TrayLeftMouseUp += (_, _) =>
+        {
+            _leftClickTimer.Stop();
+            _leftClickTimer.Start();
+        };
         _taskbarIcon.TrayRightMouseUp += (_, _) => ToggleContextMenu();
-        _taskbarIcon.TrayMouseDoubleClick += (_, _) => OpenSettings();
+        _taskbarIcon.TrayMouseDoubleClick += (_, _) =>
+        {
+            _leftClickTimer.Stop();
+            OpenSettings();
+        };
         _taskbarIcon.ForceCreate();
 
         _settingsChangedHandler = _ => UpdateToolTip();
@@ -125,6 +146,8 @@ public class TrayIconService : IDisposable
         // Lazy build right before display (zero overhead on clipboard copies!)
         PopulateMenuItems();
 
+        // Capture external foreground window BEFORE stealing focus to tray anchor HWND
+        BeforeMenuOpen?.Invoke();
         IsContextMenuActive = true;
         if (_anchorSource.Handle != IntPtr.Zero)
         {
@@ -218,6 +241,7 @@ public class TrayIconService : IDisposable
                 string prefix = h.IsPinned ? "★ " : string.Empty;
                 string label = $"{prefix}{h.DisplaySnippet}";
                 if (label.Length > 42) label = label[..42] + "…";
+                label = label.Replace("_", "__");
                 var captured = h.Result;
                 historyMenu.Items.Add(MakeItem(label, () => HistoryItemSelected?.Invoke(captured)));
                 shown++;
@@ -321,6 +345,7 @@ public class TrayIconService : IDisposable
 
     public void Dispose()
     {
+        _leftClickTimer.Stop();
         _settings.SettingsChanged -= _settingsChangedHandler;
         _loc.LanguageChanged -= _languageChangedHandler;
         _settingsWindow?.Close();

@@ -106,14 +106,76 @@ public partial class App : WpfApplication
             }
 
             _trayIconService = new TrayIconService(_clipboardMonitor, () => _hotkeyService?.RegistrationFailed == true);
+            _trayIconService.BeforeMenuOpen += () => _windowManager?.CaptureExternalForegroundWindow();
             _trayIconService.HistoryItemSelected += result => _windowManager?.ShowFlyout(result, recordHistory: false, interactive: true);
             _trayIconService.RecallRequested += () => _windowManager?.ToggleOrRecallFlyout();
 
             _taskbarWidget = new TaskbarWidgetWindow();
-            _taskbarWidget.FlyoutRequested += result => _windowManager?.ShowFlyout(result, recordHistory: false, interactive: true);
+            _taskbarWidget.FlyoutRequested += result =>
+            {
+                if (_windowManager == null) return;
+                if (_windowManager.IsShowing &&
+                    (ReferenceEquals(_windowManager.LastResult, result) ||
+                     (_windowManager.LastResult?.Type == result.Type && Equals(_windowManager.LastResult?.RawData, result.RawData))))
+                {
+                    _windowManager.HideFlyout();
+                }
+                else
+                {
+                    _windowManager.ShowFlyout(result, recordHistory: false, interactive: true);
+                }
+            };
             _taskbarWidget.RecallRequested += () => _windowManager?.ToggleOrRecallFlyout();
             _taskbarWidget.SettingsRequested += () => _trayIconService?.OpenSettings();
             _windowManager.SetTaskbarWidgetHwndProvider(() => _taskbarWidget?.Handle ?? IntPtr.Zero);
+
+            _actionExecutor.ClipboardUpdatedInternally += payload =>
+            {
+                if (_detector == null || Dispatcher.HasShutdownStarted) return;
+                var detector = _detector;
+                if (payload is string)
+                {
+                    _ = Task.Run(() =>
+                    {
+                        try { return detector.Detect(payload); }
+                        catch { return null; }
+                    }).ContinueWith(t =>
+                    {
+                        if (t.Status == TaskStatus.RanToCompletion && t.Result != null)
+                        {
+                            _taskbarWidget?.UpdateClipContent(t.Result);
+                        }
+                    }, TaskScheduler.FromCurrentSynchronizationContext());
+                }
+                else
+                {
+                    Dispatcher.BeginInvoke(() =>
+                    {
+                        var detected = detector.Detect(payload);
+                        if (detected != null) _taskbarWidget?.UpdateClipContent(detected);
+                    });
+                }
+            };
+
+            HistoryService.Instance.HistoryChanged += () =>
+            {
+                if (Dispatcher.HasShutdownStarted) return;
+                Dispatcher.BeginInvoke(() =>
+                {
+                    if (HistoryService.Instance.Count == 0)
+                    {
+                        _taskbarWidget?.ClearClipContent();
+                        _windowManager?.ClearLastResultIfUnpinned();
+                    }
+                });
+            };
+
+            LocalizationService.Instance.LanguageChanged += () =>
+            {
+                if (_detector == null || Dispatcher.HasShutdownStarted) return;
+                HistoryService.Instance.RefreshLocalization(_detector);
+                Dispatcher.BeginInvoke(HydrateInitialWidgetContent);
+            };
 
             if (_settingsService.Current.ShowTaskbarWidget)
             {
@@ -215,6 +277,10 @@ public partial class App : WpfApplication
             if (latestHistory.Count > 0)
             {
                 _taskbarWidget?.UpdateClipContent(latestHistory[0].Result);
+            }
+            else
+            {
+                _taskbarWidget?.ClearClipContent();
             }
         }
         catch

@@ -94,6 +94,9 @@ public partial class TaskbarWidgetWindow : Window
 
         SourceInitialized += OnSourceInitialized;
         Loaded += OnLoaded;
+        RootPill.ContextMenuOpening += OnWidgetContextMenuOpening;
+        WidgetContextMenu.Opened += OnWidgetContextMenuOpened;
+        WidgetContextMenu.Closed += OnWidgetContextMenuClosed;
         SizeChanged += (_, _) =>
         {
             if (IsLoaded && IsVisible) UpdatePosition(force: true);
@@ -122,6 +125,32 @@ public partial class TaskbarWidgetWindow : Window
         source?.AddHook(WndProc);
     }
 
+    private void OnWidgetContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        ActivateForContextMenu();
+    }
+
+    private void OnWidgetContextMenuOpened(object sender, RoutedEventArgs e)
+    {
+        ActivateForContextMenu();
+    }
+
+    private void ActivateForContextMenu()
+    {
+        if (_hwnd == IntPtr.Zero) return;
+        var exStyle = (int)Win32.GetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE);
+        Win32.SetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE, (IntPtr)(exStyle & ~Win32.WS_EX_NOACTIVATE));
+        Win32.SetForegroundWindow(_hwnd);
+    }
+
+    private void OnWidgetContextMenuClosed(object sender, RoutedEventArgs e)
+    {
+        if (_hwnd == IntPtr.Zero) return;
+        var exStyle = (int)Win32.GetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE);
+        Win32.SetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE,
+            (IntPtr)(exStyle | Win32.WS_EX_NOACTIVATE | Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_TOPMOST));
+    }
+
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         if (msg == Win32.WM_SETTINGCHANGE)
@@ -145,6 +174,8 @@ public partial class TaskbarWidgetWindow : Window
     {
         RefreshTaskbarLuminanceCache();
         ApplyTheme();
+        _isHiddenByGuard = ShouldHideByGuard(_settings.Current);
+        if (_isHiddenByGuard && IsVisible) Hide();
         UpdatePosition(force: true);
         SyncTimerState();
     }
@@ -170,7 +201,15 @@ public partial class TaskbarWidgetWindow : Window
     {
         if (cfg.ShowTaskbarWidget)
         {
-            if (!_isHiddenByGuard && !IsVisible) Show();
+            _isHiddenByGuard = ShouldHideByGuard(cfg);
+            if (_isHiddenByGuard)
+            {
+                if (IsVisible) Hide();
+            }
+            else if (!IsVisible)
+            {
+                Show();
+            }
             RefreshTaskbarLuminanceCache();
             ApplyTheme();
             UpdatePosition(force: true);
@@ -196,6 +235,31 @@ public partial class TaskbarWidgetWindow : Window
         }
     }
 
+    private static bool IsTaskbarOffScreen(Win32.RECT tbRect, Win32.RECT monitorRect)
+    {
+        int visibleW = Math.Min(tbRect.Right, monitorRect.Right) - Math.Max(tbRect.Left, monitorRect.Left);
+        int visibleH = Math.Min(tbRect.Bottom, monitorRect.Bottom) - Math.Max(tbRect.Top, monitorRect.Top);
+        return visibleW <= 4 || visibleH <= 4;
+    }
+
+    private bool IsTaskbarAutoHidden(AppSettings cfg)
+    {
+        if (cfg.WidgetPosition == WidgetPositionMode.AboveTaskbar) return false;
+        IntPtr hMonitor = ResolveTargetMonitor(cfg.WidgetMonitor);
+        IntPtr taskbarHwnd = FindTaskbarForMonitor(hMonitor);
+        if (taskbarHwnd == IntPtr.Zero || !Win32.GetWindowRect(taskbarHwnd, out var tbRect)) return false;
+
+        var mi = new Win32.MONITORINFO { cbSize = Marshal.SizeOf<Win32.MONITORINFO>() };
+        if (!Win32.GetMonitorInfo(hMonitor, ref mi)) return false;
+
+        return IsTaskbarOffScreen(tbRect, mi.rcMonitor);
+    }
+
+    private bool ShouldHideByGuard(AppSettings cfg) =>
+        Win32.IsFullscreenAppActive(_hwnd) ||
+        (cfg.WidgetPosition != WidgetPositionMode.AboveTaskbar && Win32.IsShellOverlayActive()) ||
+        IsTaskbarAutoHidden(cfg);
+
     private void GuardTimer_Tick(object? sender, EventArgs e)
     {
         var cfg = _settings.Current;
@@ -206,10 +270,8 @@ public partial class TaskbarWidgetWindow : Window
             return;
         }
 
-        // Hide cleanly during fullscreen apps OR when Start Menu / Quick Settings / Shell Overflow is active
-        // so the widget never floats on top of Start Menu or games!
-        bool shouldHide = Win32.IsFullscreenAppActive(_hwnd) ||
-                          (cfg.WidgetPosition != WidgetPositionMode.AboveTaskbar && Win32.IsShellOverlayActive());
+        // Hide cleanly during fullscreen apps, shell overlays, or when docked taskbar auto-hides off-screen.
+        bool shouldHide = ShouldHideByGuard(cfg);
 
         if (shouldHide)
         {
@@ -267,7 +329,12 @@ public partial class TaskbarWidgetWindow : Window
             bool isDarkApp = ThemeService.Instance.IsDarkTheme;
             RootPill.Background = isDarkApp ? AboveDarkBg : AboveLightBg;
             RootPill.BorderBrush = isDarkApp ? AboveDarkBorder : AboveLightBorder;
-            var fg = isDarkApp ? LightTextBrush : DarkTextBrush;
+            var fg = cfg.WidgetTextColor switch
+            {
+                WidgetTextColorMode.Light => LightTextBrush,
+                WidgetTextColorMode.Dark => DarkTextBrush,
+                _ => isDarkApp ? LightTextBrush : DarkTextBrush
+            };
             ClipPreviewText.Foreground = fg;
             FluentTypeIcon.Foreground = fg;
         }
@@ -349,6 +416,25 @@ public partial class TaskbarWidgetWindow : Window
         MenuTextColorAuto.IsChecked = cfg.WidgetTextColor == WidgetTextColorMode.Auto;
         MenuTextColorLight.IsChecked = cfg.WidgetTextColor == WidgetTextColorMode.Light;
         MenuTextColorDark.IsChecked = cfg.WidgetTextColor == WidgetTextColorMode.Dark;
+    }
+
+    public void ClearClipContent()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(ClearClipContent);
+            return;
+        }
+
+        _currentResult = null;
+        ColorBox.Visibility = Visibility.Collapsed;
+        FluentTypeIcon.Visibility = Visibility.Visible;
+        FluentTypeIcon.Text = "\uE8C8";
+        ClipPreviewText.Text = _loc.Get("Widget_Empty");
+        RootPill.ToolTip = _loc.Get("Widget_ClickHint");
+
+        UpdateLayout();
+        UpdatePosition(force: true);
     }
 
     public void UpdateClipContent(DetectionResult result)
@@ -530,8 +616,19 @@ public partial class TaskbarWidgetWindow : Window
         }
 
         targetLeft += cfg.WidgetOffsetX;
-        Left = Math.Clamp(targetLeft, monLeft + 4, Math.Max(monLeft + 4, monRight - widgetWidth - 4));
-        Top = targetTop;
+        double finalLeft = Math.Clamp(targetLeft, monLeft + 4, Math.Max(monLeft + 4, monRight - widgetWidth - 4));
+        if (_hwnd != IntPtr.Zero)
+        {
+            int physX = (int)Math.Round(finalLeft * dpi);
+            int physY = (int)Math.Round(targetTop * dpi);
+            Win32.SetWindowPos(_hwnd, IntPtr.Zero, physX, physY, 0, 0,
+                Win32.SWP_NOSIZE | Win32.SWP_NOZORDER | Win32.SWP_NOACTIVATE);
+        }
+        else
+        {
+            Left = finalLeft;
+            Top = targetTop;
+        }
     }
 
     private void RootPill_MouseEnter(object sender, MouseEventArgs e)
@@ -555,6 +652,7 @@ public partial class TaskbarWidgetWindow : Window
 
     private void RootPill_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        if (!_isPressed) return;
         _isPressed = false;
         ApplyTheme();
 

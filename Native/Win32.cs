@@ -22,6 +22,7 @@ public static class Win32
 
     public const uint SWP_NOSIZE = 0x0001;
     public const uint SWP_NOMOVE = 0x0002;
+    public const uint SWP_NOZORDER = 0x0004;
     public const uint SWP_NOACTIVATE = 0x0010;
     public const uint SWP_NOREDRAW = 0x0008;
     public const uint SWP_SHOWWINDOW = 0x0040;
@@ -274,11 +275,46 @@ public static class Win32
     public static extern uint SendInput(uint nInputs, [In] INPUT[] pInputs, int cbSize);
 
     /// <summary>
-    /// Releases interfering held modifiers and sends a clean Ctrl+V chord with hardware scan codes.
-    /// Returns true if all input events were accepted by Windows.
+    /// Returns true if hwnd is a visible, non-shell external window belonging to another process.
     /// </summary>
-    public static bool PasteToActiveWindow()
+    public static bool IsValidExternalTargetWindow(IntPtr hwnd)
     {
+        if (hwnd == IntPtr.Zero || !IsWindowVisible(hwnd) || IsIconic(hwnd)) return false;
+        if (hwnd == GetDesktopWindow() || hwnd == GetShellWindow()) return false;
+
+        GetWindowThreadProcessId(hwnd, out uint pid);
+        if (pid == 0 || pid == (uint)Environment.ProcessId) return false;
+
+        var sb = new StringBuilder(128);
+        if (GetClassName(hwnd, sb, sb.Capacity) > 0)
+        {
+            string cls = sb.ToString();
+            if (cls.Equals("Shell_TrayWnd", StringComparison.OrdinalIgnoreCase) ||
+                cls.Equals("Shell_SecondaryTrayWnd", StringComparison.OrdinalIgnoreCase) ||
+                cls.Equals("Progman", StringComparison.OrdinalIgnoreCase) ||
+                cls.Equals("WorkerW", StringComparison.OrdinalIgnoreCase) ||
+                cls.Equals("NotifyIconOverflowWindow", StringComparison.OrdinalIgnoreCase) ||
+                cls.Equals("TopLevelWindowForOverflowXamlIsland", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Releases interfering held modifiers and sends a clean Ctrl+V chord with hardware scan codes.
+    /// If current foreground window is ClipFlyout/shell, restores targetHwnd first.
+    /// </summary>
+    public static bool PasteToActiveWindow(IntPtr targetHwnd = default)
+    {
+        IntPtr currentFg = GetForegroundWindow();
+        if (!IsValidExternalTargetWindow(currentFg) && targetHwnd != IntPtr.Zero && IsValidExternalTargetWindow(targetHwnd))
+        {
+            SetForegroundWindow(targetHwnd);
+            System.Threading.Thread.Sleep(40);
+        }
+
         var list = new List<INPUT>(8);
 
         // Release held Alt / Shift / Win if user just triggered via shortcut

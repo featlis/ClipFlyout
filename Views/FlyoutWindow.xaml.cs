@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -33,6 +34,8 @@ public partial class FlyoutWindow : Window
     private bool? _lastDwmTransparency;
 
     public static bool IsFlyoutOpen { get; private set; }
+    public bool IsTextInputActive => HistorySearchContainer.Visibility == Visibility.Visible && HistorySearchBox.IsKeyboardFocused;
+    public event Action<bool>? InteractiveInputModeChanged;
 
     public event Action? MouseEntered;
     public event Action? MouseLeft;
@@ -129,6 +132,31 @@ public partial class FlyoutWindow : Window
         Win32.EnableAcrylicBlur(_hwnd, isDark, opacity, isTransparency);
     }
 
+    /// <summary>
+    /// Temporarily clears or restores WS_EX_NOACTIVATE so TextBoxes inside the flyout
+    /// (such as inline history search or quick edit) can genuinely receive keyboard focus.
+    /// </summary>
+    public void SetInteractiveInputMode(bool enable)
+    {
+        if (_hwnd == IntPtr.Zero) return;
+
+        int exStyle = (int)Win32.GetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE);
+        if (enable)
+        {
+            exStyle &= ~Win32.WS_EX_NOACTIVATE;
+            Win32.SetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE, (IntPtr)exStyle);
+            Win32.SetForegroundWindow(_hwnd);
+            Activate();
+        }
+        else
+        {
+            exStyle |= Win32.WS_EX_NOACTIVATE;
+            Win32.SetWindowLongPtr(_hwnd, Win32.GWL_EXSTYLE, (IntPtr)exStyle);
+        }
+
+        InteractiveInputModeChanged?.Invoke(enable);
+    }
+
     public void ApplyTheme()
     {
         bool isDark = ThemeService.Instance.IsDarkTheme;
@@ -204,7 +232,7 @@ public partial class FlyoutWindow : Window
     private void ActionButton_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e) => ButtonMouseEntered?.Invoke();
     private void ActionButton_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e) => ButtonMouseLeft?.Invoke();
 
-    public void Present(DetectionResult result)
+    public void Present(DetectionResult result, bool canPin = true)
     {
         _presentationGeneration++;
         _currentResult = result;
@@ -212,6 +240,7 @@ public partial class FlyoutWindow : Window
         _isClosing = false;
         IsFlyoutOpen = true;
 
+        SetInteractiveInputMode(false);
         ApplyTheme();
 
         // Cancel any in-flight animations cleanly without snapping
@@ -228,8 +257,9 @@ public partial class FlyoutWindow : Window
 
         ActionsScrollViewer.Visibility = Visibility.Visible;
         InlineFeedbackBar.Visibility = Visibility.Collapsed;
-        HistorySearchBox.Visibility = Visibility.Collapsed;
+        HistorySearchContainer.Visibility = Visibility.Collapsed;
         HistorySearchBox.Text = string.Empty;
+        HistorySearchPlaceholder.Visibility = Visibility.Visible;
 
         var loc = LocalizationService.Instance;
         HeaderIconGlyph.Text = GetTypeGlyph(result.Type);
@@ -240,8 +270,10 @@ public partial class FlyoutWindow : Window
             ? loc.FormatRelativeTime(recordedAt.Value)
             : loc.Get("Flyout_Time_JustNow");
 
+        PinButton.Visibility = canPin ? Visibility.Visible : Visibility.Collapsed;
         PinButton.ToolTip = loc.Get("Flyout_Pin_Tooltip");
         SearchToggleButton.ToolTip = loc.Get("Flyout_Search_Tooltip");
+        HistorySearchPlaceholder.Text = loc.Get("Flyout_Search_Placeholder");
         SettingsButton.ToolTip = loc.Get("Flyout_Settings_Tooltip");
         CloseButton.ToolTip = loc.Get("Flyout_Close_Tooltip");
         RecentHeader.Text = loc.Get("Flyout_Recent_Header");
@@ -306,6 +338,13 @@ public partial class FlyoutWindow : Window
                     h.IsPinned
                 ))
                 .ToList();
+
+            bool hasUnpinned = entries.Any(e => !e.IsPinned);
+            var loc = LocalizationService.Instance;
+            RecentHeader.Text = (!hasUnpinned && entries.Count > 0)
+                ? loc.Get("Flyout_Pinned_Header")
+                : loc.Get("Flyout_Recent_Header");
+            ClearHistoryButton.Visibility = hasUnpinned ? Visibility.Visible : Visibility.Collapsed;
 
             if (entries.Count > 0 || !string.IsNullOrWhiteSpace(query))
             {
@@ -394,6 +433,7 @@ public partial class FlyoutWindow : Window
     {
         if (_isClosing) return;
         _isClosing = true;
+        SetInteractiveInputMode(false);
         long generation = _presentationGeneration;
 
         var dur = TimeSpan.FromMilliseconds(120);
@@ -452,6 +492,7 @@ public partial class FlyoutWindow : Window
     private void UpdateSelectedActionVisual()
     {
         var accentBrush = TryFindResource("FluentAccentBrush") as Brush ?? Brushes.DodgerBlue;
+        var onAccentBrush = TryFindResource("FluentTextOnAccentBrush") as Brush ?? Brushes.White;
         var defaultBorder = TryFindResource("ControlStrokeDefaultBrush") as Brush ?? Brushes.Transparent;
 
         for (int i = 0; i < ActionsItemsControl.Items.Count; i++)
@@ -461,25 +502,35 @@ public partial class FlyoutWindow : Window
                 VisualTreeHelper.GetChild(cp, 0) is Button btn)
             {
                 bool isSelected = i == _selectedActionIndex;
-                btn.BorderThickness = new Thickness(isSelected ? 1.5 : 1);
+                bool isPrimary = _currentActions[i].IsPrimary;
+                btn.BorderThickness = new Thickness(isSelected ? 2 : 1);
                 if (isSelected)
                 {
-                    btn.BorderBrush = accentBrush;
+                    // High-contrast selection ring on primary accent button
+                    btn.BorderBrush = isPrimary ? onAccentBrush : accentBrush;
                     btn.BringIntoView();
                 }
                 else
                 {
                     btn.ClearValue(BorderBrushProperty);
-                    if (_currentActions[i].IsPrimary) btn.BorderBrush = Brushes.Transparent;
-                    else btn.BorderBrush = defaultBorder;
+                    btn.BorderBrush = isPrimary ? Brushes.Transparent : defaultBorder;
                 }
             }
         }
     }
 
-    public void ShowToastFeedback(string message)
+    public void ShowToastFeedback(string message, bool isError = false)
     {
         long generation = _presentationGeneration;
+        bool err = isError ||
+                   message.StartsWith("Error:", StringComparison.OrdinalIgnoreCase) ||
+                   message.StartsWith("QR Error:", StringComparison.OrdinalIgnoreCase) ||
+                   message.StartsWith("Save Error:", StringComparison.OrdinalIgnoreCase) ||
+                   message.StartsWith("Image Decode Error:", StringComparison.OrdinalIgnoreCase);
+
+        InlineFeedbackIcon.Text = err ? "\uE7BA" : "\uE73E";
+        InlineFeedbackIcon.Foreground = TryFindResource(err ? "StatusErrorBrush" : "StatusSuccessBrush") as Brush
+            ?? (err ? Brushes.IndianRed : Brushes.MediumSeaGreen);
         InlineFeedbackText.Text = message;
 
         // Keep Visibility.Hidden (NOT Collapsed) so window height NEVER jumps!
@@ -493,7 +544,7 @@ public partial class FlyoutWindow : Window
         };
         InlineFeedbackBar.BeginAnimation(UIElement.OpacityProperty, anim);
 
-        _ = Task.Delay(900).ContinueWith(_ =>
+        _ = Task.Delay(err ? 1600 : 900).ContinueWith(_ =>
         {
             if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
             Dispatcher.BeginInvoke(() =>
@@ -524,20 +575,38 @@ public partial class FlyoutWindow : Window
 
     private void SearchToggleButton_Click(object sender, RoutedEventArgs e)
     {
-        if (HistorySearchBox.Visibility == Visibility.Visible)
+        if (HistorySearchContainer.Visibility == Visibility.Visible)
         {
             HistorySearchBox.Text = string.Empty;
-            HistorySearchBox.Visibility = Visibility.Collapsed;
+            HistorySearchContainer.Visibility = Visibility.Collapsed;
+            SetInteractiveInputMode(false);
         }
         else
         {
-            HistorySearchBox.Visibility = Visibility.Visible;
-            HistorySearchBox.Focus();
+            HistorySearchContainer.Visibility = Visibility.Visible;
+            SetInteractiveInputMode(true);
+            Keyboard.Focus(HistorySearchBox);
+        }
+    }
+
+    private void HistorySearchBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        SetInteractiveInputMode(true);
+    }
+
+    private void HistorySearchBox_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (HistorySearchContainer.Visibility == Visibility.Visible && string.IsNullOrEmpty(HistorySearchBox.Text))
+        {
+            SetInteractiveInputMode(false);
         }
     }
 
     private void HistorySearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
+        HistorySearchPlaceholder.Visibility = string.IsNullOrEmpty(HistorySearchBox.Text)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         RefreshHistoryList(HistorySearchBox.Text);
     }
 

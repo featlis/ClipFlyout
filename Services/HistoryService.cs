@@ -24,11 +24,13 @@ public class HistoryService
     private readonly List<HistoryItem> _items = [];
     private readonly object _lock = new();
     private readonly string _historyFilePath;
+    private readonly Func<bool> _persistEnabledProvider;
 
     public event Action? HistoryChanged;
 
-    public HistoryService(string? historyFilePath = null)
+    public HistoryService(string? historyFilePath = null, Func<bool>? persistEnabledProvider = null)
     {
+        _persistEnabledProvider = persistEnabledProvider ?? (() => SettingsService.Instance.Current.PersistHistory);
         if (string.IsNullOrWhiteSpace(historyFilePath))
         {
             string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -67,15 +69,20 @@ public class HistoryService
                 _items.RemoveAt(existingIdx);
             }
 
-            // Cap stored image preview size to prevent hundreds of MB of RAM bloat
+            // Cap stored image preview AND RawData thumbnail edge to prevent retaining 10x multi-MB 4K bitmaps
             DetectionResult storedResult = result;
-            if (result.ImagePreview != null &&
+            if (result.Type == ClipDataType.Image &&
+                result.ImagePreview != null &&
                 (result.ImagePreview.PixelWidth > MaxThumbnailEdge || result.ImagePreview.PixelHeight > MaxThumbnailEdge))
             {
                 var thumb = CreateDownscaledThumbnail(result.ImagePreview, MaxThumbnailEdge);
                 if (thumb != null)
                 {
-                    storedResult = result with { ImagePreview = thumb };
+                    storedResult = result with
+                    {
+                        RawData = result.RawData is BitmapSource ? thumb : result.RawData,
+                        ImagePreview = thumb
+                    };
                 }
             }
 
@@ -87,7 +94,8 @@ public class HistoryService
                 wasPinned
             );
 
-            InsertSortedLocked(item);
+            _items.Add(item);
+            SortItemsLocked();
             TrimCapacityLocked();
             changed = true;
         }
@@ -111,8 +119,8 @@ public class HistoryService
             {
                 var item = _items[idx];
                 newPinState = !item.IsPinned;
-                _items.RemoveAt(idx);
-                InsertSortedLocked(item with { IsPinned = newPinState });
+                _items[idx] = item with { IsPinned = newPinState };
+                SortItemsLocked();
                 TrimCapacityLocked();
                 changed = true;
             }
@@ -220,9 +228,39 @@ public class HistoryService
         }
     }
 
+    public void FlushPersistence() => PersistIfEnabled();
+
+    public void RefreshLocalization(IDataTypeDetector detector)
+    {
+        bool changed = false;
+        lock (_lock)
+        {
+            for (int i = 0; i < _items.Count; i++)
+            {
+                var item = _items[i];
+                var reDetected = detector.Detect(item.Result.RawData);
+                if (reDetected != null)
+                {
+                    _items[i] = item with
+                    {
+                        Result = reDetected,
+                        DisplayTitle = reDetected.PreviewTitle,
+                        DisplaySnippet = BuildCleanSnippet(reDetected)
+                    };
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed)
+        {
+            HistoryChanged?.Invoke();
+        }
+    }
+
     public void LoadPersistedItems(IDataTypeDetector detector)
     {
-        if (!SettingsService.Instance.Current.PersistHistory) return;
+        if (!_persistEnabledProvider()) return;
         if (!File.Exists(_historyFilePath)) return;
 
         try
@@ -235,17 +273,22 @@ public class HistoryService
             {
                 foreach (var entry in entries)
                 {
-                    if (string.IsNullOrWhiteSpace(entry.Text)) continue;
-                    var detected = detector.Detect(entry.Text);
+                    object? payload = entry.Files is { Length: > 0 }
+                        ? entry.Files
+                        : (!string.IsNullOrWhiteSpace(entry.Text) ? entry.Text : null);
+                    if (payload == null) continue;
+
+                    var detected = detector.Detect(payload);
                     if (detected == null) continue;
 
                     string snippet = BuildCleanSnippet(detected);
                     var item = new HistoryItem(entry.Timestamp, detected, detected.PreviewTitle, snippet, entry.IsPinned);
                     if (!_items.Any(i => AreResultsEqual(i.Result, detected)))
                     {
-                        InsertSortedLocked(item);
+                        _items.Add(item);
                     }
                 }
+                SortItemsLocked();
                 TrimCapacityLocked();
             }
 
@@ -259,7 +302,7 @@ public class HistoryService
 
     private void PersistIfEnabled()
     {
-        if (!SettingsService.Instance.Current.PersistHistory) return;
+        if (!_persistEnabledProvider()) return;
 
         try
         {
@@ -267,15 +310,20 @@ public class HistoryService
             lock (_lock)
             {
                 snapshot = _items
-                    .Where(i => i.Result.RawData is string s && s.Length <= 64 * 1024)
-                    .Select(i => new PersistedHistoryEntry(i.Timestamp, (string)i.Result.RawData, i.IsPinned))
+                    .Where(i => (i.Result.RawData is string s && s.Length <= 64 * 1024) ||
+                                (i.Result.RawData is string[] arr && arr.Length > 0))
+                    .Select(i => new PersistedHistoryEntry(
+                        i.Timestamp,
+                        i.Result.RawData as string,
+                        i.IsPinned,
+                        i.Result.RawData as string[]))
                     .ToList();
             }
 
             string? dir = Path.GetDirectoryName(_historyFilePath);
             if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
 
-            string tmp = _historyFilePath + ".tmp";
+            string tmp = _historyFilePath + $".{Guid.NewGuid():N}.tmp";
             File.WriteAllText(tmp, JsonSerializer.Serialize(snapshot, SerializerOptions));
             File.Move(tmp, _historyFilePath, true);
         }
@@ -285,18 +333,13 @@ public class HistoryService
         }
     }
 
-    private void InsertSortedLocked(HistoryItem item)
+    private void SortItemsLocked()
     {
-        if (item.IsPinned)
+        _items.Sort((a, b) =>
         {
-            _items.Insert(0, item);
-        }
-        else
-        {
-            int insertIndex = _items.FindIndex(i => !i.IsPinned);
-            if (insertIndex < 0) _items.Add(item);
-            else _items.Insert(insertIndex, item);
-        }
+            if (a.IsPinned != b.IsPinned) return b.IsPinned.CompareTo(a.IsPinned);
+            return b.Timestamp.CompareTo(a.Timestamp);
+        });
     }
 
     private void TrimCapacityLocked()
@@ -467,5 +510,5 @@ public class HistoryService
         return Equals(a.RawData, b.RawData);
     }
 
-    private sealed record PersistedHistoryEntry(DateTime Timestamp, string Text, bool IsPinned);
+    private sealed record PersistedHistoryEntry(DateTime Timestamp, string? Text, bool IsPinned, string[]? Files = null);
 }

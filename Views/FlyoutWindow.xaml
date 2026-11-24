@@ -403,7 +403,8 @@
                         HorizontalAlignment="Stretch"
                         Visibility="Collapsed">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock Text="&#xE73E;"
+                        <TextBlock x:Name="InlineFeedbackIcon"
+                                   Text="&#xE73E;"
                                    FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                    FontSize="14"
                                    VerticalAlignment="Center"
@@ -413,6 +414,8 @@
                                    Text="クリップボードにコピーしました"
                                    FontSize="12.5"
                                    FontWeight="SemiBold"
+                                   MaxWidth="276"
+                                   TextTrimming="CharacterEllipsis"
                                    Foreground="{DynamicResource TextPrimaryBrush}"
                                    VerticalAlignment="Center"/>
                     </StackPanel>
@@ -461,16 +464,25 @@
                     </Button>
                 </Grid>
 
-                <!-- Inline Search Box (Shown when toggled) -->
-                <TextBox x:Name="HistorySearchBox"
-                         Style="{DynamicResource FluentTextBoxStyle}"
-                         Height="28"
-                         MinHeight="28"
-                         FontSize="12"
-                         Padding="8,3"
-                         Margin="0,0,0,5"
-                         Visibility="Collapsed"
-                         TextChanged="HistorySearchBox_TextChanged"/>
+                <!-- Inline Search Box with Watermark Placeholder (Shown when toggled) -->
+                <Grid x:Name="HistorySearchContainer" Visibility="Collapsed" Margin="0,0,0,5">
+                    <TextBox x:Name="HistorySearchBox"
+                             Style="{DynamicResource FluentTextBoxStyle}"
+                             Height="28"
+                             MinHeight="28"
+                             FontSize="12"
+                             Padding="8,0"
+                             GotKeyboardFocus="HistorySearchBox_GotKeyboardFocus"
+                             LostKeyboardFocus="HistorySearchBox_LostKeyboardFocus"
+                             TextChanged="HistorySearchBox_TextChanged"/>
+                    <TextBlock x:Name="HistorySearchPlaceholder"
+                               Text="履歴を絞り込み..."
+                               FontSize="12"
+                               Margin="10,0"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Foreground="{DynamicResource TextTertiaryBrush}"/>
+                </Grid>
 
                 <ScrollViewer MaxHeight="116" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <ItemsControl x:Name="RecentHistoryItemsControl">

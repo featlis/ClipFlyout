@@ -28,6 +28,11 @@ public partial class FluentDialog : Window
         }
 
         SourceInitialized += OnSourceInitialized;
+        Loaded += (_, _) =>
+        {
+            Activate();
+            PrimaryButton.Focus();
+        };
         PreviewKeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape)
@@ -58,6 +63,14 @@ public partial class FluentDialog : Window
         Win32.EnableMica(hwnd, ThemeService.Instance.IsDarkTheme);
     }
 
+    private void RootBorder_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ButtonState == MouseButtonState.Pressed)
+        {
+            try { DragMove(); } catch { }
+        }
+    }
+
     private void PrimaryButton_Click(object sender, RoutedEventArgs e)
     {
         Confirmed = true;
@@ -75,15 +88,7 @@ public partial class FluentDialog : Window
     public static bool ShowConfirm(Window? owner, string title, string message, string primaryText, string secondaryText, string iconGlyph = "\uE7BA")
     {
         var dlg = new FluentDialog(title, message, primaryText, secondaryText, iconGlyph);
-        if (owner != null && owner.IsLoaded && owner.IsVisible)
-        {
-            dlg.Owner = owner;
-            dlg.WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        }
-        else
-        {
-            dlg.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        }
+        ConfigureOwnerOrTopmost(dlg, owner);
         dlg.ShowDialog();
         return dlg.Confirmed;
     }
@@ -91,6 +96,12 @@ public partial class FluentDialog : Window
     public static void ShowInfo(Window? owner, string title, string message, string okText = "OK", string iconGlyph = "\uE946")
     {
         var dlg = new FluentDialog(title, message, okText, null, iconGlyph);
+        ConfigureOwnerOrTopmost(dlg, owner);
+        dlg.ShowDialog();
+    }
+
+    private static void ConfigureOwnerOrTopmost(FluentDialog dlg, Window? owner)
+    {
         if (owner != null && owner.IsLoaded && owner.IsVisible)
         {
             dlg.Owner = owner;
@@ -98,8 +109,9 @@ public partial class FluentDialog : Window
         }
         else
         {
+            dlg.ShowInTaskbar = true;
+            dlg.Topmost = true;
             dlg.WindowStartupLocation = WindowStartupLocation.CenterScreen;
         }
-        dlg.ShowDialog();
     }
 }

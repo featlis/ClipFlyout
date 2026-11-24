@@ -15,7 +15,8 @@
     <Border Background="{DynamicResource AppSurfaceBrush}"
             BorderBrush="{DynamicResource FlyoutStrokeBrush}"
             BorderThickness="1"
-            CornerRadius="8">
+            CornerRadius="8"
+            MouseLeftButtonDown="RootBorder_MouseLeftButtonDown">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
@@ -63,14 +64,14 @@
                     <Button x:Name="PrimaryButton"
                             Grid.Column="1"
                             MinWidth="96"
-                            Style="{StaticResource FluentAccentButtonStyle}"
+                            Style="{DynamicResource FluentAccentButtonStyle}"
                             Content="OK"
                             Click="PrimaryButton_Click"/>
                     <Button x:Name="SecondaryButton"
                             Grid.Column="2"
                             MinWidth="96"
                             Margin="8,0,0,0"
-                            Style="{StaticResource FluentButtonStyle}"
+                            Style="{DynamicResource FluentButtonStyle}"
                             Content="Cancel"
                             Visibility="Collapsed"
                             Click="SecondaryButton_Click"/>

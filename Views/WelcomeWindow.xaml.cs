@@ -15,6 +15,7 @@ public partial class WelcomeWindow : Window
     private bool _isInitializing = true;
     private IntPtr _hwnd = IntPtr.Zero;
     private readonly Action _themeChangedHandler;
+    private readonly Action _languageChangedHandler;
 
     public event Action? CustomizeRequested;
 
@@ -35,10 +36,27 @@ public partial class WelcomeWindow : Window
             if (!Dispatcher.HasShutdownStarted)
                 Dispatcher.BeginInvoke(ApplyBackdrop);
         };
+        _languageChangedHandler = () =>
+        {
+            if (!Dispatcher.HasShutdownStarted)
+                Dispatcher.BeginInvoke(ApplyLocalization);
+        };
 
         SourceInitialized += OnSourceInitialized;
-        Closed += (_, _) => ThemeService.Instance.ThemeChanged -= _themeChangedHandler;
+        Closing += (_, _) =>
+        {
+            if (_settings.Current.IsFirstRun)
+            {
+                _settings.UpdateSettings(s => s.IsFirstRun = false);
+            }
+        };
+        Closed += (_, _) =>
+        {
+            ThemeService.Instance.ThemeChanged -= _themeChangedHandler;
+            _loc.LanguageChanged -= _languageChangedHandler;
+        };
         ThemeService.Instance.ThemeChanged += _themeChangedHandler;
+        _loc.LanguageChanged += _languageChangedHandler;
 
         ApplyLocalization();
         LoadDefaults();

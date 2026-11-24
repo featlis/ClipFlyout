@@ -20,6 +20,8 @@ public class ActionExecutor
 
     public event Action<string>? ActionExecuted;
     public event Action<string, string>? TransformedActionExecuted;
+    public event Action? BeforeModalDialog;
+    public event Action<object>? ClipboardUpdatedInternally;
 
     public ActionExecutor(IClipboardMonitor clipboardMonitor, Action<string>? setClipboardText = null)
     {
@@ -73,6 +75,7 @@ public class ActionExecutor
             {
                 _setClipboardText(text);
             }
+            ClipboardUpdatedInternally?.Invoke(text);
             ActionExecuted?.Invoke(_loc.Get(successMessageKey));
         }
         catch (Exception ex)
@@ -89,6 +92,7 @@ public class ActionExecutor
             {
                 _setClipboardText(text);
             }
+            ClipboardUpdatedInternally?.Invoke(text);
             TransformedActionExecuted?.Invoke(text, label);
         }
         catch (Exception ex)
@@ -97,11 +101,11 @@ public class ActionExecutor
         }
     }
 
-    public void PasteToActiveWindow(bool notifyToast = false)
+    public void PasteToActiveWindow(bool notifyToast = false, IntPtr targetHwnd = default)
     {
         try
         {
-            bool sent = Win32.PasteToActiveWindow();
+            bool sent = Win32.PasteToActiveWindow(targetHwnd);
             if (notifyToast)
             {
                 ActionExecuted?.Invoke(sent ? _loc.Get("Toast_Pasted") : _loc.Get("Toast_PasteBlocked"));
@@ -294,6 +298,9 @@ public class ActionExecutor
     {
         try
         {
+            // Close flyout & uninstall global hooks BEFORE modal SaveFileDialog opens
+            BeforeModalDialog?.Invoke();
+
             var dialog = new SaveFileDialog
             {
                 Filter = "PNG Image (*.png)|*.png|JPEG Image (*.jpg)|*.jpg|Bitmap Image (*.bmp)|*.bmp",

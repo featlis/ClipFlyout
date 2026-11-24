@@ -90,35 +90,35 @@
 
                 <!-- Navigation Items -->
                 <StackPanel Grid.Row="1" Margin="0,2">
-                    <RadioButton x:Name="NavGeneral" Style="{StaticResource FluentNavButtonStyle}" IsChecked="True" Checked="NavItem_Checked" Tag="0">
+                    <RadioButton x:Name="NavGeneral" Style="{DynamicResource FluentNavButtonStyle}" IsChecked="True" Checked="NavItem_Checked" Tag="0">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE713;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Width="24" VerticalAlignment="Center"/>
                             <TextBlock x:Name="NavGeneralText" Text="全般" VerticalAlignment="Center"/>
                         </StackPanel>
                     </RadioButton>
 
-                    <RadioButton x:Name="NavFlyout" Style="{StaticResource FluentNavButtonStyle}" Checked="NavItem_Checked" Tag="1">
+                    <RadioButton x:Name="NavFlyout" Style="{DynamicResource FluentNavButtonStyle}" Checked="NavItem_Checked" Tag="1">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE790;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Width="24" VerticalAlignment="Center"/>
                             <TextBlock x:Name="NavFlyoutText" Text="外観とフライアウト" VerticalAlignment="Center"/>
                         </StackPanel>
                     </RadioButton>
 
-                    <RadioButton x:Name="NavWidget" Style="{StaticResource FluentNavButtonStyle}" Checked="NavItem_Checked" Tag="2">
+                    <RadioButton x:Name="NavWidget" Style="{DynamicResource FluentNavButtonStyle}" Checked="NavItem_Checked" Tag="2">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE75B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Width="24" VerticalAlignment="Center"/>
                             <TextBlock x:Name="NavWidgetText" Text="タスクバーウィジェット" VerticalAlignment="Center"/>
                         </StackPanel>
                     </RadioButton>
 
-                    <RadioButton x:Name="NavDetectors" Style="{StaticResource FluentNavButtonStyle}" Checked="NavItem_Checked" Tag="3">
+                    <RadioButton x:Name="NavDetectors" Style="{DynamicResource FluentNavButtonStyle}" Checked="NavItem_Checked" Tag="3">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE71C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Width="24" VerticalAlignment="Center"/>
                             <TextBlock x:Name="NavDetectorsText" Text="データ型フィルター" VerticalAlignment="Center"/>
                         </StackPanel>
                     </RadioButton>
 
-                    <RadioButton x:Name="NavHistory" Style="{StaticResource FluentNavButtonStyle}" Checked="NavItem_Checked" Tag="4">
+                    <RadioButton x:Name="NavHistory" Style="{DynamicResource FluentNavButtonStyle}" Checked="NavItem_Checked" Tag="4">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE81C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Width="24" VerticalAlignment="Center"/>
                             <TextBlock x:Name="NavHistoryText" Text="履歴とプライバシー" VerticalAlignment="Center"/>
@@ -129,7 +129,7 @@
                 <!-- Bottom Pinned Nav Item (Updates & About) -->
                 <StackPanel Grid.Row="2" Margin="0,0,0,12">
                     <Border Height="1" Background="{DynamicResource DividerStrokeBrush}" Margin="16,4,16,8"/>
-                    <RadioButton x:Name="NavAbout" Style="{StaticResource FluentNavButtonStyle}" Checked="NavItem_Checked" Tag="5">
+                    <RadioButton x:Name="NavAbout" Style="{DynamicResource FluentNavButtonStyle}" Checked="NavItem_Checked" Tag="5">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE946;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15" Width="24" VerticalAlignment="Center"/>
                             <TextBlock x:Name="NavAboutText" Text="更新と情報" VerticalAlignment="Center"/>
@@ -229,12 +229,12 @@
                             <StackPanel Margin="36,0,0,0">
                                 <!-- Preset Swatches -->
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                    <Button x:Name="SwatchBlue" Style="{StaticResource AccentSwatchStyle}" Background="#0078D4" Click="AccentSwatch_Click"/>
-                                    <Button x:Name="SwatchTeal" Style="{StaticResource AccentSwatchStyle}" Background="#008575" Click="AccentSwatch_Click"/>
-                                    <Button x:Name="SwatchGreen" Style="{StaticResource AccentSwatchStyle}" Background="#107C10" Click="AccentSwatch_Click"/>
-                                    <Button x:Name="SwatchPurple" Style="{StaticResource AccentSwatchStyle}" Background="#744DA9" Click="AccentSwatch_Click"/>
-                                    <Button x:Name="SwatchPink" Style="{StaticResource AccentSwatchStyle}" Background="#C239B3" Click="AccentSwatch_Click"/>
-                                    <Button x:Name="SwatchOrange" Style="{StaticResource AccentSwatchStyle}" Background="#D83B01" Click="AccentSwatch_Click"/>
+                                    <Button x:Name="SwatchBlue" Style="{DynamicResource AccentSwatchStyle}" Background="#0078D4" Click="AccentSwatch_Click"/>
+                                    <Button x:Name="SwatchTeal" Style="{DynamicResource AccentSwatchStyle}" Background="#008575" Click="AccentSwatch_Click"/>
+                                    <Button x:Name="SwatchGreen" Style="{DynamicResource AccentSwatchStyle}" Background="#107C10" Click="AccentSwatch_Click"/>
+                                    <Button x:Name="SwatchPurple" Style="{DynamicResource AccentSwatchStyle}" Background="#744DA9" Click="AccentSwatch_Click"/>
+                                    <Button x:Name="SwatchPink" Style="{DynamicResource AccentSwatchStyle}" Background="#C239B3" Click="AccentSwatch_Click"/>
+                                    <Button x:Name="SwatchOrange" Style="{DynamicResource AccentSwatchStyle}" Background="#D83B01" Click="AccentSwatch_Click"/>
                                 </StackPanel>
 
                                 <!-- Custom RGB & HEX -->
@@ -264,7 +264,7 @@
                                     <TextBlock x:Name="ValColorB" Grid.Row="2" Grid.Column="2" Text="212" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
 
                                     <TextBlock x:Name="LabelColorHex" Grid.Row="3" Grid.Column="0" Text="HEX" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                    <TextBox x:Name="TextHexCode" Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FluentTextBoxStyle}" Width="120" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="0,4,0,0" Text="#0078D4" TextChanged="TextHexCode_TextChanged"/>
+                                    <TextBox x:Name="TextHexCode" Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Style="{DynamicResource FluentTextBoxStyle}" Width="120" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="0,4,0,0" Text="#0078D4" TextChanged="TextHexCode_TextChanged"/>
                                 </Grid>
                             </StackPanel>
                         </StackPanel>
@@ -338,7 +338,7 @@
             <!-- PAGE 3: DETECTORS -->
             <ScrollViewer x:Name="PageDetectors" Grid.Row="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="28,0,28,28">
-                    <TextBlock x:Name="GroupDetectorsCore" Style="{StaticResource SectionGroupHeaderStyle}" Margin="2,4,0,8" Text="基本データ型"/>
+                    <TextBlock x:Name="GroupDetectorsCore" Style="{DynamicResource SectionGroupHeaderStyle}" Margin="2,4,0,8" Text="基本データ型"/>
 
                     <controls:SettingsCard x:Name="CardDetectHex" IconGlyph="&#xE790;" Header="カラーコード" Description="">
                         <controls:ToggleSwitch x:Name="ToggleDetectHex" Toggled="SettingChanged_Event"/>
@@ -377,7 +377,7 @@
                         <controls:ToggleSwitch x:Name="ToggleDetectPlainText" Toggled="SettingChanged_Event"/>
                     </controls:SettingsCard>
 
-                    <TextBlock x:Name="GroupDetectorsTools" Style="{StaticResource SectionGroupHeaderStyle}" Text="スマート変換・開発者ツール"/>
+                    <TextBlock x:Name="GroupDetectorsTools" Style="{DynamicResource SectionGroupHeaderStyle}" Text="スマート変換・開発者ツール"/>
 
                     <controls:SettingsCard x:Name="CardCleanUrl" IconGlyph="&#xEA99;" Header="クリーン URL" Description="">
                         <controls:ToggleSwitch x:Name="ToggleCleanUrl" Toggled="SettingChanged_Event"/>
@@ -403,7 +403,7 @@
                     </controls:SettingsCard>
 
                     <controls:SettingsCard x:Name="CardClearHistory" IconGlyph="&#xE74D;" Header="クリップボード履歴をクリア" Description="">
-                        <Button x:Name="BtnClearHistory" Style="{StaticResource FluentButtonStyle}" Content="履歴をクリア" Click="BtnClearHistory_Click"/>
+                        <Button x:Name="BtnClearHistory" Style="{DynamicResource FluentButtonStyle}" Content="履歴をクリア" Click="BtnClearHistory_Click"/>
                     </controls:SettingsCard>
 
                     <controls:SettingsCard x:Name="CardLocalProcessing" IconGlyph="&#xE83D;" Header="完全ローカル解析" Description=""/>
@@ -413,7 +413,7 @@
             <!-- PAGE 5: UPDATES & ABOUT -->
             <ScrollViewer x:Name="PageAbout" Grid.Row="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="28,0,28,28">
-                    <TextBlock x:Name="GroupUpdatesHeader" Style="{StaticResource SectionGroupHeaderStyle}" Margin="2,4,0,8" Text="更新プログラム"/>
+                    <TextBlock x:Name="GroupUpdatesHeader" Style="{DynamicResource SectionGroupHeaderStyle}" Margin="2,4,0,8" Text="更新プログラム"/>
 
                     <controls:SettingsCard x:Name="CardAutoUpdate" IconGlyph="&#xE895;" Header="自動アップデート確認" Description="">
                         <controls:ToggleSwitch x:Name="ToggleAutoUpdate" Toggled="SettingChanged_Event"/>
@@ -421,8 +421,8 @@
 
                     <controls:SettingsCard x:Name="CardManualUpdate" IconGlyph="&#xE896;" Header="最新バージョンの手動確認" Description="">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button x:Name="CheckUpdatesButton" Style="{StaticResource FluentButtonStyle}" Content="更新を確認" Click="CheckUpdatesButton_Click"/>
-                            <Button x:Name="BtnInstallUpdateNow" Style="{StaticResource FluentAccentButtonStyle}" Content="今すぐ更新" Margin="8,0,0,0" Visibility="Collapsed" Click="BtnInstallUpdateNow_Click"/>
+                            <Button x:Name="CheckUpdatesButton" Style="{DynamicResource FluentButtonStyle}" Content="更新を確認" Click="CheckUpdatesButton_Click"/>
+                            <Button x:Name="BtnInstallUpdateNow" Style="{DynamicResource FluentAccentButtonStyle}" Content="今すぐ更新" Margin="8,0,0,0" Visibility="Collapsed" Click="BtnInstallUpdateNow_Click"/>
                         </StackPanel>
                     </controls:SettingsCard>
 
@@ -440,7 +440,7 @@
                         </StackPanel>
                     </Border>
 
-                    <TextBlock x:Name="GroupAboutHeader" Style="{StaticResource SectionGroupHeaderStyle}" Text="アプリについて"/>
+                    <TextBlock x:Name="GroupAboutHeader" Style="{DynamicResource SectionGroupHeaderStyle}" Text="アプリについて"/>
 
                     <!-- Hero App Info Card -->
                     <Border Background="{DynamicResource CardBackgroundBrush}"
@@ -457,7 +457,7 @@
                             <Image x:Name="AboutAppIcon" Width="48" Height="48" RenderOptions.BitmapScalingMode="HighQuality" Margin="0,0,16,0" VerticalAlignment="Center"/>
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock Text="ClipFlyout" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                <TextBlock x:Name="AboutVersionText" Text="バージョン: v2.0.0" FontSize="12.5" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                                <TextBlock x:Name="AboutVersionText" Text="バージョン: v2.0.1" FontSize="12.5" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,0"/>
                                 <TextBlock x:Name="AboutRuntimeText" Text="ランタイム: .NET 10 / Windows 11 Fluent" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" Margin="0,2,0,0"/>
                                 <TextBlock x:Name="AboutAuthorText" Text="開発・著作: featlis" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" Margin="0,4,0,0"/>
                                 <TextBlock x:Name="AboutLicenseText" Text="ライセンス: GPL-3.0-or-later" FontSize="11.5" Foreground="{DynamicResource TextTertiaryBrush}" Margin="0,1,0,0" TextWrapping="Wrap"/>
@@ -466,11 +466,11 @@
                     </Border>
 
                     <controls:SettingsCard x:Name="CardGithub" IconGlyph="&#xE774;" Header="GitHub リポジトリ" Description="">
-                        <Button x:Name="GithubButton" Style="{StaticResource FluentButtonStyle}" Content="開く" Click="GithubButton_Click"/>
+                        <Button x:Name="GithubButton" Style="{DynamicResource FluentButtonStyle}" Content="開く" Click="GithubButton_Click"/>
                     </controls:SettingsCard>
 
                     <controls:SettingsCard x:Name="CardReset" IconGlyph="&#xE777;" Header="設定を初期値に戻す" Description="">
-                        <Button x:Name="ResetDefaultsButton" Style="{StaticResource FluentButtonStyle}" Content="初期値に戻す" Click="ResetDefaultsButton_Click"/>
+                        <Button x:Name="ResetDefaultsButton" Style="{DynamicResource FluentButtonStyle}" Content="初期値に戻す" Click="ResetDefaultsButton_Click"/>
                     </controls:SettingsCard>
                 </StackPanel>
             </ScrollViewer>

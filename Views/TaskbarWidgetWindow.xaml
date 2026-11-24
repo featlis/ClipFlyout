@@ -28,32 +28,32 @@
             MouseLeftButtonDown="RootPill_MouseLeftButtonDown"
             MouseLeftButtonUp="RootPill_MouseLeftButtonUp">
         <Border.ContextMenu>
-            <ContextMenu x:Name="WidgetContextMenu" Style="{StaticResource FluentContextMenuStyle}">
-                <MenuItem x:Name="MenuOpenFlyout" Style="{StaticResource FluentMenuItemStyle}" Header="フライアウトを開く" Click="MenuOpenFlyout_Click"/>
-                <MenuItem x:Name="MenuPosition" Style="{StaticResource FluentMenuItemStyle}" Header="配置位置">
-                    <MenuItem x:Name="MenuPosTrayLeft" Style="{StaticResource FluentMenuItemStyle}" Header="タスクバー右 (トレイ左隣)" Click="MenuPos_Click" Tag="TrayLeft"/>
-                    <MenuItem x:Name="MenuPosCenterRight" Style="{StaticResource FluentMenuItemStyle}" Header="タスクバー中央・右寄り" Click="MenuPos_Click" Tag="CenterRight"/>
-                    <MenuItem x:Name="MenuPosCenterLeft" Style="{StaticResource FluentMenuItemStyle}" Header="タスクバー中央・左寄り" Click="MenuPos_Click" Tag="CenterLeft"/>
-                    <MenuItem x:Name="MenuPosFarLeft" Style="{StaticResource FluentMenuItemStyle}" Header="タスクバー左端" Click="MenuPos_Click" Tag="FarLeft"/>
-                    <MenuItem x:Name="MenuPosAboveTaskbar" Style="{StaticResource FluentMenuItemStyle}" Header="画面右下 (タスクバー直上)" Click="MenuPos_Click" Tag="AboveTaskbar"/>
+            <ContextMenu x:Name="WidgetContextMenu" Style="{DynamicResource FluentContextMenuStyle}">
+                <MenuItem x:Name="MenuOpenFlyout" Style="{DynamicResource FluentMenuItemStyle}" Header="フライアウトを開く" Click="MenuOpenFlyout_Click"/>
+                <MenuItem x:Name="MenuPosition" Style="{DynamicResource FluentMenuItemStyle}" Header="配置位置">
+                    <MenuItem x:Name="MenuPosTrayLeft" Style="{DynamicResource FluentMenuItemStyle}" Header="タスクバー右 (トレイ左隣)" Click="MenuPos_Click" Tag="TrayLeft"/>
+                    <MenuItem x:Name="MenuPosCenterRight" Style="{DynamicResource FluentMenuItemStyle}" Header="タスクバー中央・右寄り" Click="MenuPos_Click" Tag="CenterRight"/>
+                    <MenuItem x:Name="MenuPosCenterLeft" Style="{DynamicResource FluentMenuItemStyle}" Header="タスクバー中央・左寄り" Click="MenuPos_Click" Tag="CenterLeft"/>
+                    <MenuItem x:Name="MenuPosFarLeft" Style="{DynamicResource FluentMenuItemStyle}" Header="タスクバー左端" Click="MenuPos_Click" Tag="FarLeft"/>
+                    <MenuItem x:Name="MenuPosAboveTaskbar" Style="{DynamicResource FluentMenuItemStyle}" Header="画面右下 (タスクバー直上)" Click="MenuPos_Click" Tag="AboveTaskbar"/>
                 </MenuItem>
-                <MenuItem x:Name="MenuAutoAlign" Style="{StaticResource FluentMenuItemStyle}" Header="トレイ (^) 左隣に自動吸着" IsCheckable="True" Click="MenuAutoAlign_Click"/>
-                <MenuItem x:Name="MenuMonitor" Style="{StaticResource FluentMenuItemStyle}" Header="表示モニター">
-                    <MenuItem x:Name="MenuMonPrimary" Style="{StaticResource FluentMenuItemStyle}" Header="メインモニター" Click="MenuMonitor_Click" Tag="Primary"/>
-                    <MenuItem x:Name="MenuMonCursor" Style="{StaticResource FluentMenuItemStyle}" Header="カーソルのあるモニター" Click="MenuMonitor_Click" Tag="FollowCursor"/>
-                    <MenuItem x:Name="MenuMonDisplay1" Style="{StaticResource FluentMenuItemStyle}" Header="ディスプレイ 1" Click="MenuMonitor_Click" Tag="Monitor1"/>
-                    <MenuItem x:Name="MenuMonDisplay2" Style="{StaticResource FluentMenuItemStyle}" Header="ディスプレイ 2" Click="MenuMonitor_Click" Tag="Monitor2"/>
-                    <MenuItem x:Name="MenuMonDisplay3" Style="{StaticResource FluentMenuItemStyle}" Header="ディスプレイ 3" Click="MenuMonitor_Click" Tag="Monitor3"/>
+                <MenuItem x:Name="MenuAutoAlign" Style="{DynamicResource FluentMenuItemStyle}" Header="トレイ (^) 左隣に自動吸着" IsCheckable="True" Click="MenuAutoAlign_Click"/>
+                <MenuItem x:Name="MenuMonitor" Style="{DynamicResource FluentMenuItemStyle}" Header="表示モニター">
+                    <MenuItem x:Name="MenuMonPrimary" Style="{DynamicResource FluentMenuItemStyle}" Header="メインモニター" Click="MenuMonitor_Click" Tag="Primary"/>
+                    <MenuItem x:Name="MenuMonCursor" Style="{DynamicResource FluentMenuItemStyle}" Header="カーソルのあるモニター" Click="MenuMonitor_Click" Tag="FollowCursor"/>
+                    <MenuItem x:Name="MenuMonDisplay1" Style="{DynamicResource FluentMenuItemStyle}" Header="ディスプレイ 1" Click="MenuMonitor_Click" Tag="Monitor1"/>
+                    <MenuItem x:Name="MenuMonDisplay2" Style="{DynamicResource FluentMenuItemStyle}" Header="ディスプレイ 2" Click="MenuMonitor_Click" Tag="Monitor2"/>
+                    <MenuItem x:Name="MenuMonDisplay3" Style="{DynamicResource FluentMenuItemStyle}" Header="ディスプレイ 3" Click="MenuMonitor_Click" Tag="Monitor3"/>
                 </MenuItem>
-                <MenuItem x:Name="MenuTextColor" Style="{StaticResource FluentMenuItemStyle}" Header="文字色">
-                    <MenuItem x:Name="MenuTextColorAuto" Style="{StaticResource FluentMenuItemStyle}" Header="自動 (タスクバー連動)" Click="MenuTextColor_Click" Tag="Auto"/>
-                    <MenuItem x:Name="MenuTextColorLight" Style="{StaticResource FluentMenuItemStyle}" Header="常に白" Click="MenuTextColor_Click" Tag="Light"/>
-                    <MenuItem x:Name="MenuTextColorDark" Style="{StaticResource FluentMenuItemStyle}" Header="常に黒" Click="MenuTextColor_Click" Tag="Dark"/>
+                <MenuItem x:Name="MenuTextColor" Style="{DynamicResource FluentMenuItemStyle}" Header="文字色">
+                    <MenuItem x:Name="MenuTextColorAuto" Style="{DynamicResource FluentMenuItemStyle}" Header="自動 (タスクバー連動)" Click="MenuTextColor_Click" Tag="Auto"/>
+                    <MenuItem x:Name="MenuTextColorLight" Style="{DynamicResource FluentMenuItemStyle}" Header="常に白" Click="MenuTextColor_Click" Tag="Light"/>
+                    <MenuItem x:Name="MenuTextColorDark" Style="{DynamicResource FluentMenuItemStyle}" Header="常に黒" Click="MenuTextColor_Click" Tag="Dark"/>
                 </MenuItem>
-                <Separator Style="{StaticResource FluentMenuSeparatorStyle}"/>
-                <MenuItem x:Name="MenuOpenSettings" Style="{StaticResource FluentMenuItemStyle}" Header="設定..." Click="MenuOpenSettings_Click"/>
-                <Separator Style="{StaticResource FluentMenuSeparatorStyle}"/>
-                <MenuItem x:Name="MenuHideWidget" Style="{StaticResource FluentMenuItemStyle}" Header="タスクバーウィジェットを非表示" Click="MenuHideWidget_Click"/>
+                <Separator Style="{DynamicResource FluentMenuSeparatorStyle}"/>
+                <MenuItem x:Name="MenuOpenSettings" Style="{DynamicResource FluentMenuItemStyle}" Header="設定..." Click="MenuOpenSettings_Click"/>
+                <Separator Style="{DynamicResource FluentMenuSeparatorStyle}"/>
+                <MenuItem x:Name="MenuHideWidget" Style="{DynamicResource FluentMenuItemStyle}" Header="タスクバーウィジェットを非表示" Click="MenuHideWidget_Click"/>
             </ContextMenu>
         </Border.ContextMenu>
 

@@ -210,6 +210,28 @@ public class LocalizationService
         { "Action_ToPascalCase_Desc", new("PascalCase に変換してコピー", "Convert to PascalCase") },
         { "Action_ToConstantCase_Desc", new("CONSTANT_CASE に変換してコピー", "Convert to CONSTANT_CASE") },
 
+        // Localized Detector Subtitles & Labels
+        { "Sub_FileDrop_Items", new("{0} 件のアイテム", "{0} items") },
+        { "Sub_FileDrop_Paths", new("{0} 件のパス", "{0} paths") },
+        { "Sub_FileDrop_More", new("+{0} 件", "+{0} more") },
+        { "Badge_FileSingle", new("ファイル", "File") },
+        { "Badge_FileMulti", new("{0} 件", "{0} Files") },
+        { "Sub_Table_Dims", new("{0} 行 × {1} 列 ({2})", "{0} rows × {1} cols ({2})") },
+        { "Sub_Table_Objects", new("{0} 件のオブジェクト", "{0} objects") },
+        { "Sub_Json_Object", new("オブジェクト • {0} プロパティ", "Object • {0} properties") },
+        { "Sub_Json_Array", new("配列 • {0} 要素", "Array • {0} items") },
+        { "Sub_Json_Value", new("JSON 値", "JSON Value") },
+        { "Sub_Json_Pretty", new("整形 (2スペース)", "Pretty (2-space)") },
+        { "Sub_Json_Minify", new("1行圧縮", "Single line") },
+        { "Sub_CleanUrl", new("追跡パラメータ除去", "Strip tracking params") },
+        { "Sub_Code_Indent", new("2スペースインデント", "2-space indent") },
+        { "Sub_Code_Stats", new("{0} 行 • {1} 文字", "{0} lines • {1} chars") },
+        { "Sub_Text_Stats", new("{0} 文字 • {1} 単語", "{0} chars • {1} words") },
+        { "Sub_Text_FullStats", new("{0} 文字 • {1} 単語 • {2} 行", "{0} chars • {1} words • {2} lines") },
+        { "Sub_Text_LargeStats", new("{0:N0} 文字 • {1:N0} 行", "{0:N0} chars • {1:N0} lines") },
+        { "Sub_Jwt_Claims", new("JSON クレーム", "JSON Claims") },
+        { "Sub_Jwt_Header", new("ヘッダー JSON", "Header JSON") },
+
         // Actions: Timestamp & ISO DateTime
         { "Action_CopyLocalDate", new("ローカル日時をコピー", "Copy Local Time") },
         { "Action_CopyLocalDate_Desc", new("現在のタイムゾーンで日時をコピー", "Format and copy in local timezone") },

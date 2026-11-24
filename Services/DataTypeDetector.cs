@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Windows.Media.Imaging;
@@ -21,7 +22,18 @@ public partial class DataTypeDetector : IDataTypeDetector
     private const int MaxTableRows = 5_000;
     private const int MaxTableColumns = 100;
 
-    private static readonly JsonSerializerOptions IndentedJsonOptions = new() { WriteIndented = true };
+    // Preserve non-ASCII / CJK characters unescaped instead of turning Japanese into \uXXXX
+    private static readonly JsonSerializerOptions IndentedJsonOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
+    private static readonly JsonSerializerOptions MinifiedJsonOptions = new()
+    {
+        WriteIndented = false,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
 
     private readonly ActionExecutor _executor;
     private readonly LocalizationService _loc = LocalizationService.Instance;
@@ -30,13 +42,13 @@ public partial class DataTypeDetector : IDataTypeDetector
     [GeneratedRegex(@"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")]
     private static partial Regex HexColorRegex();
 
-    [GeneratedRegex(@"^rgba?\(\s*(?<r>\d{1,3})\s*,\s*(?<g>\d{1,3})\s*,\s*(?<b>\d{1,3})(?:\s*,\s*(?<a>0|1|0?\.\d+))?\s*\)$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^rgba?\(\s*(?<r>\d{1,3})(?:\s*,\s*|\s+)(?<g>\d{1,3})(?:\s*,\s*|\s+)(?<b>\d{1,3})(?:\s*(?:,|/)\s*(?<a>(?:\d{1,3}(?:\.\d+)?%|0|1(?:\.0+)?|0?\.\d+)))?\s*\)$", RegexOptions.IgnoreCase)]
     private static partial Regex RgbColorRegex();
 
-    [GeneratedRegex(@"^hsla?\(\s*(?<h>\d{1,3}(?:\.\d+)?)(?:deg)?\s*,\s*(?<s>\d{1,3}(?:\.\d+)?)%\s*,\s*(?<l>\d{1,3}(?:\.\d+)?)%(?:\s*,\s*(?<a>0|1|0?\.\d+))?\s*\)$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^hsla?\(\s*(?<h>\d{1,3}(?:\.\d+)?)(?:deg)?(?:\s*,\s*|\s+)(?<s>\d{1,3}(?:\.\d+)?)%(?:\s*,\s*|\s+)(?<l>\d{1,3}(?:\.\d+)?)%(?:\s*(?:,|/)\s*(?<a>(?:\d{1,3}(?:\.\d+)?%|0|1(?:\.0+)?|0?\.\d+)))?\s*\)$", RegexOptions.IgnoreCase)]
     private static partial Regex HslColorRegex();
 
-    [GeneratedRegex(@"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,7})?)?(?:Z|[+-]\d{2}:?\d{2})?$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:?\d{2})?$", RegexOptions.IgnoreCase)]
     private static partial Regex IsoDateTimeRegex();
 
     [GeneratedRegex(@"\b(class|function|def|import|export|const|let|var|public|private|protected|namespace|using|interface|struct|enum|async|await|return|SELECT|FROM|WHERE|INSERT|UPDATE|DELETE)\b")]
@@ -225,14 +237,14 @@ public partial class DataTypeDetector : IDataTypeDetector
         string sizePart = totalBytes > 0 ? $" • {FormatByteSize(totalBytes)}" : string.Empty;
         string subtitle = paths.Length == 1
             ? (Directory.Exists(firstPath) ? firstPath : $"{Path.GetDirectoryName(firstPath)}{sizePart}")
-            : $"{paths.Length} items{sizePart}";
+            : _loc.Get("Sub_FileDrop_Items", paths.Length) + sizePart;
 
         string previewBody = string.Join(Environment.NewLine, paths.Take(4).Select(p =>
         {
             string name = Path.GetFileName(p.TrimEnd('\\', '/'));
             return string.IsNullOrEmpty(name) ? p : name;
         }));
-        if (paths.Length > 4) previewBody += $"{Environment.NewLine}+{paths.Length - 4} more";
+        if (paths.Length > 4) previewBody += $"{Environment.NewLine}{_loc.Get("Sub_FileDrop_More", paths.Length - 4)}";
 
         var actions = new List<ActionItem>
         {
@@ -243,7 +255,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                 _loc.Get("Action_CopyFilePaths_Desc"),
                 () => _executor.CopyText(joinedPaths, "Toast_Copied"),
                 IsPrimary: true,
-                Subtitle: paths.Length == 1 ? firstPath : $"{paths.Length} paths"
+                Subtitle: paths.Length == 1 ? firstPath : _loc.Get("Sub_FileDrop_Paths", paths.Length)
             ),
             new(
                 "Action_CopyQuotedPaths",
@@ -277,7 +289,7 @@ public partial class DataTypeDetector : IDataTypeDetector
             PreviewSubtitle: subtitle,
             PreviewBody: previewBody,
             AvailableActions: actions,
-            BadgeText: paths.Length == 1 ? "File" : $"{paths.Length} Files"
+            BadgeText: paths.Length == 1 ? _loc.Get("Badge_FileSingle") : _loc.Get("Badge_FileMulti", paths.Length)
         );
     }
 
@@ -377,9 +389,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                 byte a = 255;
                 if (rgbMatch.Groups["a"].Success)
                 {
-                    double alpha = double.Parse(rgbMatch.Groups["a"].Value, CultureInfo.InvariantCulture);
-                    if (alpha < 0 || alpha > 1) return null;
-                    a = (byte)Math.Round(alpha * 255);
+                    a = ParseCssAlpha(rgbMatch.Groups["a"].Value);
                 }
 
                 string hex = a == 255 ? $"#{ri:X2}{gi:X2}{bi:X2}" : $"#{ri:X2}{gi:X2}{bi:X2}{a:X2}";
@@ -397,9 +407,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                 byte a = 255;
                 if (hslMatch.Groups["a"].Success)
                 {
-                    double alpha = double.Parse(hslMatch.Groups["a"].Value, CultureInfo.InvariantCulture);
-                    if (alpha < 0 || alpha > 1) return null;
-                    a = (byte)Math.Round(alpha * 255);
+                    a = ParseCssAlpha(hslMatch.Groups["a"].Value);
                 }
 
                 var (r, g, b) = HslToRgb(h, s / 100.0, l / 100.0);
@@ -655,11 +663,15 @@ public partial class DataTypeDetector : IDataTypeDetector
             bool isPrintableText = decodedText is { Length: > 0 } &&
                 decodedText.All(c => !char.IsControl(c) || c == '\n' || c == '\r' || c == '\t');
 
-            // For raw non-DataURI Base64 without padding or '+'/'/', avoid false-triggering on plain alphanumeric identifiers
+            // Allow non-ASCII UTF-8 strings (e.g. unpadded Japanese Base64) while still filtering control-char garbage
             if (!isDataUri && !isImage)
             {
                 bool hasBase64Signals = payload.Contains('=') || payload.Contains('+') || payload.Contains('/') || payload.Contains('-') || payload.Contains('_');
-                if (!hasBase64Signals && decodedText != null && decodedText.All(c => c < 32 || c > 126))
+                if (!hasBase64Signals && !isPrintableText)
+                {
+                    return null;
+                }
+                if (!hasBase64Signals && decodedText != null && decodedText.All(c => char.IsControl(c) || c == '\uFFFD'))
                 {
                     return null;
                 }
@@ -793,11 +805,11 @@ public partial class DataTypeDetector : IDataTypeDetector
                     "Code24",
                     _loc.Get("Action_ToJsonArray_Desc"),
                     () => _executor.CopyText(BuildJsonTableArray(rows), "Toast_JsonArrayCopied"),
-                    Subtitle: $"{rows.Count - 1} objects"
+                    Subtitle: _loc.Get("Sub_Table_Objects", rows.Count - 1)
                 )
             };
 
-            string subtitle = $"{rows.Count} rows × {colCount} cols ({(isTsv ? "TSV" : "CSV")})";
+            string subtitle = _loc.Get("Sub_Table_Dims", rows.Count, colCount, isTsv ? "TSV" : "CSV");
             string snippet = string.Join("\n", rows.Take(3).Select(row => string.Join(isTsv ? "\t" : ", ", row)));
             if (snippet.Length > 180) snippet = snippet[..180] + "…";
 
@@ -950,16 +962,16 @@ public partial class DataTypeDetector : IDataTypeDetector
             if (root.ValueKind == JsonValueKind.Object)
             {
                 int count = root.EnumerateObject().Count();
-                subtitle = $"Object • {count} {(count == 1 ? "property" : "properties")}";
+                subtitle = _loc.Get("Sub_Json_Object", count);
             }
             else if (root.ValueKind == JsonValueKind.Array)
             {
                 int count = root.EnumerateArray().Count();
-                subtitle = $"Array • {count} {(count == 1 ? "item" : "items")}";
+                subtitle = _loc.Get("Sub_Json_Array", count);
             }
             else
             {
-                subtitle = "JSON Value";
+                subtitle = _loc.Get("Sub_Json_Value");
             }
 
             var actions = new List<ActionItem>
@@ -975,7 +987,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                         _executor.CopyTransformedText(formatted, _loc.Get("Toast_FormattedJsonCopied"));
                     },
                     IsPrimary: true,
-                    Subtitle: "Pretty (2-space)"
+                    Subtitle: _loc.Get("Sub_Json_Pretty")
                 ),
                 new(
                     "Action_MinifyJson",
@@ -984,10 +996,10 @@ public partial class DataTypeDetector : IDataTypeDetector
                     _loc.Get("Action_MinifyJson_Desc"),
                     () =>
                     {
-                        string minified = JsonSerializer.Serialize(root);
+                        string minified = JsonSerializer.Serialize(root, MinifiedJsonOptions);
                         _executor.CopyTransformedText(minified, _loc.Get("Toast_MinifiedJsonCopied"));
                     },
-                    Subtitle: "Single line"
+                    Subtitle: _loc.Get("Sub_Json_Minify")
                 )
             };
 
@@ -1048,7 +1060,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                 "Clean24",
                 _loc.Get("Action_CopyCleanUrl_Desc"),
                 () => _executor.CopyTransformedText(cleanUrl, _loc.Get("Toast_CleanUrlCopied")),
-                Subtitle: "Strip tracking params"
+                Subtitle: _loc.Get("Sub_CleanUrl")
             ));
         }
 
@@ -1133,7 +1145,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                     _executor.CopyTransformedText(normalized, _loc.Get("Toast_Copied"));
                 },
                 IsPrimary: true,
-                Subtitle: "2-space indent"
+                Subtitle: _loc.Get("Sub_Code_Indent")
             ),
             new(
                 "Action_EscapeHtml",
@@ -1155,7 +1167,7 @@ public partial class DataTypeDetector : IDataTypeDetector
             Type: ClipDataType.Code,
             RawData: codeText,
             PreviewTitle: _loc.Get("Type_Code"),
-            PreviewSubtitle: $"{lineCount} {(lineCount == 1 ? "line" : "lines")} • {charCount} chars",
+            PreviewSubtitle: _loc.Get("Sub_Code_Stats", lineCount, charCount),
             PreviewBody: snippet,
             AvailableActions: actions,
             BadgeText: "Code"
@@ -1178,7 +1190,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                 _loc.Get("Action_TextStats_Desc"),
                 () => _executor.CopyText($"Chars: {charCount}, Lines: {lineCount}", "Toast_Copied"),
                 IsPrimary: true,
-                Subtitle: $"{charCount:N0} chars • {lineCount:N0} lines"
+                Subtitle: _loc.Get("Sub_Text_LargeStats", charCount, lineCount)
             )
         };
 
@@ -1186,7 +1198,7 @@ public partial class DataTypeDetector : IDataTypeDetector
             Type: ClipDataType.PlainText,
             RawData: text,
             PreviewTitle: _loc.Get("Type_PlainText"),
-            PreviewSubtitle: $"{charCount:N0} chars • {lineCount:N0} lines",
+            PreviewSubtitle: _loc.Get("Sub_Text_LargeStats", charCount, lineCount),
             PreviewBody: snippet,
             AvailableActions: actions,
             BadgeText: "Text"
@@ -1226,7 +1238,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                 _executor.CopyText(stats, "Toast_Copied");
             },
             IsPrimary: actions.Count == 0,
-            Subtitle: $"{charCount} chars • {wordCount} words • {lineCount} lines"
+            Subtitle: _loc.Get("Sub_Text_FullStats", charCount, wordCount, lineCount)
         ));
 
         bool hasLower = trimmed.Any(char.IsLower);
@@ -1283,11 +1295,19 @@ public partial class DataTypeDetector : IDataTypeDetector
             Type: ClipDataType.PlainText,
             RawData: text,
             PreviewTitle: _loc.Get("Type_PlainText"),
-            PreviewSubtitle: $"{charCount} chars • {wordCount} words",
+            PreviewSubtitle: _loc.Get("Sub_Text_Stats", charCount, wordCount),
             PreviewBody: snippet,
             AvailableActions: actions,
             BadgeText: "Text"
         );
+    }
+
+    private static byte ParseCssAlpha(string alphaStr)
+    {
+        bool isPct = alphaStr.EndsWith('%');
+        double val = double.Parse(isPct ? alphaStr[..^1] : alphaStr, CultureInfo.InvariantCulture);
+        if (isPct) val = Math.Clamp(val, 0.0, 100.0) / 100.0;
+        return (byte)Math.Clamp(Math.Round(val * 255.0), 0, 255);
     }
 
     private static int CountLines(string text)
@@ -1484,7 +1504,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                     _loc.Get("Action_CopyJwtPayload_Desc"),
                     () => _executor.CopyTransformedText(formattedPayload, _loc.Get("Toast_Copied")),
                     IsPrimary: true,
-                    Subtitle: "JSON Claims"
+                    Subtitle: _loc.Get("Sub_Jwt_Claims")
                 ),
                 new(
                     "Action_CopyJwtHeader",
@@ -1492,7 +1512,7 @@ public partial class DataTypeDetector : IDataTypeDetector
                     "Code24",
                     _loc.Get("Action_CopyJwtHeader_Desc"),
                     () => _executor.CopyTransformedText(formattedHeader, _loc.Get("Toast_Copied")),
-                    Subtitle: "Header JSON"
+                    Subtitle: _loc.Get("Sub_Jwt_Header")
                 )
             };
 

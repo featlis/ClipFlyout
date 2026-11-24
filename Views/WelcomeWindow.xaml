@@ -74,7 +74,7 @@
 
                 <Button Grid.Column="0"
                         x:Name="BtnCustomize"
-                        Style="{StaticResource FluentButtonStyle}"
+                        Style="{DynamicResource FluentButtonStyle}"
                         Content="詳細をカスタマイズ"
                         HorizontalAlignment="Left"
                         Height="36"
@@ -83,7 +83,7 @@
 
                 <Button Grid.Column="1"
                         x:Name="BtnUseDefaults"
-                        Style="{StaticResource FluentAccentButtonStyle}"
+                        Style="{DynamicResource FluentAccentButtonStyle}"
                         Content="この設定で始める (推奨)"
                         Height="36"
                         Padding="22,0"
