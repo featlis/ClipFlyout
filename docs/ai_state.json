@@ -1,6 +1,6 @@
 {
   "project": "ClipFlyout",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "target_framework": "net10.0-windows10.0.19041.0",
   "dpi_awareness": "PerMonitorV2 (app.manifest)",
   "architecture": {
@@ -14,5 +14,5 @@
       "Custom global Recall hotkey recorder, custom Excluded Apps process list, and Tray Pause Timer (15m / 1h / Resume)"
     ]
   },
-  "test_suite": "168 passing xUnit tests on net10.0-windows10.0.19041.0"
+  "test_suite": "174 passing xUnit tests on net10.0-windows10.0.19041.0"
 }

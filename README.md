@@ -7,7 +7,7 @@
 **Windows 11 Fluent Design に準拠したクリップボード解析・フライアウトユーティリティ**  
 *A privacy-focused clipboard utility with native DWM acrylic flyouts and taskbar integration for Windows.*
 
-[![Version](https://img.shields.io/badge/version-2.1.2-blue.svg)](https://github.com/featlis/ClipFlyout/releases)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/featlis/ClipFlyout/releases)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2011%20%7C%2010%20(x64)-0078D4.svg)](https://github.com/featlis/ClipFlyout)
 [![.NET](https://img.shields.io/badge/.NET-10.0%20WPF-512BD4.svg)](https://dotnet.microsoft.com/)
@@ -83,12 +83,12 @@ ClipFlyout は、クリップボードにコピーしたテキストや画像の
 ### 4. インストール方法
 
 #### インストーラー版（推奨）
-1. [GitHub Releases](https://github.com/featlis/ClipFlyout/releases/latest) から [`ClipFlyout-Setup-v2.1.2.exe`](https://github.com/featlis/ClipFlyout/releases/download/v2.1.2/ClipFlyout-Setup-v2.1.2.exe) をダウンロードします。
+1. [GitHub Releases](https://github.com/featlis/ClipFlyout/releases/latest) から [`ClipFlyout-Setup-v2.2.0.exe`](https://github.com/featlis/ClipFlyout/releases/download/v2.2.0/ClipFlyout-Setup-v2.2.0.exe) をダウンロードします。
 2. インストーラーを実行します（標準ユーザー権限でインストール可能です）。
 3. インストール完了後、初回セットアップ画面が表示されます。
 
 #### ポータブル版（ZIP）
-1. `ClipFlyout-v2.1.2-win-x64.zip` をダウンロードし、任意のフォルダーに解凍します。
+1. `ClipFlyout-v2.2.0-win-x64.zip` をダウンロードし、任意のフォルダーに解凍します。
 2. フォルダー内の `ClipFlyout.exe` を起動します（設定はローカル AppData に保存されます）。
 
 ---
@@ -192,7 +192,7 @@ Because the flyout uses the non-activating window style, your active window focu
 
 ### 4. Installation & Usage
 
-1. Download `ClipFlyout-Setup-v2.1.2.exe` or portable `ClipFlyout-v2.1.2-win-x64.zip` from [GitHub Releases](https://github.com/featlis/ClipFlyout/releases/latest).
+1. Download `ClipFlyout-Setup-v2.2.0.exe` or portable `ClipFlyout-v2.2.0-win-x64.zip` from [GitHub Releases](https://github.com/featlis/ClipFlyout/releases/latest).
 2. Run the installer or extract the portable ZIP.
 3. Copy any supported content (`Ctrl + C`).
 4. The flyout appears near the designated screen corner without stealing keyboard focus. Use `Esc`, `↑`/`↓`, `Enter`, or `1`–`9` for fast keyboard control.
@@ -214,7 +214,7 @@ Because the flyout uses the non-activating window style, your active window focu
 # ソリューションのビルド
 dotnet build ClipFlyout.csproj -c Release
 
-# 単体テストの実行 (168件のテストスイート)
+# 単体テストの実行 (174件のテストスイート)
 dotnet test tests/ClipFlyout.Tests/ClipFlyout.Tests.csproj -c Release
 ```
 
@@ -222,12 +222,12 @@ dotnet test tests/ClipFlyout.Tests/ClipFlyout.Tests.csproj -c Release
 
 ```powershell
 # バージョンを指定してインストーラーとポータブルZIPを生成
-powershell -ExecutionPolicy Bypass -File scripts\build-installer.ps1 -Version 2.1.2
+powershell -ExecutionPolicy Bypass -File scripts\build-installer.ps1 -Version 2.2.0
 ```
 
 実行後、`dist/` ディレクトリに以下のファイルが出力されます：
-- `dist/ClipFlyout-Setup-v2.1.2.exe`（Inno Setup インストーラー）
-- `dist/ClipFlyout-v2.1.2-win-x64.zip`（自己完結型ポータブルパッケージ）
+- `dist/ClipFlyout-Setup-v2.2.0.exe`（Inno Setup インストーラー）
+- `dist/ClipFlyout-v2.2.0-win-x64.zip`（自己完結型ポータブルパッケージ）
 - `dist/checksums-sha256.txt`（SHA-256 チェックサム一覧）
 
 ### アーキテクチャ概要
